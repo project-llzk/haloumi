@@ -1,0 +1,15 @@
+[package]
+name = "haloumi-core"
+description = "Core types and traits of the Halo2 frontend for LLZK"
+version = {workspace = true}
+authors = {workspace = true}
+edition = {workspace = true}
+rust-version = {workspace = true}
+readme = "README.md"
+repository = {workspace = true}
+license-file = {workspace = true}
+
+[dependencies]
+ff.workspace = true 
+thiserror.workspace = true
+

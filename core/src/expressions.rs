@@ -77,33 +77,33 @@ where
     /// Output of the evaluation.
     type Output;
 
-    /// Evaluate the [`Expression::Constant`] case.
+    /// Evaluate the Expression::Constant case.
     fn constant(&self, f: &F) -> Self::Output;
 
-    /// Evaluate the [`Expression::Selector`] case.
+    /// Evaluate the Expression::Selector case.
     fn selector(&self, selector: &E::Selector) -> Self::Output;
 
-    /// Evaluate the [`Expression::Fixed`] case.
+    /// Evaluate the Expression::Fixed case.
     fn fixed(&self, fixed_query: &E::FixedQuery) -> Self::Output;
 
-    /// Evaluate the [`Expression::Advice`] case.
+    /// Evaluate the Expression::Advice case.
     fn advice(&self, advice_query: &E::AdviceQuery) -> Self::Output;
 
-    /// Evaluate the [`Expression::Instance`] case.
+    /// Evaluate the Expression::Instance case.
     fn instance(&self, instance_query: &E::InstanceQuery) -> Self::Output;
 
-    /// Evaluate the [`Expression::Challenge`] case.
+    /// Evaluate the Expression::Challenge case.
     fn challenge(&self, challenge: &E::Challenge) -> Self::Output;
 
-    /// Evaluate the [`Expression::Negated`] case.
+    /// Evaluate the Expression::Negated case.
     fn negated(&self, expr: Self::Output) -> Self::Output;
 
-    /// Evaluate the [`Expression::Sum`] case.
+    /// Evaluate the Expression::Sum case.
     fn sum(&self, lhs: Self::Output, rhs: Self::Output) -> Self::Output;
 
-    /// Evaluate the [`Expression::Product`] case.
+    /// Evaluate the Expression::Product case.
     fn product(&self, lhs: Self::Output, rhs: Self::Output) -> Self::Output;
 
-    /// Evaluate the [`Expression::Scaled`] case.
+    /// Evaluate the Expression::Scaled case.
     fn scaled(&self, lhs: Self::Output, rhs: &F) -> Self::Output;
 }

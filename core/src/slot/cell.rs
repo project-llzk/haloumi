@@ -171,8 +171,8 @@ mod tests {
         CellRef::absolute(col, base_offset) != CellRef::relative(col_1, base, offset)
     }
 
-    /// Tests that a relative reference and an absolute cell that point to the same column in different
-    /// rows are not equal.
+    /// Tests that a relative reference and an absolute cell that point to the same column in
+    /// different rows are not equal.
     #[quickcheck]
     fn diff_row_absolute_and_relative_not_equal_1(col: usize, base: usize, offset: usize) -> bool {
         let _ = TestLogger::init(LevelFilter::Debug, Config::default());
@@ -182,8 +182,8 @@ mod tests {
         CellRef::absolute(col, base_offset) != CellRef::relative(col, base + 1, offset)
     }
 
-    /// Tests that a relative reference and an absolute cell that point to the same column in different
-    /// rows are not equal.
+    /// Tests that a relative reference and an absolute cell that point to the same column in
+    /// different rows are not equal.
     #[quickcheck]
     fn diff_row_absolute_and_relative_not_equal_2(col: usize, base: usize, offset: usize) -> bool {
         let _ = TestLogger::init(LevelFilter::Debug, Config::default());
@@ -224,8 +224,8 @@ mod tests {
         hash(CellRef::absolute(col, base_offset)) != hash(CellRef::relative(col_1, base, offset))
     }
 
-    /// Tests that a relative reference and an absolute cell that point to the same column in different
-    /// rows are not equal.
+    /// Tests that a relative reference and an absolute cell that point to the same column in
+    /// different rows are not equal.
     #[quickcheck]
     fn diff_row_absolute_and_relative_not_equal_1_hash(
         col: usize,
@@ -240,8 +240,8 @@ mod tests {
         hash(CellRef::absolute(col, base_offset)) != hash(CellRef::relative(col, base_1, offset))
     }
 
-    /// Tests that a relative reference and an absolute cell that point to the same column in different
-    /// rows are not equal.
+    /// Tests that a relative reference and an absolute cell that point to the same column in
+    /// different rows are not equal.
     #[quickcheck]
     fn diff_row_absolute_and_relative_not_equal_2_hash(
         col: usize,
@@ -256,7 +256,8 @@ mod tests {
         hash(CellRef::absolute(col, base_offset)) != hash(CellRef::relative(col, base, offset_1))
     }
 
-    /// Tests that two relative references with the same column and offset are symbolically equivalent.
+    /// Tests that two relative references with the same column and offset are symbolically
+    /// equivalent.
     #[quickcheck]
     fn same_relative_sym_eqv(col: usize, base: usize, offset: usize) -> bool {
         let _ = TestLogger::init(LevelFilter::Debug, Config::default());

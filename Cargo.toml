@@ -16,4 +16,8 @@ license-file = "LICENSE"
 [workspace.dependencies]
 ff = "0.13"
 thiserror = "2.0"
+internment = "0.8.6"
+num-bigint = "0.4"
+log = "0.4"
+eqv = "0.1"
 

@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: 
+      - main
+
+jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        BUILD_TARGET: 
+          - release
+          - dev
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache cargo crates
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.BUILD_TARGET }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Run tests for `core`
+        run: cargo test --profile ${{ matrix.BUILD_TARGET }} --all-features -p haloumi-core
+
+  doc-links:
+    if: github.event.pull_request.draft == false
+    name: Intra-doc links
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: 'Install rust-toolchain.toml'
+        run: rustup toolchain install
+      - name: cargo fetch
+        run: cargo fetch
+
+      # Ensure intra-documentation links all resolve correctly
+      # Requires #![deny(intra_doc_link_resolution_failure)] in crates.
+      - name: Check intra-doc links
+        run: cargo doc --workspace --document-private-items --no-deps
+
+  fmt:
+    if: github.event.pull_request.draft == false
+    name: Rustfmt
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: rustup component add rustfmt --toolchain nightly
+      - run: cargo +nightly fmt --all -- --check
+
+  clippy:
+    if: github.event.pull_request.draft == false
+    name: Clippy
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: 'Install rust-toolchain.toml'
+        run: rustup toolchain install
+
+      - name: Run Clippy on `core`
+        if: always()
+        run: cargo clippy -p haloumi-core --all-targets --all-features -- -Dwarnings
+

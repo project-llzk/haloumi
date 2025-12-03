@@ -21,7 +21,7 @@ pub trait ConstraintSystemInfo<F: Field> {
     fn gates(&self) -> Vec<&dyn GateInfo<Self::Polynomial>>;
 
     /// Returns a list with data about the lookups defined in the system.
-    fn lookups<'cs>(&'cs self) -> Vec<LookupData<'cs, Self::Polynomial>>;
+    fn lookups(&self) -> Vec<LookupData<Self::Polynomial>>;
 }
 
 /// Trait for querying information about the a gate in the constraint system.

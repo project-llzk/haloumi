@@ -5,9 +5,9 @@
 use std::ops::Deref;
 
 use ff::Field;
+use thiserror::Error;
 
 use crate::{
-    error::Error,
     expressions::ExprBuilder,
     info_traits::CreateQuery,
     query::{Advice, Fixed, Instance},
@@ -97,7 +97,7 @@ impl From<Column<Fixed>> for Column<Any> {
 }
 
 impl TryFrom<Column<Any>> for Column<Fixed> {
-    type Error = Error;
+    type Error = TableError;
 
     fn try_from(value: Column<Any>) -> Result<Self, Self::Error> {
         match value.column_type {
@@ -105,7 +105,7 @@ impl TryFrom<Column<Any>> for Column<Fixed> {
                 index: value.index,
                 column_type: Fixed,
             }),
-            c => Err(Error::ExpectedFixed(c)),
+            c => Err(TableError::ExpectedFixed(c)),
         }
     }
 }
@@ -120,7 +120,7 @@ impl From<Column<Advice>> for Column<Any> {
 }
 
 impl TryFrom<Column<Any>> for Column<Advice> {
-    type Error = Error;
+    type Error = TableError;
 
     fn try_from(value: Column<Any>) -> Result<Self, Self::Error> {
         match value.column_type {
@@ -128,7 +128,7 @@ impl TryFrom<Column<Any>> for Column<Advice> {
                 index: value.index,
                 column_type: Advice,
             }),
-            c => Err(Error::ExpectedAdvice(c)),
+            c => Err(TableError::ExpectedAdvice(c)),
         }
     }
 }
@@ -143,7 +143,7 @@ impl From<Column<Instance>> for Column<Any> {
 }
 
 impl TryFrom<Column<Any>> for Column<Instance> {
-    type Error = Error;
+    type Error = TableError;
 
     fn try_from(value: Column<Any>) -> Result<Self, Self::Error> {
         match value.column_type {
@@ -151,7 +151,7 @@ impl TryFrom<Column<Any>> for Column<Instance> {
                 index: value.index,
                 column_type: Instance,
             }),
-            c => Err(Error::ExpectedInstance(c)),
+            c => Err(TableError::ExpectedInstance(c)),
         }
     }
 }
@@ -212,4 +212,18 @@ impl From<usize> for RegionIndex {
     fn from(value: usize) -> Self {
         Self(value)
     }
+}
+
+/// Errors related to the PLONK table.
+#[derive(Error, Copy, Clone, Debug)]
+pub enum TableError {
+    /// Unexpected column type when Fixed was expected.
+    #[error("Expected Any::Fixed. Got {0:?}")]
+    ExpectedFixed(Any),
+    /// Unexpected column type when Advice was expected.
+    #[error("Expected Any::Advice. Got {0:?}")]
+    ExpectedAdvice(Any),
+    /// Unexpected column type when Instance was expected.
+    #[error("Expected Any::Instance. Got {0:?}")]
+    ExpectedInstance(Any),
 }

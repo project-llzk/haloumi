@@ -4,7 +4,7 @@
 
 pub use ::eqv::*;
 
-/// Equivalence relation on symbolic equivalence.
+/// Symbolic equivalence relation.
 ///
 /// Symbolic in this context means that when comparing
 /// entities information that does not affect the semantics

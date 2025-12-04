@@ -4,23 +4,23 @@ use std::fmt;
 
 use crate::{
     eqv::{EqvRelation, SymbolicEqv},
-    slot::{arg::ArgNo, cell::CellRef, field::FieldId},
+    slot::{arg::ArgNo, cell::CellRef, output::OutputId},
 };
 
 pub mod arg;
 pub mod cell;
-pub mod field;
+pub mod output;
 
 /// A slot represents storage locations in a circuit.
 ///
-/// A slot can represent IO (Arg, Field, Challenge, ...) or cells in the PLONK table
+/// A slot can represent IO (Arg, Output, Challenge, ...) or cells in the PLONK table
 /// (Advice, Fixed, TableLookup).
 #[derive(Clone, Copy, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub enum Slot {
     /// Points to the n-th input argument
     Arg(ArgNo),
     /// Points to the n-th output.
-    Field(FieldId),
+    Output(OutputId),
     /// Points to an advice cell.
     Advice(CellRef),
     /// Points to a fixed cell.
@@ -76,7 +76,7 @@ impl EqvRelation<Slot> for SymbolicEqv {
     fn equivalent(lhs: &Slot, rhs: &Slot) -> bool {
         match (lhs, rhs) {
             (Slot::Arg(lhs), Slot::Arg(rhs)) => lhs == rhs,
-            (Slot::Field(lhs), Slot::Field(rhs)) => lhs == rhs,
+            (Slot::Output(lhs), Slot::Output(rhs)) => lhs == rhs,
             (Slot::Advice(lhs), Slot::Advice(rhs)) => Self::equivalent(lhs, rhs),
             (Slot::Fixed(lhs), Slot::Fixed(rhs)) => Self::equivalent(lhs, rhs),
             (Slot::TableLookup(_, col0, row0, _, _), Slot::TableLookup(_, col1, row1, _, _)) => {
@@ -97,7 +97,7 @@ impl std::fmt::Debug for Slot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Arg(arg) => write!(f, "{arg:?}"),
-            Self::Field(field) => write!(f, "{field:?}"),
+            Self::Output(field) => write!(f, "{field:?}"),
             Self::Advice(c) => write!(f, "adv{c:?}"),
             Self::Fixed(c) => write!(f, "fix{c:?}"),
             Self::TableLookup(id, col, row, idx, region_idx) => {
@@ -114,7 +114,7 @@ impl std::fmt::Display for Slot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Arg(arg) => write!(f, "{arg}"),
-            Self::Field(field) => write!(f, "{field}"),
+            Self::Output(field) => write!(f, "{field}"),
             Self::Advice(c) => write!(f, "adv{c}"),
             Self::Fixed(c) => write!(f, "fix{c}"),
             Self::TableLookup(id, col, row, idx, region_idx) => {
@@ -133,8 +133,8 @@ impl From<ArgNo> for Slot {
     }
 }
 
-impl From<FieldId> for Slot {
-    fn from(value: FieldId) -> Self {
-        Self::Field(value)
+impl From<OutputId> for Slot {
+    fn from(value: OutputId) -> Self {
+        Self::Output(value)
     }
 }

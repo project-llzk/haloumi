@@ -3,35 +3,66 @@
 use ff::PrimeField;
 use internment::Intern;
 use num_bigint::BigUint;
-use std::ops::{Add, Deref, Mul, Rem, RemAssign, Sub};
+use std::ops::{Add, AddAssign, Deref, Mul, MulAssign, Rem, RemAssign, Sub, SubAssign};
 
-/// Lightweight representation of a constant value.
-///
-/// The actual value is interned which allows this type to be [`Copy`] and
-/// avoids duplication of commonly used values.
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Felt(Intern<BigUint>);
+/// Interned value of the prime of a finite field.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Prime(Intern<BigUint>);
 
-impl Felt {
-    /// Creates a new felt from an implementation of [`PrimeField`].
-    pub fn new<F: PrimeField>(f: F) -> Self {
-        Self(Intern::new(BigUint::from_bytes_le(f.to_repr().as_ref())))
-    }
-
-    /// Creates a new felt whose value is the prime in the [`PrimeField`].
-    pub fn prime<F: PrimeField>() -> Self {
+impl Prime {
+    /// Creates the prime from the given [`PrimeField`].
+    fn new<F: PrimeField>() -> Self {
         let f = -F::ONE;
         Self(Intern::new(
             BigUint::from_bytes_le(f.to_repr().as_ref()) + 1usize,
         ))
     }
 
+    fn value(&self) -> &BigUint {
+        self.0.as_ref()
+    }
+}
+
+/// Lightweight representation of a constant value.
+///
+/// The actual value is interned which allows this type to be [`Copy`] and
+/// avoids duplication of commonly used values.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Felt {
+    value: Intern<BigUint>,
+    prime: Prime,
+}
+
+impl Felt {
+    /// Creates a new felt from an implementation of [`PrimeField`].
+    pub fn new<F: PrimeField>(f: F) -> Self {
+        Self {
+            value: Intern::new(BigUint::from_bytes_le(f.to_repr().as_ref())),
+            prime: Prime::new::<F>(),
+        }
+    }
+
+    /// Returns the value of the field prime.
+    pub fn prime(&self) -> Prime {
+        self.prime
+    }
+
     /// Creates a felt from anything that can become a [`BigUint`].
     ///
     /// Use this method only during testing.
     #[cfg(test)]
-    pub fn new_from<I: Into<BigUint>>(i: I) -> Self {
-        Self(Intern::new(i.into()))
+    pub fn new_from<F: PrimeField>(i: impl Into<BigUint>) -> Self {
+        Self {
+            value: Intern::new(i.into()),
+            prime: Prime::new::<F>(),
+        }
+    }
+
+    fn replace(self, value: BigUint) -> Self {
+        Self {
+            value: Intern::new(value % self.prime.value()),
+            prime: self.prime,
+        }
     }
 }
 
@@ -41,24 +72,19 @@ impl std::fmt::Debug for Felt {
     }
 }
 
-impl<T: Into<BigUint>> From<T> for Felt {
-    fn from(value: T) -> Self {
-        Self(Intern::new(value.into()))
-    }
-}
-
 impl<T> PartialEq<T> for Felt
 where
     T: Into<BigUint> + Copy,
 {
     fn eq(&self, other: &T) -> bool {
-        self.as_ref().eq(&(*other).into())
+        let other: BigUint = (*other).into() % self.prime.value();
+        self.as_ref().eq(&other)
     }
 }
 
 impl AsRef<BigUint> for Felt {
     fn as_ref(&self) -> &BigUint {
-        self.0.as_ref()
+        self.value.as_ref()
     }
 }
 
@@ -73,47 +99,92 @@ impl Deref for Felt {
 impl Rem for Felt {
     type Output = Self;
 
+    /// # Panics
+    ///
+    /// If the primes are different.
     fn rem(self, rhs: Self) -> Self::Output {
+        assert_eq!(self.prime, rhs.prime);
         if self < rhs {
             return self;
         }
-        ((*self).clone() % (*rhs).clone()).into()
+        self.replace(self.as_ref() % rhs.as_ref())
     }
 }
 
 impl RemAssign for Felt {
+    /// # Panics
+    ///
+    /// If the primes are different.
     fn rem_assign(&mut self, rhs: Self) {
-        if *self > rhs {
-            *self = *self % rhs;
-        }
+        *self = *self % rhs;
     }
 }
 
 impl Sub for Felt {
-    type Output = Option<Self>;
+    type Output = Self;
 
+    /// # Panics
+    ///
+    /// If the primes are different.
     fn sub(self, rhs: Self) -> Self::Output {
+        assert_eq!(self.prime, rhs.prime);
         if self < rhs {
-            return None;
+            let diff = rhs.as_ref() - self.as_ref();
+            return self.replace(self.prime.value() - diff);
         }
 
-        Some(((*self).clone() - (*rhs).clone()).into())
+        self.replace(self.as_ref() - rhs.as_ref())
+    }
+}
+
+impl SubAssign for Felt {
+    /// # Panics
+    ///
+    /// If the primes are different.
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = *self - rhs;
     }
 }
 
 impl Add for Felt {
     type Output = Felt;
 
+    /// # Panics
+    ///
+    /// If the primes are different.
     fn add(self, rhs: Self) -> Self::Output {
-        ((*self).clone() + (*rhs).clone()).into()
+        assert_eq!(self.prime, rhs.prime);
+        self.replace(self.as_ref() + rhs.as_ref())
+    }
+}
+
+impl AddAssign for Felt {
+    /// # Panics
+    ///
+    /// If the primes are different.
+    fn add_assign(&mut self, rhs: Self) {
+        *self = *self + rhs;
     }
 }
 
 impl Mul for Felt {
     type Output = Felt;
 
+    /// # Panics
+    ///
+    /// If the primes are different.
     fn mul(self, rhs: Self) -> Self::Output {
-        ((*self).clone() * (*rhs).clone()).into()
+        assert_eq!(self.prime, rhs.prime);
+        self.replace(self.as_ref() * rhs.as_ref())
+    }
+}
+
+impl MulAssign for Felt {
+    /// # Panics
+    ///
+    /// If the primes are different.
+    fn mul_assign(&mut self, rhs: Self) {
+        *self = *self * rhs;
     }
 }
 

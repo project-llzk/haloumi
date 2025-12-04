@@ -7,11 +7,11 @@ pub enum CmpOp {
     Eq,
     /// Less than
     Lt,
-    /// Less of equal than
+    /// Less than or equal
     Le,
     /// Greater than
     Gt,
-    /// Greater or equal than
+    /// Greater than or equal
     Ge,
     /// Not equal
     Ne,

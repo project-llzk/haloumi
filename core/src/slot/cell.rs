@@ -2,9 +2,11 @@
 
 use std::fmt;
 
+use thiserror::Error;
+
 use crate::eqv::{EqvRelation, SymbolicEqv};
 
-/// Used for comparing cell's offsets.
+/// Used for comparing cells' offsets.
 #[derive(Copy, Clone, Eq, PartialEq)]
 enum Offset {
     Rel(usize),
@@ -63,22 +65,40 @@ impl CellRef {
         self.base.is_none()
     }
 
-    /// If the reference is absolute converts the reference into a relative reference wrt the base.
+    /// Tries to convert an absolute reference into a relative reference w.r.t. the given base.
     ///
-    /// The base has to be less or equal than the absolute row number, the function returns None
-    /// otherwise.
-    /// If the reference is relative return None.
-    pub fn relativize(&self, base: usize) -> Option<Self> {
+    /// For a non-panicking version see [`try_relativize`](CellRef::try_relativize).
+    ///
+    /// # Panics
+    ///
+    /// If the base is larger than the row number or if the reference is already relative.
+    pub fn relativize(&self, base: usize) -> Self {
+        self.try_relativize(base)
+            .map_err(|e| panic!("{e}"))
+            .unwrap()
+    }
+
+    /// Tries to convert an absolute reference into a relative reference w.r.t. the given base.
+    ///
+    /// Fails if the base is larger than the row number or if the reference is already relative.
+    pub fn try_relativize(&self, base: usize) -> Result<Self, CellError> {
         match self.offset() {
             Offset::Abs(offset) => {
                 if base > offset {
-                    return None;
+                    return Err(CellError::BaseAfterOffset { base, offset });
                 }
                 let offset = offset - base;
-                Some(Self::relative(self.col, base, offset))
+                Ok(Self::relative(self.col, base, offset))
             }
-            Offset::Rel(_) => None,
+            Offset::Rel(_) => Err(CellError::AttemptedRelativizeRelativeCell),
         }
+    }
+
+    /// Converts the cell reference to an absolute reference.
+    ///
+    /// If the reference is already absolute it does nothing.
+    pub fn absolutize(&self) -> Self {
+        Self::absolute(self.col, self.row())
     }
 }
 
@@ -121,10 +141,28 @@ impl EqvRelation<CellRef> for SymbolicEqv {
             && (
                 // Either they point to the same cell
                 lhs.row() == rhs.row() ||
-                // Or they relativelly point to the same cell
+                // Or they relatively point to the same cell
                 lhs.offset() == rhs.offset()
             )
     }
+}
+
+/// Errors related to cells.
+#[derive(Error, Copy, Clone, Debug)]
+pub enum CellError {
+    /// Happens if during [`CellRef::relativize`](crate::slot::cell::CellRef::relativize) the base
+    /// was larger than the reference's offset.
+    #[error("failed to relativize cell reference: offset {offset} points to a row before {base}")]
+    BaseAfterOffset {
+        /// Base the relativization as attempted on.
+        base: usize,
+        /// The cell's offset.
+        offset: usize,
+    },
+    /// Happens when attempting to [`CellRef::relativize`](crate::slot::cell::CellRef::relativize) a
+    /// relative reference.
+    #[error("cannot relativize a relative cell")]
+    AttemptedRelativizeRelativeCell,
 }
 
 #[cfg(test)]

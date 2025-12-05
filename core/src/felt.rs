@@ -193,3 +193,145 @@ impl std::fmt::Display for Felt {
         write!(f, "{}", self.as_ref())
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use ff::PrimeField;
+    use halo2curves::bn256::Fq;
+    use num_bigint::BigInt;
+    use quickcheck_macros::quickcheck;
+
+    /// Implementation of BabyBear used for testing the [`Felt`](super::Felt) type.
+    #[derive(Hash, PrimeField)]
+    #[PrimeFieldModulus = "2013265921"]
+    #[PrimeFieldGenerator = "31"]
+    #[PrimeFieldReprEndianness = "little"]
+    pub struct BabyBear([u64; 1]);
+    const BABYBEAR: u32 = 2013265921;
+
+    #[quickcheck]
+    fn partial_eq_for_other_types(x: u32) {
+        let v: u32 = x % BABYBEAR;
+        let v_f = Felt::new(BabyBear::from(x as u64));
+        if x < BABYBEAR {
+            assert_eq!(v, x);
+        } else {
+            assert_ne!(v, x);
+        }
+        assert_eq!(v_f, x);
+    }
+
+    #[quickcheck]
+    fn mul(x: u32, y: u32) {
+        let r = Felt::new(BabyBear::from(x as u64)) * Felt::new(BabyBear::from(y as u64));
+        let e = (BigUint::from(x) * BigUint::from(y)) % BigUint::from(BABYBEAR);
+
+        assert_eq!(r.as_ref(), &e);
+    }
+
+    #[quickcheck]
+    fn sum(x: u32, y: u32) {
+        let r = Felt::new(BabyBear::from(x as u64)) + Felt::new(BabyBear::from(y as u64));
+        let e = (BigUint::from(x) + BigUint::from(y)) % BigUint::from(BABYBEAR);
+
+        assert_eq!(r.as_ref(), &e);
+    }
+
+    #[quickcheck]
+    fn sub(x: u32, y: u32) {
+        let r = Felt::new(BabyBear::from(x as u64)) - Felt::new(BabyBear::from(y as u64));
+        let e;
+        if x >= y {
+            e = (BigUint::from(x) - BigUint::from(y)) % BigUint::from(BABYBEAR);
+        } else {
+            let b = BigInt::from(BABYBEAR);
+            let mut i = BigInt::from(x) - BigInt::from(y);
+            while i.sign() == num_bigint::Sign::Minus {
+                i += &b;
+            }
+            e = i.try_into().unwrap();
+        }
+
+        assert_eq!(r.as_ref(), &e);
+    }
+
+    #[quickcheck]
+    fn same_prime_eq(i: u64) {
+        let x = Felt::new(BabyBear::from(i));
+        let y = Felt::new(BabyBear::from(i));
+        assert_eq!(x, y);
+    }
+
+    #[quickcheck]
+    fn different_primes_eq(i: u64) {
+        let x = Felt::new(BabyBear::from(i));
+        let y = Felt::new(Fq::from(i));
+        assert_ne!(x, y);
+    }
+
+    #[quickcheck]
+    #[should_panic]
+    fn different_primes_sum(a: u64, b: u64) {
+        let a = Felt::new(BabyBear::from(a));
+        let b = Felt::new(Fq::from(b));
+        let _ = a + b;
+    }
+
+    #[quickcheck]
+    #[should_panic]
+    fn different_primes_sum_assign(a: u64, b: u64) {
+        let mut a = Felt::new(BabyBear::from(a));
+        let b = Felt::new(Fq::from(b));
+        a += b;
+    }
+
+    #[quickcheck]
+    #[should_panic]
+    fn different_primes_mul(a: u64, b: u64) {
+        let a = Felt::new(BabyBear::from(a));
+        let b = Felt::new(Fq::from(b));
+        let _ = a * b;
+    }
+
+    #[quickcheck]
+    #[should_panic]
+    fn different_primes_mul_assign(a: u64, b: u64) {
+        let mut a = Felt::new(BabyBear::from(a));
+        let b = Felt::new(Fq::from(b));
+        a *= b;
+    }
+
+    #[quickcheck]
+    #[should_panic]
+    fn different_primes_sub(a: u64, b: u64) {
+        let a = Felt::new(BabyBear::from(a));
+        let b = Felt::new(Fq::from(b));
+        let _ = a - b;
+    }
+
+    #[quickcheck]
+    #[should_panic]
+    fn different_primes_sub_assign(a: u64, b: u64) {
+        let mut a = Felt::new(BabyBear::from(a));
+        let b = Felt::new(Fq::from(b));
+        a -= b;
+    }
+
+    #[quickcheck]
+    #[should_panic]
+    fn different_primes_rem(a: u64, b: u64) {
+        let a = Felt::new(BabyBear::from(a));
+        let b = Felt::new(Fq::from(b));
+        let _ = a % b;
+    }
+
+    #[quickcheck]
+    #[should_panic]
+    fn different_primes_rem_assign(a: u64, b: u64) {
+        let mut a = Felt::new(BabyBear::from(a));
+        let b = Felt::new(Fq::from(b));
+        a %= b;
+    }
+}

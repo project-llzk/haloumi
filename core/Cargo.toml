@@ -10,6 +10,19 @@ repository = {workspace = true}
 license-file = {workspace = true}
 
 [dependencies]
-ff.workspace = true 
+ff.workspace = true
 thiserror.workspace = true
+eqv.workspace = true
+internment.workspace = true
+num-bigint.workspace = true
+log.workspace = true
+
+
+[dev-dependencies]
+simplelog = {version = "0.12", features = ["test"] }
+similar-asserts = "1.7"
+quickcheck = "1"
+quickcheck_macros = "1"
+ff = { workspace = true, features = ["derive"] }
+halo2curves = "0.9"
 

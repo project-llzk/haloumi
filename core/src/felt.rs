@@ -204,7 +204,7 @@ mod tests {
     use quickcheck_macros::quickcheck;
 
     /// Implementation of BabyBear used for testing the [`Felt`](super::Felt) type.
-    #[derive(Hash, PrimeField)]
+    #[derive(PrimeField)]
     #[PrimeFieldModulus = "2013265921"]
     #[PrimeFieldGenerator = "31"]
     #[PrimeFieldReprEndianness = "little"]
@@ -242,17 +242,16 @@ mod tests {
     #[quickcheck]
     fn sub(x: u32, y: u32) {
         let r = Felt::new(BabyBear::from(x as u64)) - Felt::new(BabyBear::from(y as u64));
-        let e;
-        if x >= y {
-            e = (BigUint::from(x) - BigUint::from(y)) % BigUint::from(BABYBEAR);
+        let e = if x >= y {
+            (BigUint::from(x) - BigUint::from(y)) % BigUint::from(BABYBEAR)
         } else {
             let b = BigInt::from(BABYBEAR);
             let mut i = BigInt::from(x) - BigInt::from(y);
             while i.sign() == num_bigint::Sign::Minus {
                 i += &b;
             }
-            e = i.try_into().unwrap();
-        }
+            i.try_into().unwrap()
+        };
 
         assert_eq!(r.as_ref(), &e);
     }

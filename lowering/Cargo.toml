@@ -1,0 +1,17 @@
+[package]
+name = "haloumi-lowering"
+description = "Core traits for enabling types to integrate with the codegen module."
+categories = {workspace = true}
+version = {workspace = true}
+authors = {workspace = true}
+edition = {workspace = true}
+rust-version = {workspace = true}
+readme = "README.md"
+repository = {workspace = true}
+license-file = {workspace = true}
+keywords = {workspace = true}
+
+[dependencies]
+ff = { workspace = true }
+haloumi-core  = { version = "0.2.2", path = "../core" }
+thiserror = { workspace = true }

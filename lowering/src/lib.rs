@@ -3,7 +3,7 @@
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]
 
-use haloumi_core::{cmp::CmpOp, felt::Felt, func::FuncIO};
+use haloumi_core::{cmp::CmpOp, felt::Felt, slot::Slot};
 
 pub mod error;
 pub mod lowerable;
@@ -43,16 +43,16 @@ pub trait Lowering: ExprLowering {
     /// Generates IR representing a comment with the given text.
     fn generate_comment(&self, s: String) -> Result<()>;
 
-    /// Generates an statement that hints that the given [`FuncIO`] must be assumed to be
+    /// Generates an statement that hints that the given [`Slot`] must be assumed to be
     /// deterministic.
-    fn generate_assume_deterministic(&self, func_io: FuncIO) -> Result<()>;
+    fn generate_assume_deterministic(&self, slot: Slot) -> Result<()>;
 
     /// Generates a call to another group.
     fn generate_call(
         &self,
         name: &str,
         selectors: &[Self::CellOutput],
-        outputs: &[FuncIO],
+        outputs: &[Slot],
     ) -> Result<()>;
 
     /// Generates an assertion using the given expression.
@@ -139,21 +139,21 @@ pub trait ExprLowering {
     fn lower_iff(&self, lhs: &Self::CellOutput, rhs: &Self::CellOutput)
     -> Result<Self::CellOutput>;
 
-    /// Returns a [`FuncIO`] representing the `i`-th input.
-    fn lower_function_input(&self, i: usize) -> FuncIO;
+    /// Returns a [`Slot`] representing the `i`-th input.
+    fn lower_function_input(&self, i: usize) -> Slot;
 
-    /// Returns a [`FuncIO`] representing the `o`-th output.
-    fn lower_function_output(&self, o: usize) -> FuncIO;
+    /// Returns a [`Slot`] representing the `o`-th output.
+    fn lower_function_output(&self, o: usize) -> Slot;
 
-    /// Returns a list of [`FuncIO`] representing the input indices in the iterator.
-    fn lower_function_inputs(&self, ins: impl IntoIterator<Item = usize>) -> Vec<FuncIO> {
+    /// Returns a list of [`Slot`] representing the input indices in the iterator.
+    fn lower_function_inputs(&self, ins: impl IntoIterator<Item = usize>) -> Vec<Slot> {
         ins.into_iter()
             .map(|i| self.lower_function_input(i))
             .collect()
     }
 
-    /// Returns a list of [`FuncIO`] representing the output indices in the iterator.
-    fn lower_function_outputs(&self, outs: impl IntoIterator<Item = usize>) -> Vec<FuncIO> {
+    /// Returns a list of [`Slot`] representing the output indices in the iterator.
+    fn lower_function_outputs(&self, outs: impl IntoIterator<Item = usize>) -> Vec<Slot> {
         outs.into_iter()
             .map(|o| self.lower_function_output(o))
             .collect()
@@ -162,5 +162,5 @@ pub trait ExprLowering {
     /// Emits an expression representing the given IO.
     fn lower_funcio<IO>(&self, io: IO) -> Result<Self::CellOutput>
     where
-        IO: Into<FuncIO>;
+        IO: Into<Slot>;
 }

@@ -1,12 +1,13 @@
 [workspace]
 members = [ 
   "core",
-  "lowering"
+  "lowering",
+  "ir"
 ]
 resolver = "2"
 
 [workspace.package]
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Daniel Dominguez (Veridise) <daniel@veridise.com>"]
 edition = "2024"
 rust-version = "1.85"

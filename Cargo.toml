@@ -1,5 +1,5 @@
 [workspace]
-members = [ 
+members = [
   "core"
 ]
 resolver = "2"
@@ -10,7 +10,7 @@ authors = ["Daniel Dominguez (Veridise) <daniel@veridise.com>"]
 edition = "2024"
 rust-version = "1.85"
 readme = "README.md"
-repository = "https://github.com/Veridise/haloumi"
+repository = "https://github.com/project-llzk/haloumi"
 license-file = "LICENSE"
 
 [workspace.dependencies]

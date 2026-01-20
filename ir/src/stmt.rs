@@ -57,14 +57,16 @@ impl<T: PartialEq> PartialEq for IRStmt<T> {
     ///     Seq([a, Seq([b, c])]) == Seq([a, b, c])
     ///     a == Seq([a])
     fn eq(&self, other: &Self) -> bool {
-        std::iter::zip(self.iter(), other.iter()).all(|(lhs, rhs)| match (lhs.0, rhs.0) {
-            (IRStmt::ConstraintCall(lhs), IRStmt::ConstraintCall(rhs)) => lhs.eq(rhs),
-            (IRStmt::Constraint(lhs), IRStmt::Constraint(rhs)) => lhs.eq(rhs),
-            (IRStmt::Comment(lhs), IRStmt::Comment(rhs)) => lhs.eq(rhs),
-            (IRStmt::AssumeDeterministic(lhs), IRStmt::AssumeDeterministic(rhs)) => lhs.eq(rhs),
-            (IRStmt::Assert(lhs), IRStmt::Assert(rhs)) => lhs.eq(rhs),
-            (IRStmt::PostCond(lhs), IRStmt::PostCond(rhs)) => lhs.eq(rhs),
-            (IRStmt::Seq(_), _) | (_, IRStmt::Seq(_)) => unreachable!(),
+        std::iter::zip(self.iter(), other.iter()).all(|(lhs, rhs)| match (&lhs.0, &rhs.0) {
+            (IRStmtImpl::ConstraintCall(lhs), IRStmtImpl::ConstraintCall(rhs)) => lhs.eq(rhs),
+            (IRStmtImpl::Constraint(lhs), IRStmtImpl::Constraint(rhs)) => lhs.eq(rhs),
+            (IRStmtImpl::Comment(lhs), IRStmtImpl::Comment(rhs)) => lhs.eq(rhs),
+            (IRStmtImpl::AssumeDeterministic(lhs), IRStmtImpl::AssumeDeterministic(rhs)) => {
+                lhs.eq(rhs)
+            }
+            (IRStmtImpl::Assert(lhs), IRStmtImpl::Assert(rhs)) => lhs.eq(rhs),
+            (IRStmtImpl::PostCond(lhs), IRStmtImpl::PostCond(rhs)) => lhs.eq(rhs),
+            (IRStmtImpl::Seq(_), _) | (_, IRStmtImpl::Seq(_)) => unreachable!(),
             _ => false,
         })
     }
@@ -72,16 +74,16 @@ impl<T: PartialEq> PartialEq for IRStmt<T> {
 
 impl<T: std::fmt::Debug> std::fmt::Debug for IRStmt<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.0 {
-            IRStmt::ConstraintCall(call) => write!(f, "{call:?}"),
-            IRStmt::Constraint(constraint) => write!(f, "{constraint:?}"),
-            IRStmt::Comment(comment) => write!(f, "{comment:?}"),
-            IRStmt::AssumeDeterministic(assume_deterministic) => {
+        match &self.0 {
+            IRStmtImpl::ConstraintCall(call) => write!(f, "{call:?}"),
+            IRStmtImpl::Constraint(constraint) => write!(f, "{constraint:?}"),
+            IRStmtImpl::Comment(comment) => write!(f, "{comment:?}"),
+            IRStmtImpl::AssumeDeterministic(assume_deterministic) => {
                 write!(f, "{assume_deterministic:?}")
             }
-            IRStmt::Assert(assert) => write!(f, "{assert:?}"),
-            IRStmt::PostCond(pc) => write!(f, "{pc:?}"),
-            IRStmt::Seq(seq) => write!(f, "{seq:?}"),
+            IRStmtImpl::Assert(assert) => write!(f, "{assert:?}"),
+            IRStmtImpl::PostCond(pc) => write!(f, "{pc:?}"),
+            IRStmtImpl::Seq(seq) => write!(f, "{seq:?}"),
         }
     }
 }
@@ -166,22 +168,22 @@ impl<T> IRStmt<T> {
 
     /// Returns true if the statement is empty.
     pub fn is_empty(&self) -> bool {
-        match self {
-            IRStmt::Seq(s) => s.is_empty(),
+        match &self.0 {
+            IRStmtImpl::Seq(s) => s.is_empty(),
             _ => false,
         }
     }
 
     /// Transforms the inner expression type into another.
     pub fn map<O>(self, f: &impl Fn(T) -> O) -> IRStmt<O> {
-        match self {
-            IRStmt::ConstraintCall(call) => call.map(f).into(),
-            IRStmt::Constraint(constraint) => constraint.map(f).into(),
-            IRStmt::Comment(comment) => Comment::new(comment.value()).into(),
-            IRStmt::AssumeDeterministic(ad) => AssumeDeterministic::new(ad.value()).into(),
-            IRStmt::Assert(assert) => assert.map(f).into(),
-            IRStmt::PostCond(pc) => pc.map(f).into(),
-            IRStmt::Seq(seq) => Seq::new(seq.into_iter().map(|s| s.map(f))).into(),
+        match self.0 {
+            IRStmtImpl::ConstraintCall(call) => call.map(f).into(),
+            IRStmtImpl::Constraint(constraint) => constraint.map(f).into(),
+            IRStmtImpl::Comment(comment) => Comment::new(comment.value()).into(),
+            IRStmtImpl::AssumeDeterministic(ad) => AssumeDeterministic::new(ad.value()).into(),
+            IRStmtImpl::Assert(assert) => assert.map(f).into(),
+            IRStmtImpl::PostCond(pc) => pc.map(f).into(),
+            IRStmtImpl::Seq(seq) => Seq::new(seq.into_iter().map(|s| s.map(f))).into(),
         }
     }
 
@@ -275,12 +277,12 @@ impl<T> IRStmt<T> {
     }
 
     /// Returns an iterator of references to the statements.
-    pub fn iter<'a>(&'a self) -> IRStmtRefIter<'a, T> {
+    pub fn iter(&self) -> IRStmtRefIter<'_, T> {
         IRStmtRefIter { stack: vec![self] }
     }
 
     /// Returns an iterator of mutable references to the statements.
-    pub fn iter_mut<'a>(&'a mut self) -> IRStmtRefMutIter<'a, T> {
+    pub fn iter_mut(&mut self) -> IRStmtRefMutIter<'_, T> {
         IRStmtRefMutIter { stack: vec![self] }
     }
 }
@@ -410,7 +412,7 @@ impl<'a, T> Iterator for IRStmtRefMutIter<'a, T> {
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(node) = self.stack.pop() {
-            if let IRStmtImpl::Seq(children) = &mut node.0 {
+            if let IRStmt(IRStmtImpl::Seq(children)) = node {
                 // Reverse to preserve left-to-right order
                 self.stack.extend(children.iter_mut().rev());
             } else {
@@ -439,7 +441,7 @@ impl<T> Iterator for IRStmtIter<T> {
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(node) = self.stack.pop() {
             match node {
-                IRStmt::Seq(children) => {
+                IRStmt(IRStmtImpl::Seq(children)) => {
                     // Reverse to preserve left-to-right order
                     self.stack.extend(children.into_iter().rev());
                 }
@@ -488,37 +490,37 @@ impl<I> FromIterator<IRStmt<I>> for IRStmt<I> {
 
 impl<T> From<Call<T>> for IRStmt<T> {
     fn from(value: Call<T>) -> Self {
-        Self::ConstraintCall(value)
+        Self(IRStmtImpl::ConstraintCall(value))
     }
 }
 impl<T> From<Constraint<T>> for IRStmt<T> {
     fn from(value: Constraint<T>) -> Self {
-        Self::Constraint(value)
+        Self(IRStmtImpl::Constraint(value))
     }
 }
 impl<T> From<Comment> for IRStmt<T> {
     fn from(value: Comment) -> Self {
-        Self::Comment(value)
+        Self(IRStmtImpl::Comment(value))
     }
 }
 impl<T> From<AssumeDeterministic> for IRStmt<T> {
     fn from(value: AssumeDeterministic) -> Self {
-        Self::AssumeDeterministic(value)
+        Self(IRStmtImpl::AssumeDeterministic(value))
     }
 }
 impl<T> From<Assert<T>> for IRStmt<T> {
     fn from(value: Assert<T>) -> Self {
-        Self::Assert(value)
+        Self(IRStmtImpl::Assert(value))
     }
 }
 impl<T> From<PostCond<T>> for IRStmt<T> {
     fn from(value: PostCond<T>) -> Self {
-        Self::PostCond(value)
+        Self(IRStmtImpl::PostCond(value))
     }
 }
 impl<T> From<Seq<T>> for IRStmt<T> {
     fn from(value: Seq<T>) -> Self {
-        Self::Seq(value)
+        Self(IRStmtImpl::Seq(value))
     }
 }
 
@@ -527,28 +529,28 @@ impl<T: LowerableExpr> LowerableStmt for IRStmt<T> {
     where
         L: Lowering + ?Sized,
     {
-        match self {
-            Self::ConstraintCall(call) => call.lower(l),
-            Self::Constraint(constraint) => constraint.lower(l),
-            Self::Comment(comment) => comment.lower(l),
-            Self::AssumeDeterministic(ad) => ad.lower(l),
-            Self::Assert(assert) => assert.lower(l),
-            Self::PostCond(pc) => pc.lower(l),
-            Self::Seq(seq) => seq.lower(l),
+        match self.0 {
+            IRStmtImpl::ConstraintCall(call) => call.lower(l),
+            IRStmtImpl::Constraint(constraint) => constraint.lower(l),
+            IRStmtImpl::Comment(comment) => comment.lower(l),
+            IRStmtImpl::AssumeDeterministic(ad) => ad.lower(l),
+            IRStmtImpl::Assert(assert) => assert.lower(l),
+            IRStmtImpl::PostCond(pc) => pc.lower(l),
+            IRStmtImpl::Seq(seq) => seq.lower(l),
         }
     }
 }
 
 impl<T: Clone> Clone for IRStmt<T> {
     fn clone(&self) -> Self {
-        match self {
-            Self::ConstraintCall(call) => call.clone().into(),
-            Self::Constraint(c) => c.clone().into(),
-            Self::Comment(c) => c.clone().into(),
-            Self::AssumeDeterministic(func_io) => func_io.clone().into(),
-            Self::Assert(e) => e.clone().into(),
-            Self::PostCond(e) => e.clone().into(),
-            Self::Seq(stmts) => stmts.clone().into(),
+        match &self.0 {
+            IRStmtImpl::ConstraintCall(call) => call.clone().into(),
+            IRStmtImpl::Constraint(c) => c.clone().into(),
+            IRStmtImpl::Comment(c) => c.clone().into(),
+            IRStmtImpl::AssumeDeterministic(func_io) => func_io.clone().into(),
+            IRStmtImpl::Assert(e) => e.clone().into(),
+            IRStmtImpl::PostCond(e) => e.clone().into(),
+            IRStmtImpl::Seq(stmts) => stmts.clone().into(),
         }
     }
 }

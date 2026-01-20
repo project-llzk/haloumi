@@ -14,7 +14,10 @@ use std::{
 };
 
 /// Represents boolean expressions over some arithmetic expression type A.
-pub enum IRBexpr<A> {
+#[derive(Debug)]
+pub struct IRBexpr<A>(IRBexprImpl<A>);
+
+enum IRBexprImpl<A> {
     /// Literal value for true.
     True,
     /// Literal value for false.
@@ -38,187 +41,215 @@ pub enum IRBexpr<A> {
 impl<T> IRBexpr<T> {
     /// Transforms the inner expression into a different type.
     pub fn map<O>(self, f: &impl Fn(T) -> O) -> IRBexpr<O> {
-        match self {
-            IRBexpr::Cmp(cmp_op, lhs, rhs) => IRBexpr::Cmp(cmp_op, f(lhs), f(rhs)),
-            IRBexpr::And(exprs) => IRBexpr::And(exprs.into_iter().map(|e| e.map(f)).collect()),
-            IRBexpr::Or(exprs) => IRBexpr::Or(exprs.into_iter().map(|e| e.map(f)).collect()),
-            IRBexpr::Not(expr) => IRBexpr::Not(Box::new(expr.map(f))),
-            IRBexpr::True => IRBexpr::True,
-            IRBexpr::False => IRBexpr::False,
-            IRBexpr::Det(expr) => IRBexpr::Det(f(expr)),
-            IRBexpr::Implies(lhs, rhs) => {
-                IRBexpr::Implies(Box::new(lhs.map(f)), Box::new(rhs.map(f)))
+        match self.0 {
+            IRBexprImpl::Cmp(cmp_op, lhs, rhs) => IRBexpr(IRBexprImpl::Cmp(cmp_op, f(lhs), f(rhs))),
+            IRBexprImpl::And(exprs) => IRBexpr(IRBexprImpl::And(
+                exprs.into_iter().map(|e| e.map(f)).collect(),
+            )),
+            IRBexprImpl::Or(exprs) => IRBexpr(IRBexprImpl::Or(
+                exprs.into_iter().map(|e| e.map(f)).collect(),
+            )),
+            IRBexprImpl::Not(expr) => IRBexpr(IRBexprImpl::Not(Box::new(expr.map(f)))),
+            IRBexprImpl::True => IRBexpr(IRBexprImpl::True),
+            IRBexprImpl::False => IRBexpr(IRBexprImpl::False),
+            IRBexprImpl::Det(expr) => IRBexpr(IRBexprImpl::Det(f(expr))),
+            IRBexprImpl::Implies(lhs, rhs) => IRBexpr(IRBexprImpl::Implies(
+                Box::new(lhs.map(f)),
+                Box::new(rhs.map(f)),
+            )),
+            IRBexprImpl::Iff(lhs, rhs) => {
+                IRBexpr(IRBexprImpl::Iff(Box::new(lhs.map(f)), Box::new(rhs.map(f))))
             }
-            IRBexpr::Iff(lhs, rhs) => IRBexpr::Iff(Box::new(lhs.map(f)), Box::new(rhs.map(f))),
         }
     }
 
     /// Transforms the inner expression into a different type without moving the struct.
     pub fn map_into<O>(&self, f: &impl Fn(&T) -> O) -> IRBexpr<O> {
-        match self {
-            IRBexpr::Cmp(cmp_op, lhs, rhs) => IRBexpr::Cmp(*cmp_op, f(lhs), f(rhs)),
-            IRBexpr::And(exprs) => IRBexpr::And(exprs.iter().map(|e| e.map_into(f)).collect()),
-            IRBexpr::Or(exprs) => IRBexpr::Or(exprs.iter().map(|e| e.map_into(f)).collect()),
-            IRBexpr::Not(expr) => IRBexpr::Not(Box::new(expr.map_into(f))),
-            IRBexpr::True => IRBexpr::True,
-            IRBexpr::False => IRBexpr::False,
-            IRBexpr::Det(expr) => IRBexpr::Det(f(expr)),
-            IRBexpr::Implies(lhs, rhs) => {
-                IRBexpr::Implies(Box::new(lhs.map_into(f)), Box::new(rhs.map_into(f)))
+        match &self.0 {
+            IRBexprImpl::Cmp(cmp_op, lhs, rhs) => {
+                IRBexpr(IRBexprImpl::Cmp(*cmp_op, f(lhs), f(rhs)))
             }
-            IRBexpr::Iff(lhs, rhs) => {
-                IRBexpr::Iff(Box::new(lhs.map_into(f)), Box::new(rhs.map_into(f)))
-            }
+            IRBexprImpl::And(exprs) => IRBexpr(IRBexprImpl::And(
+                exprs.iter().map(|e| e.map_into(f)).collect(),
+            )),
+            IRBexprImpl::Or(exprs) => IRBexpr(IRBexprImpl::Or(
+                exprs.iter().map(|e| e.map_into(f)).collect(),
+            )),
+            IRBexprImpl::Not(expr) => IRBexpr(IRBexprImpl::Not(Box::new(expr.map_into(f)))),
+            IRBexprImpl::True => IRBexpr(IRBexprImpl::True),
+            IRBexprImpl::False => IRBexpr(IRBexprImpl::False),
+            IRBexprImpl::Det(expr) => IRBexpr(IRBexprImpl::Det(f(expr))),
+            IRBexprImpl::Implies(lhs, rhs) => IRBexpr(IRBexprImpl::Implies(
+                Box::new(lhs.map_into(f)),
+                Box::new(rhs.map_into(f)),
+            )),
+            IRBexprImpl::Iff(lhs, rhs) => IRBexpr(IRBexprImpl::Iff(
+                Box::new(lhs.map_into(f)),
+                Box::new(rhs.map_into(f)),
+            )),
         }
     }
 
     /// Transforms the inner expression into a different type, potentially failing.
     pub fn try_map<O, E>(self, f: &impl Fn(T) -> Result<O, E>) -> Result<IRBexpr<O>, E> {
-        Ok(match self {
-            IRBexpr::Cmp(cmp_op, lhs, rhs) => IRBexpr::Cmp(cmp_op, f(lhs)?, f(rhs)?),
-            IRBexpr::And(exprs) => IRBexpr::And(
+        Ok(match self.0 {
+            IRBexprImpl::Cmp(cmp_op, lhs, rhs) => {
+                IRBexpr(IRBexprImpl::Cmp(cmp_op, f(lhs)?, f(rhs)?))
+            }
+            IRBexprImpl::And(exprs) => IRBexpr(IRBexprImpl::And(
                 exprs
                     .into_iter()
                     .map(|e| e.try_map(f))
                     .collect::<Result<Vec<_>, _>>()?,
-            ),
-            IRBexpr::Or(exprs) => IRBexpr::Or(
+            )),
+            IRBexprImpl::Or(exprs) => IRBexpr(IRBexprImpl::Or(
                 exprs
                     .into_iter()
                     .map(|e| e.try_map(f))
                     .collect::<Result<Vec<_>, _>>()?,
-            ),
-            IRBexpr::Not(expr) => IRBexpr::Not(Box::new(expr.try_map(f)?)),
-            IRBexpr::True => IRBexpr::True,
-            IRBexpr::False => IRBexpr::False,
-            IRBexpr::Det(expr) => IRBexpr::Det(f(expr)?),
-            IRBexpr::Implies(lhs, rhs) => {
-                IRBexpr::Implies(Box::new(lhs.try_map(f)?), Box::new(rhs.try_map(f)?))
-            }
-            IRBexpr::Iff(lhs, rhs) => {
-                IRBexpr::Iff(Box::new(lhs.try_map(f)?), Box::new(rhs.try_map(f)?))
-            }
+            )),
+            IRBexprImpl::Not(expr) => IRBexpr(IRBexprImpl::Not(Box::new(expr.try_map(f)?))),
+            IRBexprImpl::True => IRBexpr(IRBexprImpl::True),
+            IRBexprImpl::False => IRBexpr(IRBexprImpl::False),
+            IRBexprImpl::Det(expr) => IRBexpr(IRBexprImpl::Det(f(expr)?)),
+            IRBexprImpl::Implies(lhs, rhs) => IRBexpr(IRBexprImpl::Implies(
+                Box::new(lhs.try_map(f)?),
+                Box::new(rhs.try_map(f)?),
+            )),
+            IRBexprImpl::Iff(lhs, rhs) => IRBexpr(IRBexprImpl::Iff(
+                Box::new(lhs.try_map(f)?),
+                Box::new(rhs.try_map(f)?),
+            )),
         })
     }
 
     /// Tries to transform the inner expression in place instead of returning a new expression.
     pub fn try_map_inplace<E>(&mut self, f: &impl Fn(&mut T) -> Result<(), E>) -> Result<(), E> {
-        match self {
-            IRBexpr::Cmp(_, lhs, rhs) => {
+        match &mut self.0 {
+            IRBexprImpl::Cmp(_, lhs, rhs) => {
                 f(lhs)?;
                 f(rhs)
             }
-            IRBexpr::And(exprs) => {
+            IRBexprImpl::And(exprs) => {
                 for expr in exprs {
                     expr.try_map_inplace(f)?;
                 }
                 Ok(())
             }
-            IRBexpr::Or(exprs) => {
+            IRBexprImpl::Or(exprs) => {
                 for expr in exprs {
                     expr.try_map_inplace(f)?;
                 }
                 Ok(())
             }
-            IRBexpr::Not(expr) => expr.try_map_inplace(f),
-            IRBexpr::True => Ok(()),
-            IRBexpr::False => Ok(()),
-            IRBexpr::Det(expr) => f(expr),
-            IRBexpr::Implies(lhs, rhs) => {
+            IRBexprImpl::Not(expr) => expr.try_map_inplace(f),
+            IRBexprImpl::True => Ok(()),
+            IRBexprImpl::False => Ok(()),
+            IRBexprImpl::Det(expr) => f(expr),
+            IRBexprImpl::Implies(lhs, rhs) => {
                 lhs.try_map_inplace(f)?;
                 rhs.try_map_inplace(f)
             }
-            IRBexpr::Iff(lhs, rhs) => {
+            IRBexprImpl::Iff(lhs, rhs) => {
                 lhs.try_map_inplace(f)?;
                 rhs.try_map_inplace(f)
             }
         }
+    }
+
+    pub(crate) fn cmp(op: CmpOp, lhs: T, rhs: T) -> Self {
+        Self(IRBexprImpl::Cmp(op, lhs, rhs))
+    }
+
+    /// Creates a expression that indicates the backend must prove deterministic.
+    pub fn det(expr: T) -> Self {
+        Self(IRBexprImpl::Det(expr))
     }
 
     #[inline]
     /// Creates a constraint with [`CmpOp::Eq`] between two expressions.
     pub fn eq(lhs: T, rhs: T) -> Self {
-        Self::Cmp(CmpOp::Eq, lhs, rhs)
+        Self(IRBexprImpl::Cmp(CmpOp::Eq, lhs, rhs))
     }
 
     #[inline]
     /// Creates a constraint with [`CmpOp::Lt`] between two expressions.
     pub fn lt(lhs: T, rhs: T) -> Self {
-        Self::Cmp(CmpOp::Lt, lhs, rhs)
+        Self(IRBexprImpl::Cmp(CmpOp::Lt, lhs, rhs))
     }
 
     #[inline]
     /// Creates a constraint with [`CmpOp::Le`] between two expressions.
     pub fn le(lhs: T, rhs: T) -> Self {
-        Self::Cmp(CmpOp::Le, lhs, rhs)
+        Self(IRBexprImpl::Cmp(CmpOp::Le, lhs, rhs))
     }
 
     #[inline]
     /// Creates a constraint with [`CmpOp::Gt`] between two expressions.
     pub fn gt(lhs: T, rhs: T) -> Self {
-        Self::Cmp(CmpOp::Gt, lhs, rhs)
+        Self(IRBexprImpl::Cmp(CmpOp::Gt, lhs, rhs))
     }
 
     #[inline]
     /// Creates a constraint with [`CmpOp::Ge`] between two expressions.
     pub fn ge(lhs: T, rhs: T) -> Self {
-        Self::Cmp(CmpOp::Ge, lhs, rhs)
+        Self(IRBexprImpl::Cmp(CmpOp::Ge, lhs, rhs))
     }
 
     #[inline]
     /// Creates an implication expression.
     pub fn implies(self, rhs: Self) -> Self {
-        Self::Implies(Box::new(self), Box::new(rhs))
+        Self(IRBexprImpl::Implies(Box::new(self), Box::new(rhs)))
     }
 
     #[inline]
     /// Creates a double implication expression.
     pub fn iff(self, rhs: Self) -> Self {
-        Self::Iff(Box::new(self), Box::new(rhs))
+        Self(IRBexprImpl::Iff(Box::new(self), Box::new(rhs)))
     }
 
     /// Creates a logical AND.
     pub fn and(self, rhs: Self) -> Self {
-        match (self, rhs) {
-            (IRBexpr::And(mut lhs), IRBexpr::And(rhs)) => {
+        Self(match (self.0, rhs.0) {
+            (IRBexprImpl::And(mut lhs), IRBexprImpl::And(rhs)) => {
                 lhs.reserve(rhs.len());
                 lhs.extend(rhs);
-                IRBexpr::And(lhs)
+                IRBexprImpl::And(lhs)
             }
             // The order of the operators is irrelevant
-            (exp, IRBexpr::And(mut lst)) | (IRBexpr::And(mut lst), exp) => {
-                lst.push(exp);
-                IRBexpr::And(lst)
+            (exp, IRBexprImpl::And(mut lst)) | (IRBexprImpl::And(mut lst), exp) => {
+                lst.push(Self(exp));
+                IRBexprImpl::And(lst)
             }
-            (lhs, rhs) => IRBexpr::And(vec![lhs, rhs]),
-        }
+            (lhs, rhs) => IRBexprImpl::And(vec![Self(lhs), Self(rhs)]),
+        })
     }
 
     /// Creates a logical AND from a sequence of expressions.
     pub fn and_many(exprs: impl IntoIterator<Item = Self>) -> Self {
-        IRBexpr::And(exprs.into_iter().collect())
+        Self(IRBexprImpl::And(exprs.into_iter().collect()))
     }
 
     /// Creates a logical OR.
     pub fn or(self, rhs: Self) -> Self {
-        match (self, rhs) {
-            (IRBexpr::Or(mut lhs), IRBexpr::Or(rhs)) => {
+        Self(match (self.0, rhs.0) {
+            (IRBexprImpl::Or(mut lhs), IRBexprImpl::Or(rhs)) => {
                 lhs.reserve(rhs.len());
                 lhs.extend(rhs);
-                IRBexpr::Or(lhs)
+                IRBexprImpl::Or(lhs)
             }
             // The order of the operators is irrelevant
-            (exp, IRBexpr::Or(mut lst)) | (IRBexpr::Or(mut lst), exp) => {
-                lst.push(exp);
-                IRBexpr::Or(lst)
+            (exp, IRBexprImpl::Or(mut lst)) | (IRBexprImpl::Or(mut lst), exp) => {
+                lst.push(Self(exp));
+                IRBexprImpl::Or(lst)
             }
-            (lhs, rhs) => IRBexpr::Or(vec![lhs, rhs]),
-        }
+            (lhs, rhs) => IRBexprImpl::Or(vec![Self(lhs), Self(rhs)]),
+        })
     }
 
     /// Creates a logical OR from a sequence of expressions.
     pub fn or_many(exprs: impl IntoIterator<Item = Self>) -> Self {
-        IRBexpr::Or(exprs.into_iter().collect())
+        Self(IRBexprImpl::Or(exprs.into_iter().collect()))
     }
 
     /// Maps the statement's inner type to a tuple with the passed value.
@@ -241,8 +272,11 @@ struct LogLine {
 }
 
 impl LogLine {
-    fn new<T: std::fmt::Debug>(expr: &IRBexpr<T>, ident: usize) -> Self {
-        if matches!(expr, IRBexpr::True | IRBexpr::False | IRBexpr::Cmp(_, _, _)) {
+    fn new<T: std::fmt::Debug>(expr: &IRBexprImpl<T>, ident: usize) -> Self {
+        if matches!(
+            expr,
+            IRBexprImpl::True | IRBexprImpl::False | IRBexprImpl::Cmp(_, _, _)
+        ) {
             Self {
                 before: Some(format!("{expr:?}")),
                 ident,
@@ -256,7 +290,7 @@ impl LogLine {
         }
     }
 
-    fn log<T: std::fmt::Debug>(self, expr: &mut IRBexpr<T>) {
+    fn log<T: std::fmt::Debug>(self, expr: &mut IRBexprImpl<T>) {
         match self.before {
             Some(before) => {
                 log::debug!(
@@ -280,35 +314,35 @@ impl LogLine {
 impl Canonicalize for IRBexpr<IRAexpr> {
     /// Matches the expressions against a series of known patterns and applies rewrites if able to.
     fn canonicalize(&mut self) {
-        match self {
-            IRBexpr::True => {}
-            IRBexpr::False => {}
-            IRBexpr::Cmp(op, lhs, rhs) => {
+        match &mut self.0 {
+            IRBexprImpl::True => {}
+            IRBexprImpl::False => {}
+            IRBexprImpl::Cmp(op, lhs, rhs) => {
                 if let Some((op, lhs, rhs)) = canonicalize_constraint(*op, lhs, rhs) {
-                    *self = IRBexpr::Cmp(op, lhs, rhs);
+                    *self = Self(IRBexprImpl::Cmp(op, lhs, rhs));
                 }
             }
-            IRBexpr::And(exprs) => {
+            IRBexprImpl::And(exprs) => {
                 for expr in exprs {
                     expr.canonicalize();
                 }
             }
-            IRBexpr::Or(exprs) => {
+            IRBexprImpl::Or(exprs) => {
                 for expr in exprs {
                     expr.canonicalize();
                 }
             }
-            IRBexpr::Not(expr) => {
+            IRBexprImpl::Not(expr) => {
                 expr.canonicalize();
-                match &**expr {
-                    IRBexpr::True => {
-                        *self = IRBexpr::False;
+                match &expr.0 {
+                    IRBexprImpl::True => {
+                        *self = Self(IRBexprImpl::False);
                     }
-                    IRBexpr::False => {
-                        *self = IRBexpr::True;
+                    IRBexprImpl::False => {
+                        *self = Self(IRBexprImpl::True);
                     }
-                    IRBexpr::Cmp(op, lhs, rhs) => {
-                        *self = IRBexpr::Cmp(
+                    IRBexprImpl::Cmp(op, lhs, rhs) => {
+                        *self = Self(IRBexprImpl::Cmp(
                             match op {
                                 CmpOp::Eq => CmpOp::Ne,
                                 CmpOp::Lt => CmpOp::Ge,
@@ -319,18 +353,18 @@ impl Canonicalize for IRBexpr<IRAexpr> {
                             },
                             lhs.clone(),
                             rhs.clone(),
-                        );
+                        ));
                         self.canonicalize();
                     }
                     _ => {}
                 }
             }
-            IRBexpr::Det(_) => {}
-            IRBexpr::Implies(lhs, rhs) => {
+            IRBexprImpl::Det(_) => {}
+            IRBexprImpl::Implies(lhs, rhs) => {
                 lhs.canonicalize();
                 rhs.canonicalize();
             }
-            IRBexpr::Iff(lhs, rhs) => {
+            IRBexprImpl::Iff(lhs, rhs) => {
                 lhs.canonicalize();
                 rhs.canonicalize();
             }
@@ -345,15 +379,15 @@ where
 {
     /// Folds the expression if the values are constant.
     fn constant_fold_impl(&mut self, indent: usize) -> Result<(), T::Error> {
-        let log = LogLine::new(self, indent);
-        match self {
-            IRBexpr::True => {
-                log.log(self);
+        let log = LogLine::new(&self.0, indent);
+        match &mut self.0 {
+            IRBexprImpl::True => {
+                log.log(&mut self.0);
             }
-            IRBexpr::False => {
-                log.log(self);
+            IRBexprImpl::False => {
+                log.log(&mut self.0);
             }
-            IRBexpr::Cmp(op, lhs, rhs) => {
+            IRBexprImpl::Cmp(op, lhs, rhs) => {
                 lhs.constant_fold()?;
                 rhs.constant_fold()?;
                 if let Some((lhs, rhs)) = lhs.const_value().zip(rhs.const_value()) {
@@ -367,13 +401,13 @@ where
                     }
                     .into()
                 }
-                log.log(self);
+                log.log(&mut self.0);
             }
-            IRBexpr::And(exprs) => {
+            IRBexprImpl::And(exprs) => {
                 for expr in &mut *exprs {
                     expr.constant_fold_impl(indent + 2)?;
                 }
-                // If any value is a literal 'false' convert into IRBexpr::False
+                // If any value is a literal 'false' convert into IRBexprImpl::False
                 if exprs.iter().any(|expr| {
                     expr.const_value()
                         // If the expr is false-y flip the boolean to return 'true'.
@@ -381,34 +415,34 @@ where
                         // Default to 'false' for non-literal expressions.
                         .unwrap_or_default()
                 }) {
-                    *self = IRBexpr::False;
-                    log.log(self);
+                    *self = Self(IRBexprImpl::False);
+                    log.log(&mut self.0);
                     return Ok(());
                 }
                 // Remove any literal 'true' values.
                 exprs.retain(|expr| {
                     expr.const_value()
-                        // If the expr is IRBexpr::True we don't want to retain.
+                        // If the expr is IRBexprImpl::True we don't want to retain.
                         .map(|b| !b)
                         // Default to true to keep the non-literal values.
                         .unwrap_or(true)
                 });
                 if exprs.is_empty() {
-                    *self = IRBexpr::True;
+                    *self = Self(IRBexprImpl::True);
                 }
-                log.log(self);
+                log.log(&mut self.0);
             }
-            IRBexpr::Or(exprs) => {
+            IRBexprImpl::Or(exprs) => {
                 for expr in &mut *exprs {
                     expr.constant_fold_impl(indent + 2)?;
                 }
-                // If any value is a literal 'true' convert into IRBexpr::True.
+                // If any value is a literal 'true' convert into IRBexprImpl::True.
                 if exprs
                     .iter()
                     .any(|expr| expr.const_value().unwrap_or_default())
                 {
-                    *self = IRBexpr::True;
-                    log.log(self);
+                    *self = Self(IRBexprImpl::True);
+                    log.log(&mut self.0);
                     return Ok(());
                 }
                 // Remove any literal 'false' values.
@@ -418,26 +452,26 @@ where
                         .unwrap_or(true)
                 });
                 if exprs.is_empty() {
-                    *self = IRBexpr::False;
+                    *self = Self(IRBexprImpl::False);
                 }
-                log.log(self);
+                log.log(&mut self.0);
             }
-            IRBexpr::Not(expr) => {
+            IRBexprImpl::Not(expr) => {
                 expr.constant_fold_impl(indent + 2)?;
                 if let Some(b) = expr.const_value() {
                     *self = (!b).into();
                 }
-                log.log(self);
+                log.log(&mut self.0);
             }
-            IRBexpr::Det(expr) => expr.constant_fold()?,
-            IRBexpr::Implies(lhs, rhs) => {
+            IRBexprImpl::Det(expr) => expr.constant_fold()?,
+            IRBexprImpl::Implies(lhs, rhs) => {
                 lhs.constant_fold_impl(indent + 2)?;
                 rhs.constant_fold_impl(indent + 2)?;
                 if let Some((lhs, rhs)) = lhs.const_value().zip(rhs.const_value()) {
                     *self = (!lhs || rhs).into();
                 }
             }
-            IRBexpr::Iff(lhs, rhs) => {
+            IRBexprImpl::Iff(lhs, rhs) => {
                 lhs.constant_fold_impl(indent + 2)?;
                 rhs.constant_fold_impl(indent + 2)?;
                 if let Some((lhs, rhs)) = lhs.const_value().zip(rhs.const_value()) {
@@ -464,9 +498,9 @@ where
 
     /// Returns `Some(true)` or `Some(false)` if the expression is constant, `None` otherwise.
     fn const_value(&self) -> Option<bool> {
-        match self {
-            IRBexpr::True => Some(true),
-            IRBexpr::False => Some(false),
+        match &self.0 {
+            IRBexprImpl::True => Some(true),
+            IRBexprImpl::False => Some(false),
             _ => None,
         }
     }
@@ -474,11 +508,15 @@ where
 
 impl<T> From<bool> for IRBexpr<T> {
     fn from(value: bool) -> Self {
-        if value { IRBexpr::True } else { IRBexpr::False }
+        Self(if value {
+            IRBexprImpl::True
+        } else {
+            IRBexprImpl::False
+        })
     }
 }
 
-/// IRBexpr transitively inherits the symbolic equivalence relation.
+/// IRBexprImpl transitively inherits the symbolic equivalence relation.
 impl<L, R> EqvRelation<IRBexpr<L>, IRBexpr<R>> for SymbolicEqv
 where
     SymbolicEqv: EqvRelation<L, R>,
@@ -486,26 +524,28 @@ where
     /// Two boolean expressions are equivalent if they are structurally equal and their inner entities
     /// are equivalent.
     fn equivalent(lhs: &IRBexpr<L>, rhs: &IRBexpr<R>) -> bool {
-        match (lhs, rhs) {
-            (IRBexpr::True, IRBexpr::True) | (IRBexpr::False, IRBexpr::False) => true,
-            (IRBexpr::Cmp(op1, lhs1, rhs1), IRBexpr::Cmp(op2, lhs2, rhs2)) => {
+        match (&lhs.0, &rhs.0) {
+            (IRBexprImpl::True, IRBexprImpl::True) | (IRBexprImpl::False, IRBexprImpl::False) => {
+                true
+            }
+            (IRBexprImpl::Cmp(op1, lhs1, rhs1), IRBexprImpl::Cmp(op2, lhs2, rhs2)) => {
                 op1 == op2 && equiv!(Self | lhs1, lhs2) && equiv!(Self | rhs1, rhs2)
             }
-            (IRBexpr::And(lhs), IRBexpr::And(rhs)) => {
+            (IRBexprImpl::And(lhs), IRBexprImpl::And(rhs)) => {
                 equiv!(Self | lhs, rhs)
             }
-            (IRBexpr::Or(lhs), IRBexpr::Or(rhs)) => {
+            (IRBexprImpl::Or(lhs), IRBexprImpl::Or(rhs)) => {
                 equiv!(Self | lhs, rhs)
             }
-            (IRBexpr::Not(lhs), IRBexpr::Not(rhs)) => {
+            (IRBexprImpl::Not(lhs), IRBexprImpl::Not(rhs)) => {
                 equiv!(Self | lhs, rhs)
             }
-            (IRBexpr::Det(lhs), IRBexpr::Det(rhs)) => equiv!(Self | lhs, rhs),
-            (IRBexpr::Implies(lhs1, rhs1), IRBexpr::Implies(lhs2, rhs2)) => {
+            (IRBexprImpl::Det(lhs), IRBexprImpl::Det(rhs)) => equiv!(Self | lhs, rhs),
+            (IRBexprImpl::Implies(lhs1, rhs1), IRBexprImpl::Implies(lhs2, rhs2)) => {
                 equiv!(Self | lhs1, lhs2) && equiv!(Self | rhs1, rhs2)
             }
 
-            (IRBexpr::Iff(lhs1, rhs1), IRBexpr::Iff(lhs2, rhs2)) => {
+            (IRBexprImpl::Iff(lhs1, rhs1), IRBexprImpl::Iff(lhs2, rhs2)) => {
                 equiv!(Self | lhs1, lhs2) && equiv!(Self | rhs1, rhs2)
             }
             _ => false,
@@ -533,61 +573,65 @@ impl<T> Not for IRBexpr<T> {
     type Output = Self;
 
     fn not(self) -> Self::Output {
-        match self {
-            IRBexpr::Not(e) => *e,
-            e => IRBexpr::Not(Box::new(e)),
+        match self.0 {
+            IRBexprImpl::Not(e) => *e,
+            e => Self(IRBexprImpl::Not(Box::new(Self(e)))),
         }
     }
 }
 
-impl<T: std::fmt::Debug> std::fmt::Debug for IRBexpr<T> {
+impl<T: std::fmt::Debug> std::fmt::Debug for IRBexprImpl<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            IRBexpr::Cmp(cmp_op, lhs, rhs) => write!(f, "({cmp_op} {lhs:?} {rhs:?})",),
-            IRBexpr::And(exprs) => write!(f, "(&& {exprs:?})"),
-            IRBexpr::Or(exprs) => write!(f, "(|| {exprs:?})"),
-            IRBexpr::Not(expr) => write!(f, "(! {expr:?})"),
-            IRBexpr::True => write!(f, "(true)"),
-            IRBexpr::False => write!(f, "(false)"),
-            IRBexpr::Det(expr) => write!(f, "(det {expr:?})"),
-            IRBexpr::Implies(lhs, rhs) => write!(f, "(=> {lhs:?} {rhs:?})"),
-            IRBexpr::Iff(lhs, rhs) => write!(f, "(<=> {lhs:?} {rhs:?})"),
+            IRBexprImpl::Cmp(cmp_op, lhs, rhs) => write!(f, "({cmp_op} {lhs:?} {rhs:?})",),
+            IRBexprImpl::And(exprs) => write!(f, "(&& {exprs:?})"),
+            IRBexprImpl::Or(exprs) => write!(f, "(|| {exprs:?})"),
+            IRBexprImpl::Not(expr) => write!(f, "(! {expr:?})"),
+            IRBexprImpl::True => write!(f, "(true)"),
+            IRBexprImpl::False => write!(f, "(false)"),
+            IRBexprImpl::Det(expr) => write!(f, "(det {expr:?})"),
+            IRBexprImpl::Implies(lhs, rhs) => write!(f, "(=> {lhs:?} {rhs:?})"),
+            IRBexprImpl::Iff(lhs, rhs) => write!(f, "(<=> {lhs:?} {rhs:?})"),
         }
     }
 }
 
 impl<T: Clone> Clone for IRBexpr<T> {
     fn clone(&self) -> Self {
-        match self {
-            IRBexpr::Cmp(cmp_op, lhs, rhs) => IRBexpr::Cmp(*cmp_op, lhs.clone(), rhs.clone()),
-            IRBexpr::And(exprs) => IRBexpr::And(exprs.clone()),
-            IRBexpr::Or(exprs) => IRBexpr::Or(exprs.clone()),
-            IRBexpr::Not(expr) => IRBexpr::Not(expr.clone()),
-            IRBexpr::True => IRBexpr::True,
-            IRBexpr::False => IRBexpr::False,
-            IRBexpr::Det(expr) => IRBexpr::Det(expr.clone()),
-            IRBexpr::Implies(lhs, rhs) => IRBexpr::Implies(lhs.clone(), rhs.clone()),
-            IRBexpr::Iff(lhs, rhs) => IRBexpr::Iff(lhs.clone(), rhs.clone()),
-        }
+        Self(match &self.0 {
+            IRBexprImpl::Cmp(cmp_op, lhs, rhs) => {
+                IRBexprImpl::Cmp(*cmp_op, lhs.clone(), rhs.clone())
+            }
+            IRBexprImpl::And(exprs) => IRBexprImpl::And(exprs.clone()),
+            IRBexprImpl::Or(exprs) => IRBexprImpl::Or(exprs.clone()),
+            IRBexprImpl::Not(expr) => IRBexprImpl::Not(expr.clone()),
+            IRBexprImpl::True => IRBexprImpl::True,
+            IRBexprImpl::False => IRBexprImpl::False,
+            IRBexprImpl::Det(expr) => IRBexprImpl::Det(expr.clone()),
+            IRBexprImpl::Implies(lhs, rhs) => IRBexprImpl::Implies(lhs.clone(), rhs.clone()),
+            IRBexprImpl::Iff(lhs, rhs) => IRBexprImpl::Iff(lhs.clone(), rhs.clone()),
+        })
     }
 }
 
 impl<T: PartialEq> PartialEq for IRBexpr<T> {
     fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (IRBexpr::Cmp(op1, lhs1, rhs1), IRBexpr::Cmp(op2, lhs2, rhs2)) => {
+        match (&self.0, &other.0) {
+            (IRBexprImpl::Cmp(op1, lhs1, rhs1), IRBexprImpl::Cmp(op2, lhs2, rhs2)) => {
                 op1 == op2 && lhs1 == lhs2 && rhs1 == rhs2
             }
-            (IRBexpr::And(lhs), IRBexpr::And(rhs)) => lhs == rhs,
-            (IRBexpr::Or(lhs), IRBexpr::Or(rhs)) => lhs == rhs,
-            (IRBexpr::Not(lhs), IRBexpr::Not(rhs)) => lhs == rhs,
-            (IRBexpr::True, IRBexpr::True) => true,
-            (IRBexpr::False, IRBexpr::False) => true,
-            (IRBexpr::Det(lhs), IRBexpr::Det(rhs)) => lhs == rhs,
-            (IRBexpr::Implies(lhs1, rhs1), IRBexpr::Implies(lhs2, rhs2)) => {
+            (IRBexprImpl::And(lhs), IRBexprImpl::And(rhs)) => lhs == rhs,
+            (IRBexprImpl::Or(lhs), IRBexprImpl::Or(rhs)) => lhs == rhs,
+            (IRBexprImpl::Not(lhs), IRBexprImpl::Not(rhs)) => lhs == rhs,
+            (IRBexprImpl::True, IRBexprImpl::True) => true,
+            (IRBexprImpl::False, IRBexprImpl::False) => true,
+            (IRBexprImpl::Det(lhs), IRBexprImpl::Det(rhs)) => lhs == rhs,
+            (IRBexprImpl::Implies(lhs1, rhs1), IRBexprImpl::Implies(lhs2, rhs2)) => {
                 lhs1 == lhs2 && rhs1 == rhs2
             }
-            (IRBexpr::Iff(lhs1, rhs1), IRBexpr::Iff(lhs2, rhs2)) => lhs1 == lhs2 && rhs1 == rhs2,
+            (IRBexprImpl::Iff(lhs1, rhs1), IRBexprImpl::Iff(lhs2, rhs2)) => {
+                lhs1 == lhs2 && rhs1 == rhs2
+            }
             _ => false,
         }
     }
@@ -610,15 +654,13 @@ where
         .and_then(identity)
 }
 
-impl<F> IRBexpr<F> {}
-
 impl<A: LowerableExpr> LowerableExpr for IRBexpr<A> {
     fn lower<L>(self, l: &L) -> haloumi_lowering::Result<L::CellOutput>
     where
         L: ExprLowering + ?Sized,
     {
-        match self {
-            IRBexpr::Cmp(cmp_op, lhs, rhs) => {
+        match self.0 {
+            IRBexprImpl::Cmp(cmp_op, lhs, rhs) => {
                 let lhs = lhs.lower(l)?;
                 let rhs = rhs.lower(l)?;
                 match cmp_op {
@@ -630,18 +672,18 @@ impl<A: LowerableExpr> LowerableExpr for IRBexpr<A> {
                     CmpOp::Ne => l.lower_ne(&lhs, &rhs),
                 }
             }
-            IRBexpr::And(exprs) => reduce_bool_expr(exprs, l, L::lower_and),
-            IRBexpr::Or(exprs) => reduce_bool_expr(exprs, l, L::lower_or),
-            IRBexpr::Not(expr) => expr.lower(l).and_then(|e| l.lower_not(&e)),
-            IRBexpr::True => l.lower_true(),
-            IRBexpr::False => l.lower_false(),
-            IRBexpr::Det(expr) => expr.lower(l).and_then(|e| l.lower_det(&e)),
-            IRBexpr::Implies(lhs, rhs) => {
+            IRBexprImpl::And(exprs) => reduce_bool_expr(exprs, l, L::lower_and),
+            IRBexprImpl::Or(exprs) => reduce_bool_expr(exprs, l, L::lower_or),
+            IRBexprImpl::Not(expr) => expr.lower(l).and_then(|e| l.lower_not(&e)),
+            IRBexprImpl::True => l.lower_true(),
+            IRBexprImpl::False => l.lower_false(),
+            IRBexprImpl::Det(expr) => expr.lower(l).and_then(|e| l.lower_det(&e)),
+            IRBexprImpl::Implies(lhs, rhs) => {
                 let lhs = lhs.lower(l)?;
                 let rhs = rhs.lower(l)?;
                 l.lower_implies(&lhs, &rhs)
             }
-            IRBexpr::Iff(lhs, rhs) => {
+            IRBexprImpl::Iff(lhs, rhs) => {
                 let lhs = lhs.lower(l)?;
                 let rhs = rhs.lower(l)?;
                 l.lower_iff(&lhs, &rhs)

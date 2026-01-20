@@ -1,6 +1,6 @@
 use crate::{
     error::Error,
-    expr::{IRAexpr, IRBexpr},
+    expr::IRBexpr,
     stmt::IRStmt,
     traits::{Canonicalize, ConstantFolding},
 };

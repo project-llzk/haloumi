@@ -2,17 +2,19 @@
 
 use crate::traits::{Canonicalize, ConstantFolding};
 use eqv::{EqvRelation, equiv};
-use haloumi_core::{
-    eqv::SymbolicEqv,
-    felt::{Felt, Prime},
-    slot::Slot,
-};
+use haloumi_core::{eqv::SymbolicEqv, felt::Felt, slot::Slot};
 use haloumi_lowering::{ExprLowering, lowerable::LowerableExpr};
-use std::convert::Infallible;
+use std::{
+    convert::Infallible,
+    ops::{Add, Mul, Neg},
+};
 
 /// Represents an arithmetic expression.
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct IRAexpr(pub(crate) IRAexprImpl);
+
 #[derive(PartialEq, Eq, Clone)]
-pub enum IRAexpr {
+pub(crate) enum IRAexprImpl {
     /// Constant value.
     Constant(Felt),
     /// IO element of the circuit; inputs, outputs, cells, etc.
@@ -26,16 +28,26 @@ pub enum IRAexpr {
 }
 
 impl IRAexpr {
+    /// Creates a constant expression.
+    pub fn constant(felt: Felt) -> Self {
+        Self(IRAexprImpl::Constant(felt))
+    }
+
+    /// Creates an expression pointing to a slot.
+    pub fn slot(s: impl Into<Slot>) -> Self {
+        Self(IRAexprImpl::IO(s.into()))
+    }
+
     /// Maps the IO in-place.
     pub fn try_map_io<E>(&mut self, f: &impl Fn(&mut Slot) -> Result<(), E>) -> Result<(), E> {
-        match self {
-            IRAexpr::IO(func_io) => f(func_io),
-            IRAexpr::Negated(expr) => expr.try_map_io(f),
-            IRAexpr::Sum(lhs, rhs) => {
+        match &mut self.0 {
+            IRAexprImpl::IO(func_io) => f(func_io),
+            IRAexprImpl::Negated(expr) => expr.try_map_io(f),
+            IRAexprImpl::Sum(lhs, rhs) => {
                 lhs.try_map_io(f)?;
                 rhs.try_map_io(f)
             }
-            IRAexpr::Product(lhs, rhs) => {
+            IRAexprImpl::Product(lhs, rhs) => {
                 lhs.try_map_io(f)?;
                 rhs.try_map_io(f)
             }
@@ -44,12 +56,36 @@ impl IRAexpr {
     }
 }
 
+impl Neg for IRAexpr {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Self(IRAexprImpl::Negated(Box::new(self)))
+    }
+}
+
+impl Add for IRAexpr {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self(IRAexprImpl::Sum(Box::new(self), Box::new(rhs)))
+    }
+}
+
+impl Mul for IRAexpr {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self(IRAexprImpl::Product(Box::new(self), Box::new(rhs)))
+    }
+}
+
 impl<T> From<T> for IRAexpr
 where
     Felt: From<T>,
 {
     fn from(value: T) -> Self {
-        Self::Constant(value.into())
+        Self(IRAexprImpl::Constant(value.into()))
     }
 }
 
@@ -59,23 +95,23 @@ impl ConstantFolding for IRAexpr {
     type Error = Infallible;
 
     fn constant_fold(&mut self) -> Result<(), Self::Error> {
-        match self {
-            IRAexpr::Constant(_) => {}
-            IRAexpr::IO(_) => {}
-            IRAexpr::Negated(expr) => {
+        match &mut self.0 {
+            IRAexprImpl::Constant(_) => {}
+            IRAexprImpl::IO(_) => {}
+            IRAexprImpl::Negated(expr) => {
                 expr.constant_fold()?;
                 if let Some(f) = expr.const_value() {
                     *self = (-f).into();
                 }
             }
 
-            IRAexpr::Sum(lhs, rhs) => {
+            IRAexprImpl::Sum(lhs, rhs) => {
                 lhs.constant_fold()?;
                 rhs.constant_fold()?;
 
                 match (lhs.const_value(), rhs.const_value()) {
                     (Some(lhs), Some(rhs)) => {
-                        *self = IRAexpr::Constant(lhs + rhs);
+                        *self = Self(IRAexprImpl::Constant(lhs + rhs));
                     }
                     (None, Some(rhs)) if rhs == 0usize => {
                         *self = (**lhs).clone();
@@ -86,7 +122,7 @@ impl ConstantFolding for IRAexpr {
                     _ => {}
                 }
             }
-            IRAexpr::Product(lhs, rhs) => {
+            IRAexprImpl::Product(lhs, rhs) => {
                 lhs.constant_fold()?;
                 rhs.constant_fold()?;
                 match (lhs.const_value(), rhs.const_value()) {
@@ -109,10 +145,10 @@ impl ConstantFolding for IRAexpr {
                     }
                     // (* -1 X) => -X
                     (None, Some(rhs)) if rhs.is_minus_one() => {
-                        *self = IRAexpr::Negated(lhs.clone());
+                        *self = Self(IRAexprImpl::Negated(lhs.clone()));
                     }
                     (Some(lhs), None) if lhs.is_minus_one() => {
-                        *self = IRAexpr::Negated(rhs.clone());
+                        *self = Self(IRAexprImpl::Negated(rhs.clone()));
                     }
                     _ => {}
                 }
@@ -123,18 +159,18 @@ impl ConstantFolding for IRAexpr {
 
     /// Returns `Some(_)` if the expression is a constant value. None otherwise.
     fn const_value(&self) -> Option<Felt> {
-        match self {
-            IRAexpr::Constant(f) => Some(*f),
+        match &self.0 {
+            IRAexprImpl::Constant(f) => Some(*f),
             _ => None,
         }
     }
 }
 
 impl IRAexpr {
-    /// Returns the inner element of the expression if it matches [`IRAexpr::Negated`].
+    /// Returns the inner element of the expression if it matches [`IRAexprImpl::Negated`].
     fn negated_inner(&self) -> Option<&IRAexpr> {
-        match self {
-            IRAexpr::Negated(inner) => Some(inner),
+        match &self.0 {
+            IRAexprImpl::Negated(inner) => Some(inner),
             _ => None,
         }
     }
@@ -142,23 +178,23 @@ impl IRAexpr {
 
 impl Canonicalize for IRAexpr {
     fn canonicalize(&mut self) {
-        match self {
-            IRAexpr::Constant(_) => {}
-            IRAexpr::IO(_) => {}
-            IRAexpr::Negated(expr) => {
+        match &mut self.0 {
+            IRAexprImpl::Constant(_) => {}
+            IRAexprImpl::IO(_) => {}
+            IRAexprImpl::Negated(expr) => {
                 expr.canonicalize();
                 // (- (- X)) => X
                 if let Some(inner) = expr.negated_inner() {
                     *self = inner.clone();
                 }
             }
-            IRAexpr::Sum(_, _) => todo!(),
-            IRAexpr::Product(_, _) => todo!(),
+            IRAexprImpl::Sum(_, _) => todo!(),
+            IRAexprImpl::Product(_, _) => todo!(),
         };
     }
 }
 
-impl std::fmt::Debug for IRAexpr {
+impl std::fmt::Debug for IRAexprImpl {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Constant(arg0) => write!(f, "{arg0:?}"),
@@ -174,14 +210,14 @@ impl EqvRelation<IRAexpr> for SymbolicEqv {
     /// Two arithmetic expressions are equivalent if they are structurally equal, constant values
     /// equal and variables are equivalent.
     fn equivalent(lhs: &IRAexpr, rhs: &IRAexpr) -> bool {
-        match (lhs, rhs) {
-            (IRAexpr::Constant(lhs), IRAexpr::Constant(rhs)) => lhs == rhs,
-            (IRAexpr::IO(lhs), IRAexpr::IO(rhs)) => equiv!(Self | lhs, rhs),
-            (IRAexpr::Negated(lhs), IRAexpr::Negated(rhs)) => equiv!(Self | lhs, rhs),
-            (IRAexpr::Sum(lhs0, lhs1), IRAexpr::Sum(rhs0, rhs1)) => {
+        match (&lhs.0, &rhs.0) {
+            (IRAexprImpl::Constant(lhs), IRAexprImpl::Constant(rhs)) => lhs == rhs,
+            (IRAexprImpl::IO(lhs), IRAexprImpl::IO(rhs)) => equiv!(Self | lhs, rhs),
+            (IRAexprImpl::Negated(lhs), IRAexprImpl::Negated(rhs)) => equiv!(Self | lhs, rhs),
+            (IRAexprImpl::Sum(lhs0, lhs1), IRAexprImpl::Sum(rhs0, rhs1)) => {
                 equiv!(Self | lhs0, rhs0) && equiv!(Self | lhs1, rhs1)
             }
-            (IRAexpr::Product(lhs0, lhs1), IRAexpr::Product(rhs0, rhs1)) => {
+            (IRAexprImpl::Product(lhs0, lhs1), IRAexprImpl::Product(rhs0, rhs1)) => {
                 equiv!(Self | lhs0, rhs0) && equiv!(Self | lhs1, rhs1)
             }
             _ => false,
@@ -194,12 +230,12 @@ impl LowerableExpr for IRAexpr {
     where
         L: ExprLowering + ?Sized,
     {
-        match self {
-            IRAexpr::Constant(f) => l.lower_constant(f),
-            IRAexpr::IO(io) => l.lower_funcio(io),
-            IRAexpr::Negated(expr) => l.lower_neg(&expr.lower(l)?),
-            IRAexpr::Sum(lhs, rhs) => l.lower_sum(&lhs.lower(l)?, &rhs.lower(l)?),
-            IRAexpr::Product(lhs, rhs) => l.lower_product(&lhs.lower(l)?, &rhs.lower(l)?),
+        match self.0 {
+            IRAexprImpl::Constant(f) => l.lower_constant(f),
+            IRAexprImpl::IO(io) => l.lower_funcio(io),
+            IRAexprImpl::Negated(expr) => l.lower_neg(&expr.lower(l)?),
+            IRAexprImpl::Sum(lhs, rhs) => l.lower_sum(&lhs.lower(l)?, &rhs.lower(l)?),
+            IRAexprImpl::Product(lhs, rhs) => l.lower_product(&lhs.lower(l)?, &rhs.lower(l)?),
         }
     }
 }
@@ -220,7 +256,7 @@ mod folding_tests {
 
     /// Creates a constant value under BabyBear
     fn c(v: impl Into<BabyBear>) -> IRAexpr {
-        IRAexpr::Constant(Felt::from(v.into()))
+        IRAexpr(IRAexprImpl::Constant(Felt::from(v.into())))
     }
 
     #[rstest]
@@ -242,8 +278,8 @@ mod folding_tests {
     #[rstest]
     fn mult_identity() {
         let lhs = c(1);
-        let rhs = IRAexpr::IO(Slot::Arg(0.into()));
-        let mut mul = IRAexpr::Product(Box::new(lhs), Box::new(rhs.clone()));
+        let rhs = IRAexpr(IRAexprImpl::IO(Slot::Arg(0.into())));
+        let mut mul = IRAexpr(IRAexprImpl::Product(Box::new(lhs), Box::new(rhs.clone())));
         mul.constant_fold().unwrap();
         assert_eq!(mul, rhs);
     }
@@ -251,8 +287,8 @@ mod folding_tests {
     #[rstest]
     fn mult_identity_rev() {
         let rhs = c(1);
-        let lhs = IRAexpr::IO(Slot::Arg(0.into()));
-        let mut mul = IRAexpr::Product(Box::new(lhs.clone()), Box::new(rhs));
+        let lhs = IRAexpr(IRAexprImpl::IO(Slot::Arg(0.into())));
+        let mut mul = IRAexpr(IRAexprImpl::Product(Box::new(lhs.clone()), Box::new(rhs)));
         mul.constant_fold().unwrap();
         assert_eq!(mul, lhs);
     }
@@ -260,8 +296,8 @@ mod folding_tests {
     #[rstest]
     fn mult_by_zero() {
         let lhs = c(0);
-        let rhs = IRAexpr::IO(Slot::Arg(0.into()));
-        let mut mul = IRAexpr::Product(Box::new(lhs.clone()), Box::new(rhs));
+        let rhs = IRAexpr(IRAexprImpl::IO(Slot::Arg(0.into())));
+        let mut mul = IRAexpr(IRAexprImpl::Product(Box::new(lhs.clone()), Box::new(rhs)));
         mul.constant_fold().unwrap();
         assert_eq!(mul, lhs);
     }
@@ -269,8 +305,8 @@ mod folding_tests {
     #[rstest]
     fn mult_by_zero_rev() {
         let rhs = c(0);
-        let lhs = IRAexpr::IO(Slot::Arg(0.into()));
-        let mut mul = IRAexpr::Product(Box::new(lhs), Box::new(rhs.clone()));
+        let lhs = IRAexpr(IRAexprImpl::IO(Slot::Arg(0.into())));
+        let mut mul = IRAexpr(IRAexprImpl::Product(Box::new(lhs), Box::new(rhs.clone())));
         mul.constant_fold().unwrap();
         assert_eq!(mul, rhs);
     }
@@ -278,8 +314,8 @@ mod folding_tests {
     #[rstest]
     fn sum_identity() {
         let lhs = c(0);
-        let rhs = IRAexpr::IO(Slot::Arg(0.into()));
-        let mut sum = IRAexpr::Sum(Box::new(lhs), Box::new(rhs.clone()));
+        let rhs = IRAexpr(IRAexprImpl::IO(Slot::Arg(0.into())));
+        let mut sum = IRAexpr(IRAexprImpl::Sum(Box::new(lhs), Box::new(rhs.clone())));
         sum.constant_fold().unwrap();
         assert_eq!(sum, rhs);
     }
@@ -287,8 +323,8 @@ mod folding_tests {
     #[rstest]
     fn sum_identity_rev() {
         let rhs = c(0);
-        let lhs = IRAexpr::IO(Slot::Arg(0.into()));
-        let mut sum = IRAexpr::Sum(Box::new(lhs.clone()), Box::new(rhs));
+        let lhs = IRAexpr(IRAexprImpl::IO(Slot::Arg(0.into())));
+        let mut sum = IRAexpr(IRAexprImpl::Sum(Box::new(lhs.clone()), Box::new(rhs)));
         sum.constant_fold().unwrap();
         assert_eq!(sum, lhs);
     }

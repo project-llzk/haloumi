@@ -13,5 +13,5 @@ keywords = {workspace = true}
 
 [dependencies]
 ff = { workspace = true }
-haloumi-core  = { version = "0.2.2", path = "../core" }
+haloumi-core  = { version = "0.3.0", path = "../core" }
 thiserror = { workspace = true }

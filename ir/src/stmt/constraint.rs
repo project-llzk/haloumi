@@ -101,7 +101,7 @@ impl Constraint<IRAexpr> {
 
 impl<T> From<Constraint<T>> for IRBexpr<T> {
     fn from(value: Constraint<T>) -> Self {
-        IRBexpr::Cmp(value.op, value.lhs, value.rhs)
+        IRBexpr::cmp(value.op, value.lhs, value.rhs)
     }
 }
 

@@ -9,13 +9,13 @@ type S = IRStmt<()>;
 #[test]
 fn iterator_nested_seqs() {
     let nested = S::seq([
-        S::assert(IRBexpr::And(vec![])),
+        S::assert(IRBexpr::and_many(vec![])),
         S::seq([
-            S::assert(IRBexpr::And(vec![])),
-            S::assert(IRBexpr::And(vec![])),
+            S::assert(IRBexpr::and_many(vec![])),
+            S::assert(IRBexpr::and_many(vec![])),
         ]),
     ]);
-    let expected = vec![S::assert(IRBexpr::And(vec![])); 3];
+    let expected = vec![S::assert(IRBexpr::and_many(vec![])); 3];
     let output = nested.into_iter().collect::<Vec<_>>();
     assert_eq!(expected, output);
 }

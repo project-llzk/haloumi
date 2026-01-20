@@ -1,6 +1,5 @@
 use crate::{
     error::Error,
-    expr::IRAexpr,
     traits::{Canonicalize, ConstantFolding},
 };
 use haloumi_lowering::{
@@ -30,11 +29,11 @@ impl<T> Seq<T> {
         self.0.is_empty()
     }
 
-    pub fn iter<'a>(&'a self) -> std::slice::Iter<'a, IRStmt<T>> {
+    pub fn iter(&self) -> std::slice::Iter<'_, IRStmt<T>> {
         self.0.iter()
     }
 
-    pub fn iter_mut<'a>(&'a mut self) -> std::slice::IterMut<'a, IRStmt<T>> {
+    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, IRStmt<T>> {
         self.0.iter_mut()
     }
 

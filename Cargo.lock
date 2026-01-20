@@ -317,7 +317,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-core"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "eqv",
  "ff",
@@ -334,7 +334,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-ir"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "eqv",
  "ff",
@@ -352,7 +352,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-lowering"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "ff",
  "haloumi-core",

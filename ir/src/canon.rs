@@ -46,7 +46,22 @@ mod tests {
     use super::*;
     use crate::expr::IRAexpr;
     use haloumi_core::cmp::CmpOp;
+    use haloumi_core::felt::Felt;
     use haloumi_core::slot::Slot;
+
+    use ff::PrimeField;
+
+    /// Implementation of BabyBear used for testing.
+    #[derive(PrimeField)]
+    #[PrimeFieldModulus = "2013265921"]
+    #[PrimeFieldGenerator = "31"]
+    #[PrimeFieldReprEndianness = "little"]
+    pub struct BabyBear([u64; 1]);
+
+    /// Creates a constant value under BabyBear
+    fn c(v: impl Into<BabyBear>) -> IRAexpr {
+        IRAexpr::Constant(Felt::from(v.into()))
+    }
 
     #[test]
     fn test_subtraction_to_equal() {
@@ -60,7 +75,7 @@ mod tests {
                     Box::new(x.clone()),
                     Box::new(IRAexpr::Negated(Box::new(y.clone()))),
                 ),
-                &IRAexpr::Constant(0usize.into()),
+                &c(0),
             );
             let expected = Some((CmpOp::Eq, x.clone(), y.clone()));
             similar_asserts::assert_eq!(expected, output);
@@ -73,7 +88,7 @@ mod tests {
                     Box::new(IRAexpr::Negated(Box::new(x.clone()))),
                     Box::new(y.clone()),
                 ),
-                &IRAexpr::Constant(0usize.into()),
+                &c(0),
             );
             let expected = Some((CmpOp::Eq, x.clone(), y.clone()));
             similar_asserts::assert_eq!(expected, output);

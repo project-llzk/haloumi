@@ -21,6 +21,10 @@ impl Prime {
     fn value(&self) -> &BigUint {
         self.0.as_ref()
     }
+
+    fn minus_one(&self) -> Felt {
+        Felt::from_parts(self.value() - 1usize, *self)
+    }
 }
 
 /// Lightweight representation of a constant value.
@@ -71,6 +75,11 @@ impl Felt {
             value: Intern::new(value % self.prime.value()),
             prime: self.prime,
         }
+    }
+
+    /// Returns true if the felt represents -1 mod P.
+    pub fn is_minus_one(&self) -> bool {
+        *self == self.prime().minus_one()
     }
 }
 

@@ -63,14 +63,14 @@ impl<T> Constraint<T> {
     /// Folds the statements if the expressions are constant.
     /// If a assert-like statement folds into a tautology (i.e. `(= 0 0 )`) gets removed. If it
     /// folds into a unsatisfiable proposition the method returns an error.
-    pub fn constant_fold(&mut self, prime: T::F) -> Result<Option<IRStmt<T>>, Error>
+    pub fn constant_fold(&mut self) -> Result<Option<IRStmt<T>>, Error>
     where
         T: ConstantFolding + std::fmt::Debug + Clone,
         Error: From<T::Error>,
         T::T: Ord + Eq,
     {
-        self.lhs.constant_fold(prime)?;
-        self.rhs.constant_fold(prime)?;
+        self.lhs.constant_fold()?;
+        self.rhs.constant_fold()?;
         if let Some((lhs, rhs)) = self.lhs.const_value().zip(self.rhs.const_value()) {
             let r = match self.op {
                 CmpOp::Eq => lhs == rhs,

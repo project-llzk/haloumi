@@ -2,22 +2,20 @@
 
 /// Represents a constant-foldable object.
 pub trait ConstantFolding {
-    /// Type representing the prime.
-    type F: Copy;
     /// Error type.
     type Error;
     /// Object's type for constants.
     type T;
 
     /// Folds the object in-place.
-    fn constant_fold(&mut self, prime: Self::F) -> Result<(), Self::Error>;
+    fn constant_fold(&mut self) -> Result<(), Self::Error>;
 
     /// Moves the object after folding it.
-    fn constant_folded(mut self, prime: Self::F) -> Result<Self, Self::Error>
+    fn constant_folded(mut self) -> Result<Self, Self::Error>
     where
         Self: Sized,
     {
-        self.constant_fold(prime)?;
+        self.constant_fold()?;
         Ok(self)
     }
 

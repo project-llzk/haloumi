@@ -18,9 +18,12 @@ thiserror.workspace = true
 eqv.workspace = true
 haloumi-core = { path = "../core", version = "0.2.3"}
 haloumi-lowering = { path = "../lowering", version = "0.2.3" }
+num-bigint.workspace = true
 
 [dev-dependencies]
 rstest = "0.26"
 similar-asserts = "1.7"
 ff = { workspace = true, features = ["derive"] }
 halo2curves = "0.9"
+quickcheck = "1"
+quickcheck_macros = "1"

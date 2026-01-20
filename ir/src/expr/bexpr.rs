@@ -1,11 +1,11 @@
 //! Structs for handling boolean expressions.
 
 use crate::error::Error;
-use crate::traits::ConstantFolding;
+use crate::traits::{Canonicalize, ConstantFolding};
 use crate::{canon::canonicalize_constraint, expr::IRAexpr};
 use eqv::{EqvRelation, equiv};
-use haloumi_ir_base::SymbolicEqv;
-use haloumi_ir_base::cmp::CmpOp;
+use haloumi_core::cmp::CmpOp;
+use haloumi_core::eqv::SymbolicEqv;
 use haloumi_lowering::lowering_err;
 use haloumi_lowering::{ExprLowering, lowerable::LowerableExpr};
 use std::{
@@ -167,8 +167,58 @@ impl<T> IRBexpr<T> {
 
     #[inline]
     /// Creates an implication expression.
-    pub fn implies(lhs: Self, rhs: Self) -> Self {
-        Self::Implies(Box::new(lhs), Box::new(rhs))
+    pub fn implies(self, rhs: Self) -> Self {
+        Self::Implies(Box::new(self), Box::new(rhs))
+    }
+
+    #[inline]
+    /// Creates a double implication expression.
+    pub fn iff(self, rhs: Self) -> Self {
+        Self::Iff(Box::new(self), Box::new(rhs))
+    }
+
+    /// Creates a logical AND.
+    pub fn and(self, rhs: Self) -> Self {
+        match (self, rhs) {
+            (IRBexpr::And(mut lhs), IRBexpr::And(rhs)) => {
+                lhs.reserve(rhs.len());
+                lhs.extend(rhs);
+                IRBexpr::And(lhs)
+            }
+            // The order of the operators is irrelevant
+            (exp, IRBexpr::And(mut lst)) | (IRBexpr::And(mut lst), exp) => {
+                lst.push(exp);
+                IRBexpr::And(lst)
+            }
+            (lhs, rhs) => IRBexpr::And(vec![lhs, rhs]),
+        }
+    }
+
+    /// Creates a logical AND from a sequence of expressions.
+    pub fn and_many(exprs: impl IntoIterator<Item = Self>) -> Self {
+        IRBexpr::And(exprs.into_iter().collect())
+    }
+
+    /// Creates a logical OR.
+    pub fn or(self, rhs: Self) -> Self {
+        match (self, rhs) {
+            (IRBexpr::Or(mut lhs), IRBexpr::Or(rhs)) => {
+                lhs.reserve(rhs.len());
+                lhs.extend(rhs);
+                IRBexpr::Or(lhs)
+            }
+            // The order of the operators is irrelevant
+            (exp, IRBexpr::Or(mut lst)) | (IRBexpr::Or(mut lst), exp) => {
+                lst.push(exp);
+                IRBexpr::Or(lst)
+            }
+            (lhs, rhs) => IRBexpr::Or(vec![lhs, rhs]),
+        }
+    }
+
+    /// Creates a logical OR from a sequence of expressions.
+    pub fn or_many(exprs: impl IntoIterator<Item = Self>) -> Self {
+        IRBexpr::Or(exprs.into_iter().collect())
     }
 
     /// Maps the statement's inner type to a tuple with the passed value.
@@ -227,9 +277,9 @@ impl LogLine {
     }
 }
 
-impl IRBexpr<IRAexpr> {
+impl Canonicalize for IRBexpr<IRAexpr> {
     /// Matches the expressions against a series of known patterns and applies rewrites if able to.
-    pub(crate) fn canonicalize(&mut self) {
+    fn canonicalize(&mut self) {
         match self {
             IRBexpr::True => {}
             IRBexpr::False => {}
@@ -294,7 +344,7 @@ where
     T::T: Eq + Ord,
 {
     /// Folds the expression if the values are constant.
-    fn constant_fold_impl(&mut self, prime: T::F, indent: usize) -> Result<(), T::Error> {
+    fn constant_fold_impl(&mut self, indent: usize) -> Result<(), T::Error> {
         let log = LogLine::new(self, indent);
         match self {
             IRBexpr::True => {
@@ -304,8 +354,8 @@ where
                 log.log(self);
             }
             IRBexpr::Cmp(op, lhs, rhs) => {
-                lhs.constant_fold(prime)?;
-                rhs.constant_fold(prime)?;
+                lhs.constant_fold()?;
+                rhs.constant_fold()?;
                 if let Some((lhs, rhs)) = lhs.const_value().zip(rhs.const_value()) {
                     *self = match op {
                         CmpOp::Eq => lhs == rhs,
@@ -321,7 +371,7 @@ where
             }
             IRBexpr::And(exprs) => {
                 for expr in &mut *exprs {
-                    expr.constant_fold_impl(prime, indent + 2)?;
+                    expr.constant_fold_impl(indent + 2)?;
                 }
                 // If any value is a literal 'false' convert into IRBexpr::False
                 if exprs.iter().any(|expr| {
@@ -350,7 +400,7 @@ where
             }
             IRBexpr::Or(exprs) => {
                 for expr in &mut *exprs {
-                    expr.constant_fold_impl(prime, indent + 2)?;
+                    expr.constant_fold_impl(indent + 2)?;
                 }
                 // If any value is a literal 'true' convert into IRBexpr::True.
                 if exprs
@@ -373,23 +423,23 @@ where
                 log.log(self);
             }
             IRBexpr::Not(expr) => {
-                expr.constant_fold_impl(prime, indent + 2)?;
+                expr.constant_fold_impl(indent + 2)?;
                 if let Some(b) = expr.const_value() {
-                    *self = b.into();
+                    *self = (!b).into();
                 }
                 log.log(self);
             }
-            IRBexpr::Det(expr) => expr.constant_fold(prime)?,
+            IRBexpr::Det(expr) => expr.constant_fold()?,
             IRBexpr::Implies(lhs, rhs) => {
-                lhs.constant_fold_impl(prime, indent + 2)?;
-                rhs.constant_fold_impl(prime, indent + 2)?;
+                lhs.constant_fold_impl(indent + 2)?;
+                rhs.constant_fold_impl(indent + 2)?;
                 if let Some((lhs, rhs)) = lhs.const_value().zip(rhs.const_value()) {
                     *self = (!lhs || rhs).into();
                 }
             }
             IRBexpr::Iff(lhs, rhs) => {
-                lhs.constant_fold_impl(prime, indent + 2)?;
-                rhs.constant_fold_impl(prime, indent + 2)?;
+                lhs.constant_fold_impl(indent + 2)?;
+                rhs.constant_fold_impl(indent + 2)?;
                 if let Some((lhs, rhs)) = lhs.const_value().zip(rhs.const_value()) {
                     *self = (lhs == rhs).into();
                 }
@@ -404,13 +454,12 @@ where
     T: ConstantFolding + std::fmt::Debug,
     T::T: Eq + Ord,
 {
-    type F = T::F;
     type T = bool;
 
     type Error = T::Error;
 
-    fn constant_fold(&mut self, prime: Self::F) -> Result<(), Self::Error> {
-        self.constant_fold_impl(prime, 0)
+    fn constant_fold(&mut self) -> Result<(), Self::Error> {
+        self.constant_fold_impl(0)
     }
 
     /// Returns `Some(true)` or `Some(false)` if the expression is constant, `None` otherwise.
@@ -438,6 +487,7 @@ where
     /// are equivalent.
     fn equivalent(lhs: &IRBexpr<L>, rhs: &IRBexpr<R>) -> bool {
         match (lhs, rhs) {
+            (IRBexpr::True, IRBexpr::True) | (IRBexpr::False, IRBexpr::False) => true,
             (IRBexpr::Cmp(op1, lhs1, rhs1), IRBexpr::Cmp(op2, lhs2, rhs2)) => {
                 op1 == op2 && equiv!(Self | lhs1, lhs2) && equiv!(Self | rhs1, rhs2)
             }
@@ -463,25 +513,11 @@ where
     }
 }
 
-#[inline]
-fn concat<L, R, T>(lhs: L, rhs: R) -> Vec<IRBexpr<T>>
-where
-    L: IntoIterator<Item = IRBexpr<T>>,
-    R: IntoIterator<Item = IRBexpr<T>>,
-{
-    lhs.into_iter().chain(rhs).collect()
-}
-
 impl<T> BitAnd for IRBexpr<T> {
     type Output = Self;
 
     fn bitand(self, rhs: Self) -> Self::Output {
-        match (self, rhs) {
-            (IRBexpr::And(lhs), IRBexpr::And(rhs)) => IRBexpr::And(concat(lhs, rhs)),
-            (lhs, IRBexpr::And(rhs)) => IRBexpr::And(concat([lhs], rhs)),
-            (IRBexpr::And(lhs), rhs) => IRBexpr::And(concat(lhs, [rhs])),
-            (lhs, rhs) => IRBexpr::And(vec![lhs, rhs]),
-        }
+        self.and(rhs)
     }
 }
 
@@ -489,12 +525,7 @@ impl<T> BitOr for IRBexpr<T> {
     type Output = Self;
 
     fn bitor(self, rhs: Self) -> Self::Output {
-        match (self, rhs) {
-            (IRBexpr::Or(lhs), IRBexpr::Or(rhs)) => IRBexpr::Or(concat(lhs, rhs)),
-            (lhs, IRBexpr::Or(rhs)) => IRBexpr::Or(concat([lhs], rhs)),
-            (IRBexpr::Or(lhs), rhs) => IRBexpr::Or(concat(lhs, [rhs])),
-            (lhs, rhs) => IRBexpr::Or(vec![lhs, rhs]),
-        }
+        self.or(rhs)
     }
 }
 
@@ -551,7 +582,7 @@ impl<T: PartialEq> PartialEq for IRBexpr<T> {
             (IRBexpr::Or(lhs), IRBexpr::Or(rhs)) => lhs == rhs,
             (IRBexpr::Not(lhs), IRBexpr::Not(rhs)) => lhs == rhs,
             (IRBexpr::True, IRBexpr::True) => true,
-            (IRBexpr::False, IRBexpr::False) => false,
+            (IRBexpr::False, IRBexpr::False) => true,
             (IRBexpr::Det(lhs), IRBexpr::Det(rhs)) => lhs == rhs,
             (IRBexpr::Implies(lhs1, rhs1), IRBexpr::Implies(lhs2, rhs2)) => {
                 lhs1 == lhs2 && rhs1 == rhs2
@@ -615,6 +646,43 @@ impl<A: LowerableExpr> LowerableExpr for IRBexpr<A> {
                 let rhs = rhs.lower(l)?;
                 l.lower_iff(&lhs, &rhs)
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn t() -> IRBexpr<()> {
+        true.into()
+    }
+
+    fn f() -> IRBexpr<()> {
+        false.into()
+    }
+
+    #[test]
+    fn constant_fold_not_true() {
+        let mut expr = !t();
+        expr.constant_fold().unwrap();
+        assert_eq!(expr, f());
+    }
+
+    #[test]
+    fn constant_fold_not_false() {
+        let mut expr = !f();
+        expr.constant_fold().unwrap();
+        assert_eq!(expr, t());
+    }
+
+    impl ConstantFolding for () {
+        type Error = std::convert::Infallible;
+
+        type T = ();
+
+        fn constant_fold(&mut self) -> Result<(), Self::Error> {
+            Ok(())
         }
     }
 }

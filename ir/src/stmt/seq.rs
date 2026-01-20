@@ -1,4 +1,8 @@
-use crate::{error::Error, expr::IRAexpr, traits::ConstantFolding};
+use crate::{
+    error::Error,
+    expr::IRAexpr,
+    traits::{Canonicalize, ConstantFolding},
+};
 use haloumi_lowering::{
     Lowering,
     lowerable::{LowerableExpr, LowerableStmt},
@@ -41,7 +45,7 @@ impl<T> Seq<T> {
     /// Folds the statements if the expressions are constant.
     /// If a assert-like statement folds into a tautology (i.e. `(= 0 0 )`) gets removed. If it
     /// folds into a unsatisfiable proposition the method returns an error.
-    pub fn constant_fold(&mut self, prime: T::F) -> Result<(), Error>
+    pub fn constant_fold(&mut self) -> Result<(), Error>
     where
         T: ConstantFolding + std::fmt::Debug + Clone,
         Error: From<T::Error>,
@@ -49,11 +53,19 @@ impl<T> Seq<T> {
     {
         self.0
             .iter_mut()
-            .try_for_each(|inner| inner.constant_fold(prime))
+            .try_for_each(|inner| inner.constant_fold())
+    }
+
+    /// Appends a statement to the sequence
+    pub fn push(&mut self, stmt: IRStmt<T>) {
+        self.0.push(stmt)
     }
 }
 
-impl Seq<IRAexpr> {
+impl<T> Seq<T>
+where
+    IRStmt<T>: Canonicalize,
+{
     /// Matches the statements against a series of known patterns and applies rewrites if able to.
     pub fn canonicalize(&mut self) {
         for inner in &mut self.0 {

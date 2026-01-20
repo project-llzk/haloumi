@@ -1,4 +1,4 @@
-use crate::traits::ConstantFolding;
+use crate::traits::{Canonicalize, ConstantFolding};
 use eqv::{EqvRelation, equiv};
 use haloumi_core::{eqv::SymbolicEqv, slot::Slot};
 use haloumi_lowering::{
@@ -76,14 +76,24 @@ impl<T> Call<T> {
     }
 
     /// Folds the statements if the expressions are constant.
-    pub fn constant_fold(&mut self, prime: T::F) -> Result<(), T::Error>
+    pub fn constant_fold(&mut self) -> Result<(), T::Error>
     where
         T: ConstantFolding,
     {
         for i in &mut self.inputs {
-            i.constant_fold(prime)?;
+            i.constant_fold()?;
         }
         Ok(())
+    }
+
+    /// Applies canonicalization patterns
+    pub fn canonicalize(&mut self)
+    where
+        T: Canonicalize,
+    {
+        for i in &mut self.inputs {
+            i.canonicalize();
+        }
     }
 }
 

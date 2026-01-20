@@ -1,7 +1,11 @@
 //! Structs for representing statements of the circuit's logic.
 
 use super::expr::IRBexpr;
-use crate::{error::Error, expr::IRAexpr, traits::ConstantFolding};
+use crate::{
+    error::Error,
+    expr::IRAexpr,
+    traits::{Canonicalize, ConstantFolding},
+};
 use eqv::{EqvRelation, equiv};
 use haloumi_core::{cmp::CmpOp, eqv::SymbolicEqv, slot::Slot};
 use haloumi_lowering::{
@@ -26,7 +30,9 @@ use post_cond::PostCond;
 use seq::Seq;
 
 /// IR for operations that occur in the main circuit.
-pub enum IRStmt<T> {
+pub struct IRStmt<T>(IRStmtImpl<T>);
+
+enum IRStmtImpl<T> {
     /// A call to another module.
     ConstraintCall(Call<T>),
     /// A constraint between two expressions.
@@ -51,7 +57,7 @@ impl<T: PartialEq> PartialEq for IRStmt<T> {
     ///     Seq([a, Seq([b, c])]) == Seq([a, b, c])
     ///     a == Seq([a])
     fn eq(&self, other: &Self) -> bool {
-        std::iter::zip(self.iter(), other.iter()).all(|(lhs, rhs)| match (lhs, rhs) {
+        std::iter::zip(self.iter(), other.iter()).all(|(lhs, rhs)| match (lhs.0, rhs.0) {
             (IRStmt::ConstraintCall(lhs), IRStmt::ConstraintCall(rhs)) => lhs.eq(rhs),
             (IRStmt::Constraint(lhs), IRStmt::Constraint(rhs)) => lhs.eq(rhs),
             (IRStmt::Comment(lhs), IRStmt::Comment(rhs)) => lhs.eq(rhs),
@@ -66,7 +72,7 @@ impl<T: PartialEq> PartialEq for IRStmt<T> {
 
 impl<T: std::fmt::Debug> std::fmt::Debug for IRStmt<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
+        match self.0 {
             IRStmt::ConstraintCall(call) => write!(f, "{call:?}"),
             IRStmt::Constraint(constraint) => write!(f, "{constraint:?}"),
             IRStmt::Comment(comment) => write!(f, "{comment:?}"),
@@ -208,29 +214,40 @@ impl<T> IRStmt<T> {
         value.map(&Into::into)
     }
 
+    /// Appends the given statement to the current one.
+    pub fn then(self, other: impl Into<Self>) -> Self {
+        match self.0 {
+            IRStmtImpl::Seq(mut seq) => {
+                seq.push(other.into());
+                seq.into()
+            }
+            this => Seq::new([Self(this), other.into()]).into(),
+        }
+    }
+
     /// Transforms the inner expression type into another, without moving.
     pub fn map_into<O>(&self, f: &impl Fn(&T) -> O) -> IRStmt<O> {
-        match self {
-            IRStmt::ConstraintCall(call) => call.map_into(f).into(),
-            IRStmt::Constraint(constraint) => constraint.map_into(f).into(),
-            IRStmt::Comment(comment) => Comment::new(comment.value()).into(),
-            IRStmt::AssumeDeterministic(ad) => AssumeDeterministic::new(ad.value()).into(),
-            IRStmt::Assert(assert) => assert.map_into(f).into(),
-            IRStmt::PostCond(pc) => pc.map_into(f).into(),
-            IRStmt::Seq(seq) => Seq::new(seq.iter().map(|s| s.map_into(f))).into(),
+        match &self.0 {
+            IRStmtImpl::ConstraintCall(call) => call.map_into(f).into(),
+            IRStmtImpl::Constraint(constraint) => constraint.map_into(f).into(),
+            IRStmtImpl::Comment(comment) => Comment::new(comment.value()).into(),
+            IRStmtImpl::AssumeDeterministic(ad) => AssumeDeterministic::new(ad.value()).into(),
+            IRStmtImpl::Assert(assert) => assert.map_into(f).into(),
+            IRStmtImpl::PostCond(pc) => pc.map_into(f).into(),
+            IRStmtImpl::Seq(seq) => Seq::new(seq.iter().map(|s| s.map_into(f))).into(),
         }
     }
 
     /// Tries to transform the inner expression type into another.
     pub fn try_map<O, E>(self, f: &impl Fn(T) -> Result<O, E>) -> Result<IRStmt<O>, E> {
-        Ok(match self {
-            IRStmt::ConstraintCall(call) => call.try_map(f)?.into(),
-            IRStmt::Constraint(constraint) => constraint.try_map(f)?.into(),
-            IRStmt::Comment(comment) => Comment::new(comment.value()).into(),
-            IRStmt::AssumeDeterministic(ad) => AssumeDeterministic::new(ad.value()).into(),
-            IRStmt::Assert(assert) => assert.try_map(f)?.into(),
-            IRStmt::PostCond(pc) => pc.try_map(f)?.into(),
-            IRStmt::Seq(seq) => Seq::new(
+        Ok(match self.0 {
+            IRStmtImpl::ConstraintCall(call) => call.try_map(f)?.into(),
+            IRStmtImpl::Constraint(constraint) => constraint.try_map(f)?.into(),
+            IRStmtImpl::Comment(comment) => Comment::new(comment.value()).into(),
+            IRStmtImpl::AssumeDeterministic(ad) => AssumeDeterministic::new(ad.value()).into(),
+            IRStmtImpl::Assert(assert) => assert.try_map(f)?.into(),
+            IRStmtImpl::PostCond(pc) => pc.try_map(f)?.into(),
+            IRStmtImpl::Seq(seq) => Seq::new(
                 seq.into_iter()
                     .map(|s| s.try_map(f))
                     .collect::<Result<Vec<_>, _>>()?,
@@ -241,14 +258,14 @@ impl<T> IRStmt<T> {
 
     /// Tries to modify the inner expression type in place.
     pub fn try_map_inplace<E>(&mut self, f: &impl Fn(&mut T) -> Result<(), E>) -> Result<(), E> {
-        match self {
-            IRStmt::ConstraintCall(call) => call.try_map_inplace(f),
-            IRStmt::Constraint(constraint) => constraint.try_map_inplace(f),
-            IRStmt::Comment(_) => Ok(()),
-            IRStmt::AssumeDeterministic(_) => Ok(()),
-            IRStmt::Assert(assert) => assert.try_map_inplace(f),
-            IRStmt::PostCond(pc) => pc.try_map_inplace(f),
-            IRStmt::Seq(seq) => {
+        match &mut self.0 {
+            IRStmtImpl::ConstraintCall(call) => call.try_map_inplace(f),
+            IRStmtImpl::Constraint(constraint) => constraint.try_map_inplace(f),
+            IRStmtImpl::Comment(_) => Ok(()),
+            IRStmtImpl::AssumeDeterministic(_) => Ok(()),
+            IRStmtImpl::Assert(assert) => assert.try_map_inplace(f),
+            IRStmtImpl::PostCond(pc) => pc.try_map_inplace(f),
+            IRStmtImpl::Seq(seq) => {
                 for stmt in seq.iter_mut() {
                     stmt.try_map_inplace(f)?;
                 }
@@ -274,50 +291,49 @@ where
     Error: From<T::Error>,
     T::T: Eq + Ord,
 {
-    type F = T::F;
     type Error = Error;
     type T = ();
 
     /// Folds the statements if the expressions are constant.
     /// If a assert-like statement folds into a tautology (i.e. `(= 0 0 )`) gets removed. If it
     /// folds into a unsatisfiable proposition the method returns an error.
-    fn constant_fold(&mut self, prime: T::F) -> Result<(), Error> {
-        match self {
-            IRStmt::ConstraintCall(call) => call.constant_fold(prime)?,
-            IRStmt::Constraint(constraint) => {
-                if let Some(replacement) = constraint.constant_fold(prime)? {
+    fn constant_fold(&mut self) -> Result<(), Error> {
+        match &mut self.0 {
+            IRStmtImpl::ConstraintCall(call) => call.constant_fold()?,
+            IRStmtImpl::Constraint(constraint) => {
+                if let Some(replacement) = constraint.constant_fold()? {
                     *self = replacement;
                 }
             }
-            IRStmt::Comment(_) => {}
-            IRStmt::AssumeDeterministic(_) => {}
-            IRStmt::Assert(assert) => {
-                if let Some(replacement) = assert.constant_fold(prime)? {
+            IRStmtImpl::Comment(_) => {}
+            IRStmtImpl::AssumeDeterministic(_) => {}
+            IRStmtImpl::Assert(assert) => {
+                if let Some(replacement) = assert.constant_fold()? {
                     *self = replacement;
                 }
             }
-            IRStmt::PostCond(pc) => {
-                if let Some(replacement) = pc.constant_fold(prime)? {
+            IRStmtImpl::PostCond(pc) => {
+                if let Some(replacement) = pc.constant_fold()? {
                     *self = replacement;
                 }
             }
-            IRStmt::Seq(seq) => seq.constant_fold(prime)?,
+            IRStmtImpl::Seq(seq) => seq.constant_fold()?,
         }
         Ok(())
     }
 }
 
-impl IRStmt<IRAexpr> {
+impl Canonicalize for IRStmt<IRAexpr> {
     /// Matches the statements against a series of known patterns and applies rewrites if able to.
-    pub fn canonicalize(&mut self) {
-        match self {
-            IRStmt::ConstraintCall(_) => {}
-            IRStmt::Constraint(constraint) => constraint.canonicalize(),
-            IRStmt::Comment(_) => {}
-            IRStmt::AssumeDeterministic(_) => {}
-            IRStmt::Assert(assert) => assert.canonicalize(),
-            IRStmt::PostCond(pc) => pc.canonicalize(),
-            IRStmt::Seq(seq) => seq.canonicalize(),
+    fn canonicalize(&mut self) {
+        match &mut self.0 {
+            IRStmtImpl::ConstraintCall(call) => call.canonicalize(),
+            IRStmtImpl::Constraint(constraint) => constraint.canonicalize(),
+            IRStmtImpl::Comment(_) => {}
+            IRStmtImpl::AssumeDeterministic(_) => {}
+            IRStmtImpl::Assert(assert) => assert.canonicalize(),
+            IRStmtImpl::PostCond(pc) => pc.canonicalize(),
+            IRStmtImpl::Seq(seq) => seq.canonicalize(),
         }
     }
 }
@@ -330,31 +346,31 @@ where
     /// Two statements are equivalent if they are structurally equal and their inner entities
     /// are equivalent.
     fn equivalent(lhs: &IRStmt<L>, rhs: &IRStmt<R>) -> bool {
-        std::iter::zip(lhs.iter(), rhs.iter()).all(|(lhs, rhs)| match (lhs, rhs) {
-            (IRStmt::ConstraintCall(lhs), IRStmt::ConstraintCall(rhs)) => {
+        std::iter::zip(lhs.iter(), rhs.iter()).all(|(lhs, rhs)| match (&lhs.0, &rhs.0) {
+            (IRStmtImpl::ConstraintCall(lhs), IRStmtImpl::ConstraintCall(rhs)) => {
                 equiv! { SymbolicEqv | lhs, rhs }
                 //<SymbolicEqv as EqvRelation<Call<L>, Call<R>>>::equivalent(lhs, rhs)
             }
-            (IRStmt::Constraint(lhs), IRStmt::Constraint(rhs)) => {
+            (IRStmtImpl::Constraint(lhs), IRStmtImpl::Constraint(rhs)) => {
                 equiv! { SymbolicEqv | lhs, rhs }
                 //<SymbolicEqv as EqvRelation<Constraint<L>, Constraint<R>>>::equivalent(lhs, rhs)
             }
-            (IRStmt::Comment(_), IRStmt::Comment(_)) => true,
-            (IRStmt::AssumeDeterministic(lhs), IRStmt::AssumeDeterministic(rhs)) => {
+            (IRStmtImpl::Comment(_), IRStmtImpl::Comment(_)) => true,
+            (IRStmtImpl::AssumeDeterministic(lhs), IRStmtImpl::AssumeDeterministic(rhs)) => {
                 equiv! { SymbolicEqv | lhs, rhs }
                 //<SymbolicEqv as EqvRelation<AssumeDeterministic, AssumeDeterministic>>::equivalent(
                 //    lhs, rhs,
                 //)
             }
-            (IRStmt::Assert(lhs), IRStmt::Assert(rhs)) => {
+            (IRStmtImpl::Assert(lhs), IRStmtImpl::Assert(rhs)) => {
                 equiv! { SymbolicEqv | lhs, rhs }
                 //<SymbolicEqv as EqvRelation<Assert<L>, Assert<R>>>::equivalent(lhs, rhs)
             }
-            (IRStmt::PostCond(lhs), IRStmt::PostCond(rhs)) => {
+            (IRStmtImpl::PostCond(lhs), IRStmtImpl::PostCond(rhs)) => {
                 equiv! { SymbolicEqv | lhs, rhs }
                 //<SymbolicEqv as EqvRelation<PostCond<L>, PostCond<R>>>::equivalent(lhs, rhs)
             }
-            (IRStmt::Seq(_), _) | (_, IRStmt::Seq(_)) => unreachable!(),
+            (IRStmtImpl::Seq(_), _) | (_, IRStmtImpl::Seq(_)) => unreachable!(),
             _ => false,
         })
     }
@@ -371,12 +387,12 @@ impl<'a, T> Iterator for IRStmtRefIter<'a, T> {
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(node) = self.stack.pop() {
-            match node {
-                IRStmt::Seq(children) => {
+            match &node.0 {
+                IRStmtImpl::Seq(children) => {
                     // Reverse to preserve left-to-right order
                     self.stack.extend(children.iter().rev());
                 }
-                stmt => return Some(stmt),
+                _ => return Some(node),
             }
         }
         None
@@ -394,12 +410,11 @@ impl<'a, T> Iterator for IRStmtRefMutIter<'a, T> {
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(node) = self.stack.pop() {
-            match node {
-                IRStmt::Seq(children) => {
-                    // Reverse to preserve left-to-right order
-                    self.stack.extend(children.iter_mut().rev());
-                }
-                stmt => return Some(stmt),
+            if let IRStmtImpl::Seq(children) = &mut node.0 {
+                // Reverse to preserve left-to-right order
+                self.stack.extend(children.iter_mut().rev());
+            } else {
+                return Some(node);
             }
         }
         None

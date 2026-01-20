@@ -214,6 +214,24 @@ impl From<usize> for RegionIndex {
     }
 }
 
+/// Replacement for Halo2's `RegionStart` type.
+#[derive(Eq, Hash, PartialEq, Debug, Copy, Clone)]
+pub struct RegionStart(usize);
+
+impl Deref for RegionStart {
+    type Target = usize;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<usize> for RegionStart {
+    fn from(value: usize) -> Self {
+        Self(value)
+    }
+}
+
 /// Errors related to the PLONK table.
 #[derive(Error, Copy, Clone, Debug)]
 pub enum TableError {

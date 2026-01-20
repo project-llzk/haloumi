@@ -5,7 +5,7 @@ use ff::Field;
 use crate::{
     info_traits::{GroupInfo, SelectorInfo},
     query::{Advice, Fixed},
-    table::{Any, Column},
+    table::{Any, Column, RegionIndex, RegionStart},
 };
 
 /// Unique identifier for a group.
@@ -17,8 +17,17 @@ pub type GroupKey = u64;
 pub trait SynthesizerLike<F: Field> {
     /// Enters a new region of the circuit.
     ///
+    /// If the region index and starting row is known at this point is better to give
+    /// this information now since it avoids having to infer the information from context clues
+    /// later.
+    ///
     /// Panics if the synthesizer entered a region already and didn't exit.
-    fn enter_region(&mut self, region_name: String);
+    fn enter_region(
+        &mut self,
+        region_name: String,
+        region_index: Option<RegionIndex>,
+        region_start: Option<RegionStart>,
+    );
 
     /// Exits the current region of the circuit.
     ///

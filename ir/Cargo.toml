@@ -16,8 +16,8 @@ ff.workspace = true
 log.workspace = true
 thiserror.workspace = true
 eqv.workspace = true
-haloumi-core = { path = "../core", version = "0.3.1"}
-haloumi-lowering = { path = "../lowering", version = "0.3.1" }
+haloumi-core = { path = "../core", version = "0.4.0"}
+haloumi-lowering = { path = "../lowering", version = "0.4.0" }
 num-bigint.workspace = true
 
 [dev-dependencies]

@@ -18,12 +18,19 @@ impl Prime {
         ))
     }
 
-    fn value(&self) -> &BigUint {
+    /// Returns the value of the prime.
+    pub fn value(&self) -> &BigUint {
         self.0.as_ref()
     }
 
     fn minus_one(&self) -> Felt {
         Felt::from_parts(self.value() - 1usize, *self)
+    }
+}
+
+impl std::fmt::Display for Prime {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.value())
     }
 }
 

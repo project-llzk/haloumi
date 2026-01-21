@@ -23,19 +23,27 @@ impl<T> Constraint<T> {
         Self { op, lhs, rhs }
     }
 
-    pub fn map<O>(self, f: &impl Fn(T) -> O) -> Constraint<O> {
+    pub fn map<O>(self, f: &mut impl FnMut(T) -> O) -> Constraint<O> {
         Constraint::new(self.op, f(self.lhs), f(self.rhs))
     }
 
-    pub fn map_into<O>(&self, f: &impl Fn(&T) -> O) -> Constraint<O> {
+    pub fn map_into<O>(&self, f: &mut impl FnMut(&T) -> O) -> Constraint<O> {
         Constraint::new(self.op, f(&self.lhs), f(&self.rhs))
     }
 
-    pub fn try_map<O, E>(self, f: &impl Fn(T) -> Result<O, E>) -> Result<Constraint<O>, E> {
+    pub fn try_map<O, E>(self, f: &mut impl FnMut(T) -> Result<O, E>) -> Result<Constraint<O>, E> {
         Ok(Constraint::new(self.op, f(self.lhs)?, f(self.rhs)?))
     }
 
-    pub fn try_map_inplace<E>(&mut self, f: &impl Fn(&mut T) -> Result<(), E>) -> Result<(), E> {
+    pub fn map_inplace(&mut self, f: &mut impl FnMut(&mut T)) {
+        f(&mut self.lhs);
+        f(&mut self.rhs);
+    }
+
+    pub fn try_map_inplace<E>(
+        &mut self,
+        f: &mut impl FnMut(&mut T) -> Result<(), E>,
+    ) -> Result<(), E> {
         f(&mut self.lhs)?;
         f(&mut self.rhs)
     }

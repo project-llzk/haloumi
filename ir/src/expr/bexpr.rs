@@ -1,6 +1,7 @@
 //! Structs for handling boolean expressions.
 
 use crate::error::Error;
+use crate::printer::IRPrintable;
 use crate::traits::{Canonicalize, ConstantFolding};
 use crate::{canon::canonicalize_constraint, expr::IRAexpr};
 use eqv::{EqvRelation, equiv};
@@ -10,6 +11,7 @@ use haloumi_lowering::lowering_err;
 use haloumi_lowering::{ExprLowering, lowerable::LowerableExpr};
 use std::{
     convert::identity,
+    fmt::Write,
     ops::{BitAnd, BitOr, Not},
 };
 
@@ -40,7 +42,7 @@ enum IRBexprImpl<A> {
 
 impl<T> IRBexpr<T> {
     /// Transforms the inner expression into a different type.
-    pub fn map<O>(self, f: &impl Fn(T) -> O) -> IRBexpr<O> {
+    pub fn map<O>(self, f: &mut impl FnMut(T) -> O) -> IRBexpr<O> {
         match self.0 {
             IRBexprImpl::Cmp(cmp_op, lhs, rhs) => IRBexpr(IRBexprImpl::Cmp(cmp_op, f(lhs), f(rhs))),
             IRBexprImpl::And(exprs) => IRBexpr(IRBexprImpl::And(
@@ -64,7 +66,7 @@ impl<T> IRBexpr<T> {
     }
 
     /// Transforms the inner expression into a different type without moving the struct.
-    pub fn map_into<O>(&self, f: &impl Fn(&T) -> O) -> IRBexpr<O> {
+    pub fn map_into<O>(&self, f: &mut impl FnMut(&T) -> O) -> IRBexpr<O> {
         match &self.0 {
             IRBexprImpl::Cmp(cmp_op, lhs, rhs) => {
                 IRBexpr(IRBexprImpl::Cmp(*cmp_op, f(lhs), f(rhs)))
@@ -91,7 +93,7 @@ impl<T> IRBexpr<T> {
     }
 
     /// Transforms the inner expression into a different type, potentially failing.
-    pub fn try_map<O, E>(self, f: &impl Fn(T) -> Result<O, E>) -> Result<IRBexpr<O>, E> {
+    pub fn try_map<O, E>(self, f: &mut impl FnMut(T) -> Result<O, E>) -> Result<IRBexpr<O>, E> {
         Ok(match self.0 {
             IRBexprImpl::Cmp(cmp_op, lhs, rhs) => {
                 IRBexpr(IRBexprImpl::Cmp(cmp_op, f(lhs)?, f(rhs)?))
@@ -123,8 +125,43 @@ impl<T> IRBexpr<T> {
         })
     }
 
+    /// Transforms the inner expression in place instead of returning a new expression.
+    pub fn map_inplace(&mut self, f: &mut impl FnMut(&mut T)) {
+        match &mut self.0 {
+            IRBexprImpl::Cmp(_, lhs, rhs) => {
+                f(lhs);
+                f(rhs);
+            }
+            IRBexprImpl::And(exprs) => {
+                for expr in exprs {
+                    expr.map_inplace(f);
+                }
+            }
+            IRBexprImpl::Or(exprs) => {
+                for expr in exprs {
+                    expr.map_inplace(f);
+                }
+            }
+            IRBexprImpl::Not(expr) => expr.map_inplace(f),
+            IRBexprImpl::True => {}
+            IRBexprImpl::False => {}
+            IRBexprImpl::Det(expr) => f(expr),
+            IRBexprImpl::Implies(lhs, rhs) => {
+                lhs.map_inplace(f);
+                rhs.map_inplace(f);
+            }
+            IRBexprImpl::Iff(lhs, rhs) => {
+                lhs.map_inplace(f);
+                rhs.map_inplace(f);
+            }
+        }
+    }
+
     /// Tries to transform the inner expression in place instead of returning a new expression.
-    pub fn try_map_inplace<E>(&mut self, f: &impl Fn(&mut T) -> Result<(), E>) -> Result<(), E> {
+    pub fn try_map_inplace<E>(
+        &mut self,
+        f: &mut impl FnMut(&mut T) -> Result<(), E>,
+    ) -> Result<(), E> {
         match &mut self.0 {
             IRBexprImpl::Cmp(_, lhs, rhs) => {
                 f(lhs)?;
@@ -257,12 +294,12 @@ impl<T> IRBexpr<T> {
     where
         O: Clone,
     {
-        self.map(&|t| (other.clone(), t))
+        self.map(&mut |t| (other.clone(), t))
     }
 
     /// Maps the statement's inner type to a tuple with the result of the closure.
     pub fn with_fn<O>(self, other: impl Fn() -> O) -> IRBexpr<(O, T)> {
-        self.map(&|t| (other(), t))
+        self.map(&mut |t| (other(), t))
     }
 }
 
@@ -687,6 +724,90 @@ impl<A: LowerableExpr> LowerableExpr for IRBexpr<A> {
                 let lhs = lhs.lower(l)?;
                 let rhs = rhs.lower(l)?;
                 l.lower_iff(&lhs, &rhs)
+            }
+        }
+    }
+}
+
+impl<T: IRPrintable> IRPrintable for IRBexpr<T> {
+    fn fmt(&self, ctx: &mut crate::printer::IRPrinterCtx<'_, '_>) -> crate::printer::Result {
+        match &self.0 {
+            IRBexprImpl::True => write!(ctx, "(true)"),
+            IRBexprImpl::False => write!(ctx, "(false)"),
+            IRBexprImpl::Cmp(cmp_op, lhs, rhs) => ctx.block(format!("{cmp_op}").as_str(), |ctx| {
+                if lhs.depth() > 1 {
+                    ctx.nl()?;
+                }
+                lhs.fmt(ctx)?;
+                if lhs.depth() > 1 || rhs.depth() > 1 {
+                    ctx.nl()?;
+                }
+                rhs.fmt(ctx)
+            }),
+            IRBexprImpl::And(exprs) => ctx.block("&&", |ctx| {
+                let do_nl = exprs.iter().any(|expr| expr.depth() > 1);
+                let mut is_first = true;
+                for expr in exprs {
+                    if do_nl && !is_first {
+                        ctx.nl()?;
+                    }
+                    is_first = false;
+                    expr.fmt(ctx)?;
+                }
+                Ok(())
+            }),
+            IRBexprImpl::Or(exprs) => ctx.block("||", |ctx| {
+                let do_nl = exprs.iter().any(|expr| expr.depth() > 1);
+                let mut is_first = true;
+                for expr in exprs {
+                    if do_nl && !is_first {
+                        ctx.nl()?;
+                    }
+                    is_first = false;
+                    expr.fmt(ctx)?;
+                }
+                Ok(())
+            }),
+            IRBexprImpl::Not(expr) => ctx.block("!", |ctx| expr.fmt(ctx)),
+            IRBexprImpl::Det(expr) => ctx.block("det", |ctx| expr.fmt(ctx)),
+            IRBexprImpl::Implies(lhs, rhs) => ctx.block("=>", |ctx| {
+                if lhs.depth() > 1 {
+                    ctx.nl()?;
+                }
+                lhs.fmt(ctx)?;
+                if lhs.depth() > 1 || rhs.depth() > 1 {
+                    ctx.nl()?;
+                }
+                rhs.fmt(ctx)
+            }),
+            IRBexprImpl::Iff(lhs, rhs) => ctx.block("<=>", |ctx| {
+                if lhs.depth() > 1 {
+                    ctx.nl()?;
+                }
+                lhs.fmt(ctx)?;
+                if lhs.depth() > 1 || rhs.depth() > 1 {
+                    ctx.nl()?;
+                }
+                rhs.fmt(ctx)
+            }),
+        }
+    }
+
+    fn depth(&self) -> usize {
+        match &self.0 {
+            IRBexprImpl::True | IRBexprImpl::False => 1,
+            IRBexprImpl::Cmp(_, lhs, rhs) => 1 + std::cmp::max(lhs.depth(), rhs.depth()),
+            IRBexprImpl::And(exprs) | IRBexprImpl::Or(exprs) => {
+                1 + exprs
+                    .iter()
+                    .map(|expr| expr.depth())
+                    .max()
+                    .unwrap_or_default()
+            }
+            IRBexprImpl::Not(expr) => 1 + expr.depth(),
+            IRBexprImpl::Det(expr) => 1 + expr.depth(),
+            IRBexprImpl::Implies(lhs, rhs) | IRBexprImpl::Iff(lhs, rhs) => {
+                1 + std::cmp::max(lhs.depth(), rhs.depth())
             }
         }
     }

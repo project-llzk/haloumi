@@ -1,9 +1,13 @@
 //! Structs for handling arithmetic expressions.
 
-use crate::traits::{Canonicalize, ConstantFolding};
+use crate::{
+    printer::IRPrintable,
+    traits::{Canonicalize, ConstantFolding},
+};
 use eqv::{EqvRelation, equiv};
 use haloumi_core::{eqv::SymbolicEqv, felt::Felt, slot::Slot};
 use haloumi_lowering::{ExprLowering, lowerable::LowerableExpr};
+use std::fmt::Write;
 use std::{
     convert::Infallible,
     ops::{Add, Mul, Neg},
@@ -80,12 +84,15 @@ impl Mul for IRAexpr {
     }
 }
 
-impl<T> From<T> for IRAexpr
-where
-    Felt: From<T>,
-{
-    fn from(value: T) -> Self {
-        Self(IRAexprImpl::Constant(value.into()))
+impl From<Felt> for IRAexpr {
+    fn from(value: Felt) -> Self {
+        Self(IRAexprImpl::Constant(value))
+    }
+}
+
+impl From<Slot> for IRAexpr {
+    fn from(value: Slot) -> Self {
+        Self(IRAexprImpl::IO(value))
     }
 }
 
@@ -236,6 +243,52 @@ impl LowerableExpr for IRAexpr {
             IRAexprImpl::Negated(expr) => l.lower_neg(&expr.lower(l)?),
             IRAexprImpl::Sum(lhs, rhs) => l.lower_sum(&lhs.lower(l)?, &rhs.lower(l)?),
             IRAexprImpl::Product(lhs, rhs) => l.lower_product(&lhs.lower(l)?, &rhs.lower(l)?),
+        }
+    }
+}
+
+impl IRPrintable for IRAexpr {
+    fn fmt(&self, ctx: &mut crate::printer::IRPrinterCtx<'_, '_>) -> crate::printer::Result {
+        match &self.0 {
+            IRAexprImpl::Constant(felt) => ctx.list("const", |ctx| write!(ctx, "{}", felt)),
+            IRAexprImpl::IO(slot) => slot.fmt(ctx),
+            IRAexprImpl::Negated(expr) => ctx.block("-", |ctx| expr.fmt(ctx)),
+            IRAexprImpl::Sum(lhs, rhs) => ctx.block("+", |ctx| {
+                let do_nl = lhs.depth() > 1 || rhs.depth() > 1;
+                if lhs.depth() > 1 {
+                    ctx.nl()?;
+                }
+                lhs.fmt(ctx)?;
+                if do_nl {
+                    ctx.nl()?;
+                } else {
+                    write!(ctx, " ")?;
+                }
+                rhs.fmt(ctx)
+            }),
+            IRAexprImpl::Product(lhs, rhs) => ctx.block("*", |ctx| {
+                let do_nl = lhs.depth() > 1 || rhs.depth() > 1;
+                if lhs.depth() > 1 {
+                    ctx.nl()?;
+                }
+                lhs.fmt(ctx)?;
+                if do_nl {
+                    ctx.nl()?;
+                } else {
+                    write!(ctx, " ")?;
+                }
+                rhs.fmt(ctx)
+            }),
+        }
+    }
+
+    fn depth(&self) -> usize {
+        match &self.0 {
+            IRAexprImpl::Constant(_) | IRAexprImpl::IO(_) => 1,
+            IRAexprImpl::Negated(expr) => 1 + expr.depth(),
+            IRAexprImpl::Sum(lhs, rhs) | IRAexprImpl::Product(lhs, rhs) => {
+                1 + std::cmp::max(lhs.depth(), rhs.depth())
+            }
         }
     }
 }

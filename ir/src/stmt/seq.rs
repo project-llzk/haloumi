@@ -16,7 +16,7 @@ impl<T> Seq<T> {
         Self(
             stmts
                 .into_iter()
-                .map(|stmt| stmt.map(&Into::into))
+                .map(|stmt| stmt.map(&mut Into::into))
                 .collect(),
         )
     }

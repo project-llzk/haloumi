@@ -25,6 +25,34 @@ pub trait ConstantFolding {
     }
 }
 
+impl<E: ConstantFolding> ConstantFolding for Vec<E> {
+    type Error = E::Error;
+
+    type T = Vec<E::T>;
+
+    fn constant_fold(&mut self) -> Result<(), Self::Error> {
+        self.iter_mut().try_for_each(|e| e.constant_fold())
+    }
+
+    fn const_value(&self) -> Option<Self::T> {
+        self.iter().map(|e| e.const_value()).collect()
+    }
+}
+
+impl<E: ConstantFolding> ConstantFolding for [E] {
+    type Error = E::Error;
+
+    type T = Vec<E::T>;
+
+    fn constant_fold(&mut self) -> Result<(), Self::Error> {
+        self.iter_mut().try_for_each(|e| e.constant_fold())
+    }
+
+    fn const_value(&self) -> Option<Self::T> {
+        self.iter().map(|e| e.const_value()).collect()
+    }
+}
+
 /// Represents an object that has a canonical form.
 pub trait Canonicalize {
     /// Canonicalizes the object in-place.
@@ -37,5 +65,21 @@ pub trait Canonicalize {
     {
         self.canonicalize();
         self
+    }
+}
+
+impl<E: Canonicalize> Canonicalize for Vec<E> {
+    fn canonicalize(&mut self) {
+        for e in self {
+            e.canonicalize();
+        }
+    }
+}
+
+impl<E: Canonicalize> Canonicalize for [E] {
+    fn canonicalize(&mut self) {
+        for e in self {
+            e.canonicalize();
+        }
     }
 }

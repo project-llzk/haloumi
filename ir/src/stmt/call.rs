@@ -25,11 +25,11 @@ impl<T> Call<T> {
         }
     }
 
-    pub fn map<O>(self, f: &impl Fn(T) -> O) -> Call<O> {
+    pub fn map<O>(self, f: &mut impl FnMut(T) -> O) -> Call<O> {
         Call::new(self.callee, self.inputs.into_iter().map(f), self.outputs)
     }
 
-    pub fn map_into<O>(&self, f: &impl Fn(&T) -> O) -> Call<O> {
+    pub fn map_into<O>(&self, f: &mut impl FnMut(&T) -> O) -> Call<O> {
         Call::new(
             self.callee.clone(),
             self.inputs.iter().map(f),
@@ -37,7 +37,7 @@ impl<T> Call<T> {
         )
     }
 
-    pub fn try_map<O, E>(self, f: &impl Fn(T) -> Result<O, E>) -> Result<Call<O>, E> {
+    pub fn try_map<O, E>(self, f: &mut impl FnMut(T) -> Result<O, E>) -> Result<Call<O>, E> {
         Ok(Call::new(
             self.callee,
             self.inputs
@@ -48,7 +48,16 @@ impl<T> Call<T> {
         ))
     }
 
-    pub fn try_map_inplace<E>(&mut self, f: &impl Fn(&mut T) -> Result<(), E>) -> Result<(), E> {
+    pub fn map_inplace(&mut self, f: &mut impl FnMut(&mut T)) {
+        for i in &mut self.inputs {
+            f(i);
+        }
+    }
+
+    pub fn try_map_inplace<E>(
+        &mut self,
+        f: &mut impl FnMut(&mut T) -> Result<(), E>,
+    ) -> Result<(), E> {
         for i in &mut self.inputs {
             f(i)?;
         }

@@ -26,19 +26,26 @@ impl<T> Assert<T> {
         &mut self.0
     }
 
-    pub fn map<O>(self, f: &impl Fn(T) -> O) -> Assert<O> {
+    pub fn map<O>(self, f: &mut impl FnMut(T) -> O) -> Assert<O> {
         Assert::new(self.0.map(f))
     }
 
-    pub fn map_into<O>(&self, f: &impl Fn(&T) -> O) -> Assert<O> {
+    pub fn map_into<O>(&self, f: &mut impl FnMut(&T) -> O) -> Assert<O> {
         Assert::new(self.0.map_into(f))
     }
 
-    pub fn try_map<O, E>(self, f: &impl Fn(T) -> Result<O, E>) -> Result<Assert<O>, E> {
+    pub fn try_map<O, E>(self, f: &mut impl FnMut(T) -> Result<O, E>) -> Result<Assert<O>, E> {
         self.0.try_map(f).map(Assert::new)
     }
 
-    pub fn try_map_inplace<E>(&mut self, f: &impl Fn(&mut T) -> Result<(), E>) -> Result<(), E> {
+    pub fn map_inplace(&mut self, f: &mut impl FnMut(&mut T)) {
+        self.0.map_inplace(f)
+    }
+
+    pub fn try_map_inplace<E>(
+        &mut self,
+        f: &mut impl FnMut(&mut T) -> Result<(), E>,
+    ) -> Result<(), E> {
         self.0.try_map_inplace(f)
     }
 

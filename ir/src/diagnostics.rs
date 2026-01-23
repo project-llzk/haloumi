@@ -172,11 +172,11 @@ impl fmt::Display for SimpleDiagnostic {
 }
 
 /// Error type for a collection of diagnostics
-pub struct DiagnosticsError {
-    diags: Vec<Box<dyn Diagnostic>>,
+pub struct DiagnosticsError<'d> {
+    diags: Vec<Box<dyn Diagnostic + 'd>>,
 }
 
-impl std::fmt::Debug for DiagnosticsError {
+impl std::fmt::Debug for DiagnosticsError<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DiagnosticsError")
             .field("n_diags", &self.diags.len())
@@ -184,7 +184,7 @@ impl std::fmt::Debug for DiagnosticsError {
     }
 }
 
-impl std::fmt::Display for DiagnosticsError {
+impl std::fmt::Display for DiagnosticsError<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.diags
             .iter()
@@ -193,7 +193,7 @@ impl std::fmt::Display for DiagnosticsError {
     }
 }
 
-impl<D: Diagnostic + 'static> FromIterator<D> for DiagnosticsError {
+impl<'d, D: Diagnostic + 'd> FromIterator<D> for DiagnosticsError<'d> {
     fn from_iter<T: IntoIterator<Item = D>>(iter: T) -> Self {
         Self {
             diags: iter
@@ -204,7 +204,7 @@ impl<D: Diagnostic + 'static> FromIterator<D> for DiagnosticsError {
     }
 }
 
-impl<I: IntoIterator> From<I> for DiagnosticsError
+impl<I: IntoIterator> From<I> for DiagnosticsError<'_>
 where
     I::Item: Diagnostic + 'static,
 {

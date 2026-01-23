@@ -2,6 +2,7 @@ use crate::{
     canon::canonicalize_constraint,
     error::Error,
     expr::{IRAexpr, IRBexpr},
+    meta::Meta,
     stmt::IRStmt,
     traits::ConstantFolding,
 };
@@ -71,7 +72,7 @@ impl<T> Constraint<T> {
     /// Folds the statements if the expressions are constant.
     /// If a assert-like statement folds into a tautology (i.e. `(= 0 0 )`) gets removed. If it
     /// folds into a unsatisfiable proposition the method returns an error.
-    pub fn constant_fold(&mut self) -> Result<Option<IRStmt<T>>, Error>
+    pub fn constant_fold(&mut self, meta: Meta) -> Result<Option<IRStmt<T>>, Error>
     where
         T: ConstantFolding + std::fmt::Debug + Clone,
         Error: From<T::Error>,
@@ -91,7 +92,11 @@ impl<T> Constraint<T> {
             if r {
                 return Ok(Some(IRStmt::empty()));
             } else {
-                return Err(Error::FoldedFalseStmt("constraint", format!("{:#?}", self)));
+                return Err(Error::FoldedFalseStmt(
+                    "constraint",
+                    format!("{:#?}", self),
+                    meta,
+                ));
             }
         }
         Ok(None)

@@ -1,6 +1,7 @@
 use crate::{
     error::Error,
     expr::IRBexpr,
+    meta::Meta,
     stmt::IRStmt,
     traits::{Canonicalize, ConstantFolding},
 };
@@ -51,7 +52,7 @@ impl<T> PostCond<T> {
     /// Folds the statements if the expressions are constant.
     /// If an assert-like statement folds into a tautology (i.e. `(= 0 0 )`), it gets removed. If it
     /// folds into a unsatisfiable proposition the method returns an error.
-    pub fn constant_fold(&mut self) -> Result<Option<IRStmt<T>>, Error>
+    pub fn constant_fold(&mut self, meta: Meta) -> Result<Option<IRStmt<T>>, Error>
     where
         T: ConstantFolding + std::fmt::Debug + Clone,
         Error: From<T::Error>,
@@ -65,6 +66,7 @@ impl<T> PostCond<T> {
                 return Err(Error::FoldedFalseStmt(
                     "post-condition",
                     format!("{:#?}", self.0),
+                    meta,
                 ));
             }
         }

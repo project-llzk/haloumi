@@ -5,6 +5,7 @@ use crate::{
     diagnostics::{Diagnostic, Validation},
     error::Error,
     expr::{ExprProperties, IRAexpr, IRConstBexpr},
+    meta::{HasMeta, Meta},
     printer::IRPrintable,
     traits::{Canonicalize, ConstantFolding, Evaluate, Validatable},
 };
@@ -56,7 +57,7 @@ where
 impl<T, I> sealed::EmitIfSealed for I where I: IntoIterator<Item = IRStmt<T>> {}
 
 /// IR for operations that occur in the main circuit.
-pub struct IRStmt<T>(IRStmtImpl<T>);
+pub struct IRStmt<T>(IRStmtImpl<T>, Meta);
 
 enum IRStmtImpl<T> {
     /// A call to another module.
@@ -75,6 +76,16 @@ enum IRStmtImpl<T> {
     PostCond(PostCond<T>),
     /// A conditionally emitted block.
     CondBlock(CondBlock<T>),
+}
+
+impl<T> HasMeta for IRStmt<T> {
+    fn meta(&self) -> &Meta {
+        &self.1
+    }
+
+    fn meta_mut(&mut self) -> &mut Meta {
+        &mut self.1
+    }
 }
 
 impl<T: PartialEq> PartialEq for IRStmt<T> {
@@ -254,7 +265,7 @@ impl<T> IRStmt<T> {
                 seq.push(other.into());
                 seq.into()
             }
-            this => Seq::new([Self(this), other.into()]).into(),
+            this => Seq::new([Self(this, self.1), other.into()]).into(),
         }
     }
 
@@ -354,6 +365,18 @@ impl<T> IRStmt<T> {
     pub fn iter_mut(&mut self) -> IRStmtRefMutIter<'_, T> {
         IRStmtRefMutIter { stack: vec![self] }
     }
+
+    /// Propagates the metadata of this statement to the inner statements.
+    pub fn propagate_meta(&mut self) {
+        match &mut self.0 {
+            IRStmtImpl::Seq(s) => {
+                for stmt in s.iter_mut() {
+                    stmt.meta_mut().complete_with(self.1);
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 impl<T> ConstantFolding for IRStmt<T>
@@ -372,19 +395,19 @@ where
         match &mut self.0 {
             IRStmtImpl::ConstraintCall(call) => call.constant_fold()?,
             IRStmtImpl::Constraint(constraint) => {
-                if let Some(replacement) = constraint.constant_fold()? {
+                if let Some(replacement) = constraint.constant_fold(self.1)? {
                     *self = replacement;
                 }
             }
             IRStmtImpl::Comment(_) => {}
             IRStmtImpl::AssumeDeterministic(_) => {}
             IRStmtImpl::Assert(assert) => {
-                if let Some(replacement) = assert.constant_fold()? {
+                if let Some(replacement) = assert.constant_fold(self.1)? {
                     *self = replacement;
                 }
             }
             IRStmtImpl::PostCond(pc) => {
-                if let Some(replacement) = pc.constant_fold()? {
+                if let Some(replacement) = pc.constant_fold(self.1)? {
                     *self = replacement;
                 }
             }
@@ -510,7 +533,7 @@ impl<'a, T> Iterator for IRStmtRefMutIter<'a, T> {
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(node) = self.stack.pop() {
-            if let IRStmt(IRStmtImpl::Seq(children)) = node {
+            if let IRStmt(IRStmtImpl::Seq(children), _) = node {
                 // Reverse to preserve left-to-right order
                 self.stack.extend(children.iter_mut().rev());
             } else {
@@ -539,7 +562,7 @@ impl<T> Iterator for IRStmtIter<T> {
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(node) = self.stack.pop() {
             match node {
-                IRStmt(IRStmtImpl::Seq(children)) => {
+                IRStmt(IRStmtImpl::Seq(children), _) => {
                     // Reverse to preserve left-to-right order
                     self.stack.extend(children.into_iter().rev());
                 }
@@ -588,42 +611,42 @@ impl<I> FromIterator<IRStmt<I>> for IRStmt<I> {
 
 impl<T> From<Call<T>> for IRStmt<T> {
     fn from(value: Call<T>) -> Self {
-        Self(IRStmtImpl::ConstraintCall(value))
+        Self(IRStmtImpl::ConstraintCall(value), Default::default())
     }
 }
 impl<T> From<Constraint<T>> for IRStmt<T> {
     fn from(value: Constraint<T>) -> Self {
-        Self(IRStmtImpl::Constraint(value))
+        Self(IRStmtImpl::Constraint(value), Default::default())
     }
 }
 impl<T> From<Comment> for IRStmt<T> {
     fn from(value: Comment) -> Self {
-        Self(IRStmtImpl::Comment(value))
+        Self(IRStmtImpl::Comment(value), Default::default())
     }
 }
 impl<T> From<AssumeDeterministic> for IRStmt<T> {
     fn from(value: AssumeDeterministic) -> Self {
-        Self(IRStmtImpl::AssumeDeterministic(value))
+        Self(IRStmtImpl::AssumeDeterministic(value), Default::default())
     }
 }
 impl<T> From<Assert<T>> for IRStmt<T> {
     fn from(value: Assert<T>) -> Self {
-        Self(IRStmtImpl::Assert(value))
+        Self(IRStmtImpl::Assert(value), Default::default())
     }
 }
 impl<T> From<PostCond<T>> for IRStmt<T> {
     fn from(value: PostCond<T>) -> Self {
-        Self(IRStmtImpl::PostCond(value))
+        Self(IRStmtImpl::PostCond(value), Default::default())
     }
 }
 impl<T> From<CondBlock<T>> for IRStmt<T> {
     fn from(value: CondBlock<T>) -> Self {
-        Self(IRStmtImpl::CondBlock(value))
+        Self(IRStmtImpl::CondBlock(value), Default::default())
     }
 }
 impl<T> From<Seq<T>> for IRStmt<T> {
     fn from(value: Seq<T>) -> Self {
-        Self(IRStmtImpl::Seq(value))
+        Self(IRStmtImpl::Seq(value), Default::default())
     }
 }
 

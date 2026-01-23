@@ -112,6 +112,11 @@ impl<E> IRGroup<E> {
         self.injected.push(ir);
     }
 
+    /// Returns the number of statements injected into this group.
+    pub fn injected_count(&self) -> usize {
+        self.injected.len()
+    }
+
     /// Sets the flag that control the generation of debug comments.
     pub fn do_debug_comments(mut self, do_it: bool) -> Self {
         self.generate_debug_comments = do_it;

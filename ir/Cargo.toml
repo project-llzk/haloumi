@@ -15,6 +15,7 @@ keywords = {workspace = true}
 ff.workspace = true 
 log.workspace = true
 thiserror.workspace = true
+internment.workspace = true
 eqv.workspace = true
 haloumi-core = { path = "../core", version = "0.5.0"}
 haloumi-lowering = { path = "../lowering", version = "0.5.0" }

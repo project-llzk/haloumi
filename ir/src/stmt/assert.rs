@@ -1,6 +1,7 @@
 use crate::{
     error::Error,
     expr::IRBexpr,
+    meta::Meta,
     stmt::IRStmt,
     traits::{Canonicalize, ConstantFolding},
 };
@@ -52,7 +53,7 @@ impl<T> Assert<T> {
     /// Folds the statements if the expressions are constant.
     /// If a assert-like statement folds into a tautology (i.e. `(= 0 0 )`) gets removed. If it
     /// folds into a unsatisfiable proposition the method returns an error.
-    pub fn constant_fold(&mut self) -> Result<Option<IRStmt<T>>, Error>
+    pub fn constant_fold(&mut self, meta: Meta) -> Result<Option<IRStmt<T>>, Error>
     where
         T: ConstantFolding + std::fmt::Debug + Clone,
         T::T: Eq + Ord,
@@ -63,7 +64,11 @@ impl<T> Assert<T> {
             if b {
                 return Ok(Some(IRStmt::empty()));
             } else {
-                return Err(Error::FoldedFalseStmt("assert", format!("{:#?}", self.0)));
+                return Err(Error::FoldedFalseStmt(
+                    "assert",
+                    format!("{:#?}", self.0),
+                    meta,
+                ));
             }
         }
         Ok(None)
@@ -118,6 +123,145 @@ where
 {
     fn equivalent(lhs: &Assert<L>, rhs: &Assert<R>) -> bool {
         equiv! { SymbolicEqv | &lhs.0, &rhs.0 }
-        //<SymbolicEqv as EqvRelation<IRBexpr<L>, IRBexpr<R>>>::equivalent(&lhs.0, &rhs.0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use haloumi_core::{
+        constraints::CopyConstraint,
+        table::{Any, Column},
+    };
+
+    use crate::meta::HasMeta as _;
+
+    use super::*;
+
+    type Stmt = IRStmt<()>;
+
+    fn fold(stmt: &mut Stmt) {
+        let _ = stmt
+            .constant_fold()
+            .map_err(|e| panic!("constant folding failed: {e}"));
+    }
+
+    #[should_panic(expected = "constant folding failed: unknown: detected ")]
+    #[test]
+    fn test_folded_to_false_meta_information_unknown() {
+        let mut stmt = Stmt::assert(false.into());
+
+        fold(&mut stmt);
+    }
+
+    #[should_panic(expected = "constant folding failed: group(group_1): unknown: detected ")]
+    #[test]
+    fn test_folded_to_false_meta_information_group_info() {
+        let mut stmt = Stmt::assert(false.into());
+        stmt.meta_mut().at_group("group_1", None);
+        fold(&mut stmt);
+    }
+
+    #[should_panic(
+        expected = "constant folding failed: group(group_1): gate 'gate name' @ region 'region name'(1): detected "
+    )]
+    #[test]
+    fn test_folded_to_false_meta_information_group_info_at_gate() {
+        let mut stmt = Stmt::assert(false.into());
+        stmt.meta_mut().at_group("group_1", None);
+        stmt.meta_mut()
+            .at_gate("gate name", "region name", Some(1.into()), None);
+        fold(&mut stmt);
+    }
+
+    #[should_panic(
+        expected = "constant folding failed: group(group_1): gate 'gate name' @ region 'region name'(1) @ row 20: detected "
+    )]
+    #[test]
+    fn test_folded_to_false_meta_information_group_info_at_gate_with_row1() {
+        let mut stmt = Stmt::assert(false.into());
+        stmt.meta_mut().at_group("group_1", None);
+        stmt.meta_mut()
+            .at_gate("gate name", "region name", Some(1.into()), Some(20));
+        fold(&mut stmt);
+    }
+
+    #[should_panic(
+        expected = "constant folding failed: group(group_1): gate 'gate name' @ region 'region name'(1) @ row 20: detected "
+    )]
+    #[test]
+    fn test_folded_to_false_meta_information_group_info_at_gate_with_row2() {
+        let mut stmt = Stmt::assert(false.into());
+        stmt.meta_mut().at_group("group_1", None);
+        stmt.meta_mut()
+            .at_gate("gate name", "region name", Some(1.into()), None);
+        stmt.meta_mut().at_row(20);
+        fold(&mut stmt);
+    }
+
+    #[should_panic(
+        expected = "constant folding failed: gate 'gate name' @ region 'region name'(1): detected "
+    )]
+    #[test]
+    fn test_folded_to_false_meta_information_at_gate() {
+        let mut stmt = Stmt::assert(false.into());
+        stmt.meta_mut()
+            .at_gate("gate name", "region name", Some(1.into()), None);
+        fold(&mut stmt);
+    }
+
+    #[should_panic(
+        expected = "constant folding failed: gate 'gate name' @ region 'region name'(1) @ row 20: detected "
+    )]
+    #[test]
+    fn test_folded_to_false_meta_information_at_gate_with_row1() {
+        let mut stmt = Stmt::assert(false.into());
+        stmt.meta_mut()
+            .at_gate("gate name", "region name", Some(1.into()), Some(20));
+        fold(&mut stmt);
+    }
+
+    #[should_panic(
+        expected = "constant folding failed: gate 'gate name' @ region 'region name'(1) @ row 20: detected "
+    )]
+    #[test]
+    fn test_folded_to_false_meta_information_at_gate_with_row2() {
+        let mut stmt = Stmt::assert(false.into());
+        stmt.meta_mut()
+            .at_gate("gate name", "region name", Some(1.into()), None);
+        stmt.meta_mut().at_row(20);
+        fold(&mut stmt);
+    }
+
+    #[should_panic(
+        expected = "constant folding failed: copy (Adv:1, 10) === (Ins:3, 4): detected "
+    )]
+    #[test]
+    fn test_folded_to_false_meta_information_at_copy_constraint() {
+        let mut stmt = Stmt::assert(false.into());
+        stmt.meta_mut().at_copy_constraint(CopyConstraint::Cells(
+            Column::new(1, Any::Advice),
+            10,
+            Column::new(3, Any::Instance),
+            4,
+        ));
+        fold(&mut stmt);
+    }
+
+    #[should_panic(
+        expected = "constant folding failed: lookup 'lookup name'(1) @ row 20: detected "
+    )]
+    #[test]
+    fn test_folded_to_false_meta_information_at_lookup_with_row() {
+        let mut stmt = Stmt::assert(false.into());
+        stmt.meta_mut().at_lookup("lookup name", 1, Some(20));
+        fold(&mut stmt);
+    }
+
+    #[should_panic(expected = "constant folding failed: lookup 'lookup name'(1): detected ")]
+    #[test]
+    fn test_folded_to_false_meta_information_at_lookup() {
+        let mut stmt = Stmt::assert(false.into());
+        stmt.meta_mut().at_lookup("lookup name", 1, None);
+        fold(&mut stmt);
     }
 }

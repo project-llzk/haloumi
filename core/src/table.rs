@@ -157,7 +157,7 @@ impl TryFrom<Column<Any>> for Column<Instance> {
 }
 
 /// Represents a cell in the table.
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
 pub struct Cell {
     /// The index of the region this cell belongs to.
     pub region_index: RegionIndex,

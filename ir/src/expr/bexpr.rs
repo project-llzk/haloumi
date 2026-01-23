@@ -1,19 +1,24 @@
 //! Structs for handling boolean expressions.
 
+use crate::diagnostics::{SimpleDiagnostic, Validation};
 use crate::error::Error;
+use crate::expr::{ExprProperties, ExprProperty};
 use crate::printer::IRPrintable;
-use crate::traits::{Canonicalize, ConstantFolding};
+use crate::traits::{Canonicalize, ConstantFolding, Evaluate, Validatable};
 use crate::{canon::canonicalize_constraint, expr::IRAexpr};
 use eqv::{EqvRelation, equiv};
 use haloumi_core::cmp::CmpOp;
 use haloumi_core::eqv::SymbolicEqv;
 use haloumi_lowering::lowering_err;
 use haloumi_lowering::{ExprLowering, lowerable::LowerableExpr};
+use std::borrow::{Borrow, BorrowMut};
+use std::ops::{Deref, DerefMut};
 use std::{
     convert::identity,
     fmt::Write,
     ops::{BitAnd, BitOr, Not},
 };
+use thiserror::Error;
 
 /// Represents boolean expressions over some arithmetic expression type A.
 #[derive(Debug)]
@@ -543,6 +548,23 @@ where
     }
 }
 
+impl<T: Evaluate<ExprProperties>> Evaluate<ExprProperties> for IRBexpr<T> {
+    fn evaluate(&self) -> ExprProperties {
+        match &self.0 {
+            IRBexprImpl::True | IRBexprImpl::False => ExprProperty::Const.into(),
+            IRBexprImpl::Cmp(_, lhs, rhs) => lhs.evaluate() & rhs.evaluate(),
+            IRBexprImpl::And(exprs) | IRBexprImpl::Or(exprs) => {
+                exprs.iter().map(Evaluate::evaluate).product()
+            }
+            IRBexprImpl::Not(expr) => expr.evaluate(),
+            IRBexprImpl::Det(expr) => expr.evaluate(),
+            IRBexprImpl::Implies(lhs, rhs) | IRBexprImpl::Iff(lhs, rhs) => {
+                lhs.evaluate() & rhs.evaluate()
+            }
+        }
+    }
+}
+
 impl<T> From<bool> for IRBexpr<T> {
     fn from(value: bool) -> Self {
         Self(if value {
@@ -810,6 +832,121 @@ impl<T: IRPrintable> IRPrintable for IRBexpr<T> {
                 1 + std::cmp::max(lhs.depth(), rhs.depth())
             }
         }
+    }
+}
+
+/// A constant boolean expression.
+///
+/// Is used to guarantee that an expression is constant leveraging the type system.
+/// The only way to build this type is via [`TryInto`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct IRConstBexpr<A>(IRBexpr<A>);
+
+impl<A> IRConstBexpr<A> {
+    pub(crate) fn map<O>(expr: IRConstBexpr<O>, f: &mut impl FnMut(O) -> A) -> Self {
+        Self(expr.0.map(f))
+    }
+
+    pub(crate) fn map_into<O>(expr: &IRConstBexpr<O>, f: &mut impl FnMut(&O) -> A) -> Self {
+        Self(expr.0.map_into(f))
+    }
+
+    pub(crate) fn try_map<O, E>(
+        expr: IRConstBexpr<O>,
+        f: &mut impl FnMut(O) -> Result<A, E>,
+    ) -> Result<Self, E> {
+        Ok(Self(expr.0.try_map(f)?))
+    }
+
+    pub(crate) fn map_inplace(expr: &mut Self, f: &mut impl FnMut(&mut A)) {
+        expr.0.map_inplace(f);
+    }
+
+    pub(crate) fn try_map_inplace<E>(
+        expr: &mut Self,
+        f: &mut impl FnMut(&mut A) -> Result<(), E>,
+    ) -> Result<(), E> {
+        expr.0.try_map_inplace(f)
+    }
+}
+
+impl<A> Deref for IRConstBexpr<A> {
+    type Target = IRBexpr<A>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<A> DerefMut for IRConstBexpr<A> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<A> AsRef<IRBexpr<A>> for IRConstBexpr<A> {
+    fn as_ref(&self) -> &IRBexpr<A> {
+        self.deref()
+    }
+}
+
+impl<A> AsMut<IRBexpr<A>> for IRConstBexpr<A> {
+    fn as_mut(&mut self) -> &mut IRBexpr<A> {
+        self.deref_mut()
+    }
+}
+
+impl<A> Borrow<IRBexpr<A>> for IRConstBexpr<A> {
+    fn borrow(&self) -> &IRBexpr<A> {
+        self.deref()
+    }
+}
+
+impl<A> BorrowMut<IRBexpr<A>> for IRConstBexpr<A> {
+    fn borrow_mut(&mut self) -> &mut IRBexpr<A> {
+        self.deref_mut()
+    }
+}
+
+/// Raised when attempting to transform an [`IRBexpr`] into a [`IRConstBexpr`].
+#[derive(Debug, Error, Clone, Copy)]
+#[error("attempted to transform a non constant boolean expression")]
+pub struct NonConstIRBexprError;
+
+impl<A> TryFrom<IRBexpr<A>> for IRConstBexpr<A>
+where
+    IRBexpr<A>: Evaluate<ExprProperties>,
+{
+    type Error = NonConstIRBexprError;
+
+    fn try_from(value: IRBexpr<A>) -> Result<Self, Self::Error> {
+        let props = value.evaluate();
+        if props != ExprProperty::Const {
+            return Err(NonConstIRBexprError);
+        }
+        Ok(Self(value))
+    }
+}
+
+impl<A> Validatable for IRConstBexpr<A>
+where
+    IRBexpr<A>: Evaluate<ExprProperties>,
+{
+    type Diagnostic = SimpleDiagnostic;
+
+    type Context = ();
+
+    fn validate_with_context(
+        &self,
+        _: &Self::Context,
+    ) -> Result<Vec<Self::Diagnostic>, Vec<Self::Diagnostic>> {
+        let mut validation = Validation::new();
+        if self.0.evaluate() != ExprProperty::Const {
+            validation.with_error(SimpleDiagnostic::error(
+                "boolean expression is not constant",
+            ));
+        }
+        validation.into()
     }
 }
 

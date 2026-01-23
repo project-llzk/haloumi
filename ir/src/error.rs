@@ -4,6 +4,8 @@ use std::convert::Infallible;
 
 use thiserror::Error;
 
+use crate::expr::NonConstIRBexprError;
+
 /// IR error type.
 #[derive(Error, Clone, Debug)]
 pub enum Error {
@@ -14,6 +16,9 @@ pub enum Error {
     /// Happens while constant folding a [`IRBexpr`](crate::expr::IRBexpr) that folds into `false`.
     #[error("Detected {0} statement with predicate evaluating to 'false': {1}")]
     FoldedFalseStmt(&'static str, String),
+    /// Happens when a boolean expression is not constant and was expected to be.
+    #[error(transparent)]
+    ExpectedConstBexpr(#[from] NonConstIRBexprError),
 }
 
 impl From<Infallible> for Error {

@@ -1,8 +1,9 @@
 //! Structs for handling arithmetic expressions.
 
 use crate::{
+    expr::{ExprProperties, ExprProperty},
     printer::IRPrintable,
-    traits::{Canonicalize, ConstantFolding},
+    traits::{Canonicalize, ConstantFolding, Evaluate},
 };
 use eqv::{EqvRelation, equiv};
 use haloumi_core::{eqv::SymbolicEqv, felt::Felt, slot::Slot};
@@ -93,6 +94,36 @@ impl From<Felt> for IRAexpr {
 impl From<Slot> for IRAexpr {
     fn from(value: Slot) -> Self {
         Self(IRAexprImpl::IO(value))
+    }
+}
+
+impl Evaluate<Option<Felt>> for IRAexpr {
+    fn evaluate(&self) -> Option<Felt> {
+        match &self.0 {
+            IRAexprImpl::Constant(felt) => Some(*felt),
+            IRAexprImpl::IO(_) => None,
+            IRAexprImpl::Negated(expr) => Evaluate::<Option<Felt>>::evaluate(expr).map(|f| -f),
+            IRAexprImpl::Sum(lhs, rhs) => Evaluate::<Option<Felt>>::evaluate(lhs)
+                .zip(Evaluate::<Option<Felt>>::evaluate(rhs))
+                .map(|(lhs, rhs)| lhs + rhs),
+            IRAexprImpl::Product(lhs, rhs) => Evaluate::<Option<Felt>>::evaluate(lhs)
+                .zip(Evaluate::<Option<Felt>>::evaluate(rhs))
+                .map(|(lhs, rhs)| lhs * rhs),
+        }
+    }
+}
+
+impl Evaluate<ExprProperties> for IRAexpr {
+    fn evaluate(&self) -> ExprProperties {
+        match &self.0 {
+            IRAexprImpl::Constant(_) => ExprProperty::Const.into(),
+            IRAexprImpl::IO(_) => Default::default(),
+            IRAexprImpl::Negated(expr) => expr.evaluate(),
+            IRAexprImpl::Sum(lhs, rhs) | IRAexprImpl::Product(lhs, rhs) => {
+                Evaluate::<ExprProperties>::evaluate(lhs)
+                    & Evaluate::<ExprProperties>::evaluate(rhs)
+            }
+        }
     }
 }
 

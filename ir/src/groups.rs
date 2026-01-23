@@ -1,10 +1,11 @@
 //! IR for representing groups.
 
 use crate::{
+    diagnostics::{SimpleDiagnostic, Validation},
     groups::callsite::CallSite,
     printer::IRPrintable,
     stmt::IRStmt,
-    traits::{Canonicalize, ConstantFolding},
+    traits::{Canonicalize, ConstantFolding, Validatable},
 };
 use eqv::{EqvRelation, equiv};
 use haloumi_core::eqv::SymbolicEqv;
@@ -277,6 +278,42 @@ impl<E> IRGroup<E> {
     /// Returns a mutable reference to the copy constraints.
     pub fn eq_constraints_mut(&mut self) -> &mut IRStmt<E> {
         &mut self.eq_constraints
+    }
+}
+
+impl<E> Validatable for IRGroup<E>
+where
+    IRStmt<E>: Validatable<Diagnostic = SimpleDiagnostic, Context = ()>,
+{
+    type Diagnostic = SimpleDiagnostic;
+
+    type Context = [Self];
+
+    fn validate_with_context(
+        &self,
+        groups: &Self::Context,
+    ) -> Result<Vec<Self::Diagnostic>, Vec<Self::Diagnostic>> {
+        let mut validation = Validation::new();
+
+        // Check 1. Consistency of callsites arity.
+        validation.with_errors(self.callsites().iter().enumerate().filter_map(
+            |(call_no, callsite)| match self.validate_callsite(callsite, groups) {
+                Ok(_) => None,
+                Err(err) => Some(SimpleDiagnostic::error(format!(
+                    "on callsite {call_no}: {err}"
+                ))),
+            },
+        ));
+
+        // Check 2. Each's statement validation.
+        validation.append_from_result(self.gates.validate(), "on gates");
+        validation.append_from_result(self.eq_constraints.validate(), "on copy constraints");
+        validation.append_from_result(self.lookups.validate(), "on lookups");
+        for ir in &self.injected {
+            validation.append_from_result(ir.validate(), "on injected ir");
+        }
+
+        validation.into()
     }
 }
 

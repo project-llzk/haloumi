@@ -2,16 +2,18 @@
 
 use super::expr::IRBexpr;
 use crate::{
+    diagnostics::{Diagnostic, Validation},
     error::Error,
-    expr::IRAexpr,
+    expr::{ExprProperties, IRAexpr, IRConstBexpr},
     printer::IRPrintable,
-    traits::{Canonicalize, ConstantFolding},
+    traits::{Canonicalize, ConstantFolding, Evaluate, Validatable},
 };
 use eqv::{EqvRelation, equiv};
 use haloumi_core::{cmp::CmpOp, eqv::SymbolicEqv, slot::Slot};
 use haloumi_lowering::{
     Lowering,
     lowerable::{LowerableExpr, LowerableStmt},
+    lowering_err,
 };
 use std::fmt::Write;
 
@@ -19,6 +21,7 @@ mod assert;
 mod assume_determ;
 mod call;
 mod comment;
+mod cond_block;
 mod constraint;
 mod post_cond;
 mod seq;
@@ -27,9 +30,30 @@ use assert::Assert;
 use assume_determ::AssumeDeterministic;
 use call::Call;
 use comment::Comment;
+use cond_block::CondBlock;
 use constraint::Constraint;
 use post_cond::PostCond;
 use seq::Seq;
+
+mod sealed {
+    pub trait EmitIfSealed {}
+}
+
+/// Trait that enables wrapping IR statements into conditionally emitted blocks.
+pub trait EmitIf<T>: sealed::EmitIfSealed {
+    /// Creates a conditional block.
+    fn emit_if(self, cond: IRConstBexpr<T>) -> IRStmt<T>;
+}
+
+impl<T, I> EmitIf<T> for I
+where
+    I: IntoIterator<Item = IRStmt<T>>,
+{
+    fn emit_if(self, cond: IRConstBexpr<T>) -> IRStmt<T> {
+        CondBlock::new(cond, self.into_iter().collect()).into()
+    }
+}
+impl<T, I> sealed::EmitIfSealed for I where I: IntoIterator<Item = IRStmt<T>> {}
 
 /// IR for operations that occur in the main circuit.
 pub struct IRStmt<T>(IRStmtImpl<T>);
@@ -49,6 +73,8 @@ enum IRStmtImpl<T> {
     Seq(Seq<T>),
     /// A post-condition expression.
     PostCond(PostCond<T>),
+    /// A conditionally emitted block.
+    CondBlock(CondBlock<T>),
 }
 
 impl<T: PartialEq> PartialEq for IRStmt<T> {
@@ -68,6 +94,7 @@ impl<T: PartialEq> PartialEq for IRStmt<T> {
             }
             (IRStmtImpl::Assert(lhs), IRStmtImpl::Assert(rhs)) => lhs.eq(rhs),
             (IRStmtImpl::PostCond(lhs), IRStmtImpl::PostCond(rhs)) => lhs.eq(rhs),
+            (IRStmtImpl::CondBlock(lhs), IRStmtImpl::CondBlock(rhs)) => lhs.eq(rhs),
             (IRStmtImpl::Seq(_), _) | (_, IRStmtImpl::Seq(_)) => unreachable!(),
             _ => false,
         })
@@ -85,6 +112,7 @@ impl<T: std::fmt::Debug> std::fmt::Debug for IRStmt<T> {
             }
             IRStmtImpl::Assert(assert) => write!(f, "{assert:?}"),
             IRStmtImpl::PostCond(pc) => write!(f, "{pc:?}"),
+            IRStmtImpl::CondBlock(cb) => write!(f, "{cb:?}"),
             IRStmtImpl::Seq(seq) => write!(f, "{seq:?}"),
         }
     }
@@ -185,6 +213,7 @@ impl<T> IRStmt<T> {
             IRStmtImpl::AssumeDeterministic(ad) => AssumeDeterministic::new(ad.value()).into(),
             IRStmtImpl::Assert(assert) => assert.map(f).into(),
             IRStmtImpl::PostCond(pc) => pc.map(f).into(),
+            IRStmtImpl::CondBlock(cb) => cb.map(f).into(),
             IRStmtImpl::Seq(seq) => Seq::new(seq.into_iter().map(|s| s.map(f))).into(),
         }
     }
@@ -205,7 +234,7 @@ impl<T> IRStmt<T> {
     /// Transforms the inner expression type using [`Into::into`].
     pub fn into<O>(self) -> IRStmt<O>
     where
-        O: From<T>,
+        O: From<T> + Evaluate<ExprProperties>,
     {
         self.map(&mut Into::into)
     }
@@ -238,6 +267,7 @@ impl<T> IRStmt<T> {
             IRStmtImpl::AssumeDeterministic(ad) => AssumeDeterministic::new(ad.value()).into(),
             IRStmtImpl::Assert(assert) => assert.map_into(f).into(),
             IRStmtImpl::PostCond(pc) => pc.map_into(f).into(),
+            IRStmtImpl::CondBlock(cb) => cb.map_into(f).into(),
             IRStmtImpl::Seq(seq) => Seq::new(seq.iter().map(|s| s.map_into(f))).into(),
         }
     }
@@ -251,6 +281,7 @@ impl<T> IRStmt<T> {
             IRStmtImpl::AssumeDeterministic(ad) => AssumeDeterministic::new(ad.value()).into(),
             IRStmtImpl::Assert(assert) => assert.try_map(f)?.into(),
             IRStmtImpl::PostCond(pc) => pc.try_map(f)?.into(),
+            IRStmtImpl::CondBlock(cb) => cb.try_map(f)?.into(),
             IRStmtImpl::Seq(seq) => Seq::new(
                 seq.into_iter()
                     .map(|s| s.try_map(f))
@@ -267,6 +298,7 @@ impl<T> IRStmt<T> {
             IRStmtImpl::Constraint(constraint) => constraint.map_inplace(f),
             IRStmtImpl::Assert(assert) => assert.map_inplace(f),
             IRStmtImpl::PostCond(pc) => pc.map_inplace(f),
+            IRStmtImpl::CondBlock(cb) => cb.map_inplace(f),
             IRStmtImpl::Seq(seq) => seq.iter_mut().for_each(|stmt| stmt.map_inplace(f)),
             _ => {}
         }
@@ -282,6 +314,7 @@ impl<T> IRStmt<T> {
             IRStmtImpl::Constraint(constraint) => constraint.try_map_inplace(f),
             IRStmtImpl::Assert(assert) => assert.try_map_inplace(f),
             IRStmtImpl::PostCond(pc) => pc.try_map_inplace(f),
+            IRStmtImpl::CondBlock(cb) => cb.try_map_inplace(f),
             IRStmtImpl::Seq(seq) => seq.iter_mut().try_for_each(|stmt| stmt.try_map_inplace(f)),
             _ => Ok(()),
         }
@@ -355,6 +388,11 @@ where
                     *self = replacement;
                 }
             }
+            IRStmtImpl::CondBlock(cb) => {
+                if let Some(replacement) = cb.constant_fold()? {
+                    *self = replacement;
+                }
+            }
             IRStmtImpl::Seq(seq) => seq.constant_fold()?,
         }
         Ok(())
@@ -371,7 +409,35 @@ impl Canonicalize for IRStmt<IRAexpr> {
             IRStmtImpl::AssumeDeterministic(_) => {}
             IRStmtImpl::Assert(assert) => assert.canonicalize(),
             IRStmtImpl::PostCond(pc) => pc.canonicalize(),
+            IRStmtImpl::CondBlock(cb) => cb.canonicalize(),
             IRStmtImpl::Seq(seq) => seq.canonicalize(),
+        }
+    }
+}
+
+impl<T, D> Validatable for IRStmt<T>
+where
+    IRConstBexpr<T>: Validatable<Diagnostic = D, Context = ()>,
+    D: Diagnostic,
+{
+    type Diagnostic = D;
+
+    type Context = ();
+
+    fn validate_with_context(
+        &self,
+        _: &Self::Context,
+    ) -> Result<Vec<Self::Diagnostic>, Vec<Self::Diagnostic>> {
+        match &self.0 {
+            IRStmtImpl::Seq(seq) => {
+                let mut validation = Validation::new();
+                for stmt in seq.iter() {
+                    validation.append_from_result(stmt.validate(), "");
+                }
+                validation.into()
+            }
+            IRStmtImpl::CondBlock(cond_block) => cond_block.validate(),
+            _ => Validation::new().into(),
         }
     }
 }
@@ -399,6 +465,9 @@ where
                 equiv! { SymbolicEqv | lhs, rhs }
             }
             (IRStmtImpl::PostCond(lhs), IRStmtImpl::PostCond(rhs)) => {
+                equiv! { SymbolicEqv | lhs, rhs }
+            }
+            (IRStmtImpl::CondBlock(lhs), IRStmtImpl::CondBlock(rhs)) => {
                 equiv! { SymbolicEqv | lhs, rhs }
             }
             (IRStmtImpl::Seq(_), _) | (_, IRStmtImpl::Seq(_)) => unreachable!(),
@@ -547,11 +616,32 @@ impl<T> From<PostCond<T>> for IRStmt<T> {
         Self(IRStmtImpl::PostCond(value))
     }
 }
+impl<T> From<CondBlock<T>> for IRStmt<T> {
+    fn from(value: CondBlock<T>) -> Self {
+        Self(IRStmtImpl::CondBlock(value))
+    }
+}
 impl<T> From<Seq<T>> for IRStmt<T> {
     fn from(value: Seq<T>) -> Self {
         Self(IRStmtImpl::Seq(value))
     }
 }
+
+/// Error raised while lowering if the lowered statement was a conditionally emitted block what was
+/// not resolved yet.
+#[derive(Debug)]
+pub struct UnresolvedCondBlockError;
+
+impl std::fmt::Display for UnresolvedCondBlockError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "attempted to lower an unresolved conditionally emitted block"
+        )
+    }
+}
+
+impl std::error::Error for UnresolvedCondBlockError where Self: std::fmt::Debug {}
 
 impl<T: LowerableExpr> LowerableStmt for IRStmt<T> {
     fn lower<L>(self, l: &L) -> haloumi_lowering::Result<()>
@@ -565,6 +655,7 @@ impl<T: LowerableExpr> LowerableStmt for IRStmt<T> {
             IRStmtImpl::AssumeDeterministic(ad) => ad.lower(l),
             IRStmtImpl::Assert(assert) => assert.lower(l),
             IRStmtImpl::PostCond(pc) => pc.lower(l),
+            IRStmtImpl::CondBlock(_) => Err(lowering_err!(UnresolvedCondBlockError)),
             IRStmtImpl::Seq(seq) => seq.lower(l),
         }
     }
@@ -579,6 +670,7 @@ impl<T: Clone> Clone for IRStmt<T> {
             IRStmtImpl::AssumeDeterministic(func_io) => func_io.clone().into(),
             IRStmtImpl::Assert(e) => e.clone().into(),
             IRStmtImpl::PostCond(e) => e.clone().into(),
+            IRStmtImpl::CondBlock(e) => e.clone().into(),
             IRStmtImpl::Seq(stmts) => stmts.clone().into(),
         }
     }
@@ -617,12 +709,22 @@ impl<T: IRPrintable> IRPrintable for IRStmt<T> {
                 }
                 Ok(())
             }
+            IRStmtImpl::CondBlock(cb) => ctx.block("emit-if", |ctx| {
+                cb.cond().fmt(ctx)?;
+                ctx.nl()?;
+                cb.body().fmt(ctx)
+            }),
             IRStmtImpl::PostCond(post_cond) => {
                 ctx.block("post-cond", |ctx| post_cond.cond().fmt(ctx))
             }
         }
     }
 }
+
+/// Errors caused by failable map operations
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct TryMapError(#[from] Box<dyn std::error::Error>);
 
 #[cfg(test)]
 mod test;

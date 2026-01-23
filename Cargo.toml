@@ -24,4 +24,5 @@ internment = "0.8.6"
 num-bigint = "0.4"
 log = "0.4"
 eqv = "0.1"
+bit-set = "0.8"
 

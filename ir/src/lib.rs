@@ -5,6 +5,7 @@
 
 mod canon;
 mod circuit;
+pub mod diagnostics;
 pub mod error;
 pub mod expr;
 pub mod groups;

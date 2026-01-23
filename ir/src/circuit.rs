@@ -1,9 +1,10 @@
 //! Types for representing a complete circuit.
 
 use crate::{
-    groups::{IRGroup, ValidationFailed},
+    diagnostics::{Diagnostic, Validation},
+    groups::IRGroup,
     printer::{IRPrintable, IRPrinter},
-    traits::{Canonicalize, ConstantFolding},
+    traits::{Canonicalize, ConstantFolding, Validatable},
 };
 
 /// Generic type representing a circuit.
@@ -62,35 +63,59 @@ impl<E, C> IRCircuit<E, C> {
             .expect("A main group is required")
     }
 
-    /// Validates the IR, returning errors if it failed.
-    pub fn validate(&self) -> (Result<(), ValidationFailed>, Vec<String>) {
-        let mut errors = vec![];
+    ///// Validates the IR, returning errors if it failed.
+    //pub fn validate(&self) -> (Result<(), ValidationFailed>, Vec<String>) {
+    //    let mut errors = vec![];
+    //
+    //    for group in &self.body {
+    //        let (status, group_errors) = group.validate(&self.body);
+    //        if status.is_err() {
+    //            for err in group_errors {
+    //                errors.push(format!("Error in group \"{}\": {err}", group.name()));
+    //            }
+    //        }
+    //    }
+    //
+    //    (
+    //        if errors.is_empty() {
+    //            Ok(())
+    //        } else {
+    //            Err(ValidationFailed {
+    //                name: self
+    //                    .body
+    //                    .iter()
+    //                    .find_map(|g| g.is_main().then_some(g.name()))
+    //                    .unwrap_or("circuit")
+    //                    .to_string(),
+    //                error_count: errors.len(),
+    //            })
+    //        },
+    //        errors,
+    //    )
+    //}
+}
+
+impl<E, C, D> Validatable for IRCircuit<E, C>
+where
+    IRGroup<E>: Validatable<Diagnostic = D, Context = [IRGroup<E>]>,
+    D: Diagnostic,
+{
+    type Diagnostic = D;
+
+    type Context = ();
+
+    fn validate_with_context(
+        &self,
+        _: &Self::Context,
+    ) -> Result<Vec<Self::Diagnostic>, Vec<Self::Diagnostic>> {
+        let mut validation = Validation::new();
 
         for group in &self.body {
-            let (status, group_errors) = group.validate(&self.body);
-            if status.is_err() {
-                for err in group_errors {
-                    errors.push(format!("Error in group \"{}\": {err}", group.name()));
-                }
-            }
+            let header = format!("in group \"{}\"", group.name());
+            let result = group.validate_with_context(&self.body);
+            validation.append_from_result(result, &header);
         }
-
-        (
-            if errors.is_empty() {
-                Ok(())
-            } else {
-                Err(ValidationFailed {
-                    name: self
-                        .body
-                        .iter()
-                        .find_map(|g| g.is_main().then_some(g.name()))
-                        .unwrap_or("circuit")
-                        .to_string(),
-                    error_count: errors.len(),
-                })
-            },
-            errors,
-        )
+        validation.into()
     }
 }
 

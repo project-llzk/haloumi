@@ -1,6 +1,6 @@
 //! Types and traits related to diagnostics.
 
-use std::fmt;
+use std::{fmt, sync::Arc};
 
 /// In-progress validation
 #[derive(Debug, Default)]
@@ -172,11 +172,11 @@ impl fmt::Display for SimpleDiagnostic {
 }
 
 /// Error type for a collection of diagnostics
-pub struct DiagnosticsError<'d> {
-    diags: Vec<Box<dyn Diagnostic + 'd>>,
+pub struct DiagnosticsError {
+    diags: Vec<Arc<dyn Diagnostic + Send + Sync + 'static>>,
 }
 
-impl std::fmt::Debug for DiagnosticsError<'_> {
+impl std::fmt::Debug for DiagnosticsError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DiagnosticsError")
             .field("n_diags", &self.diags.len())
@@ -184,7 +184,7 @@ impl std::fmt::Debug for DiagnosticsError<'_> {
     }
 }
 
-impl std::fmt::Display for DiagnosticsError<'_> {
+impl std::fmt::Display for DiagnosticsError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.diags
             .iter()
@@ -193,20 +193,20 @@ impl std::fmt::Display for DiagnosticsError<'_> {
     }
 }
 
-impl<'d, D: Diagnostic + 'd> FromIterator<D> for DiagnosticsError<'d> {
+impl<'d, D: Diagnostic + Send + Sync + 'static> FromIterator<D> for DiagnosticsError {
     fn from_iter<T: IntoIterator<Item = D>>(iter: T) -> Self {
         Self {
             diags: iter
                 .into_iter()
-                .map(|d| -> Box<dyn Diagnostic> { Box::new(d) })
+                .map(|d| -> Arc<dyn Diagnostic + Send + Sync + 'static> { Arc::new(d) })
                 .collect(),
         }
     }
 }
 
-impl<I: IntoIterator> From<I> for DiagnosticsError<'_>
+impl<I: IntoIterator> From<I> for DiagnosticsError
 where
-    I::Item: Diagnostic + 'static,
+    I::Item: Diagnostic + Send + Sync + 'static,
 {
     fn from(value: I) -> Self {
         Self::from_iter(value)

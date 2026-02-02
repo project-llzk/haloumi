@@ -255,31 +255,6 @@ impl<E> IRGroup<E> {
         Ok(())
     }
 
-    /// Validates the IR in the group.
-    pub fn validate(&self, groups: &[Self]) -> (Result<(), ValidationFailed>, Vec<String>) {
-        let mut errors = vec![];
-
-        // Check 1. Consistency of callsites arity.
-        for (call_no, callsite) in self.callsites().iter().enumerate() {
-            if let Err(err) = self.validate_callsite(callsite, groups) {
-                errors.push(format!("On callsite {call_no}: {err}"));
-            }
-        }
-
-        // Return errors if any.
-        (
-            if errors.is_empty() {
-                Ok(())
-            } else {
-                Err(ValidationFailed {
-                    name: self.name.clone(),
-                    error_count: errors.len(),
-                })
-            },
-            errors,
-        )
-    }
-
     /// Returns a mutable reference to the copy constraints.
     pub fn eq_constraints_mut(&mut self) -> &mut IRStmt<E> {
         &mut self.eq_constraints

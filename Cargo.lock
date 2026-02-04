@@ -368,11 +368,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "haloumi-ir-gen"
+version = "0.5.3"
+dependencies = [
+ "ff",
+ "haloumi-core",
+ "haloumi-ir",
+ "haloumi-synthesis",
+ "log",
+ "thiserror",
+]
+
+[[package]]
 name = "haloumi-lowering"
 version = "0.5.3"
 dependencies = [
  "ff",
  "haloumi-core",
+ "thiserror",
+]
+
+[[package]]
+name = "haloumi-synthesis"
+version = "0.5.3"
+dependencies = [
+ "bit-set",
+ "ff",
+ "haloumi-core",
+ "log",
  "thiserror",
 ]
 

@@ -1,0 +1,20 @@
+[package]
+name = "haloumi-ir-gen"
+description = "IR generation step of the haloumi lowering pipeline."
+categories = {workspace = true}
+version = {workspace = true}
+authors = {workspace = true}
+edition = {workspace = true}
+rust-version = {workspace = true}
+readme = "README.md"
+repository = {workspace = true}
+license-file = {workspace = true}
+keywords = {workspace = true}
+
+[dependencies]
+haloumi-core = { path = "../core", version = "0.5.3"}
+haloumi-ir = { path = "../ir", version = "0.5.3"}
+haloumi-synthesis = { path = "../synthesis", version = "0.5.3" }
+ff.workspace = true
+log.workspace = true
+thiserror.workspace = true

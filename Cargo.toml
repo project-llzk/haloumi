@@ -2,7 +2,8 @@
 members = [ 
   "core",
   "lowering",
-  "ir"
+  "ir",
+  "synthesis"
 ]
 resolver = "2"
 

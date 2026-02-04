@@ -1,0 +1,19 @@
+[package]
+name = "haloumi-synthesis"
+description = "Synthesis step of the haloumi lowering pipeline."
+categories = {workspace = true}
+version = {workspace = true}
+authors = {workspace = true}
+edition = {workspace = true}
+rust-version = {workspace = true}
+readme = "README.md"
+repository = {workspace = true}
+license-file = {workspace = true}
+keywords = {workspace = true}
+
+[dependencies]
+ff.workspace = true
+haloumi-core = { path = "../core", version = "0.5.3"}
+thiserror.workspace = true
+log.workspace = true
+bit-set.workspace = true

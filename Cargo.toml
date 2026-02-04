@@ -4,7 +4,8 @@ members = [
   "lowering",
   "ir",
   "synthesis",
-  "ir-gen"
+  "ir-gen",
+  "backend"
 ]
 resolver = "2"
 

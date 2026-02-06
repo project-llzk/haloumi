@@ -8,7 +8,7 @@ members = [
   "backend",
   "picus",
   "llzk"
-]
+, "driver"]
 resolver = "2"
 
 [workspace.package]

@@ -663,6 +663,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "haloumi"
+version = "0.5.3"
+dependencies = [
+ "ff",
+ "haloumi-core",
+ "haloumi-ir",
+ "haloumi-ir-gen",
+ "haloumi-llzk",
+ "haloumi-picus",
+ "haloumi-synthesis",
+ "thiserror",
+]
+
+[[package]]
 name = "haloumi-backend"
 version = "0.5.3"
 dependencies = [

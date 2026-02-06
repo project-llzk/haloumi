@@ -1,0 +1,27 @@
+[package]
+name = "haloumi"
+description = "Entrypoint crate for the Haloumi framework."
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+readme.workspace = true
+repository.workspace = true
+license-file.workspace = true
+categories.workspace = true
+keywords.workspace = true
+
+[dependencies]
+haloumi-core = { path = "../core", version = "0.5.3"}
+haloumi-ir = { path = "../ir", version = "0.5.3"}
+haloumi-ir-gen = { path = "../ir-gen", version = "0.5.3"}
+haloumi-synthesis = { path = "../synthesis", version = "0.5.3"}
+haloumi-llzk = { path = "../llzk", version = "0.5.3", optional = true }
+haloumi-picus = { path = "../picus", version = "0.5.3", optional = true }
+ff.workspace = true
+thiserror.workspace = true
+
+[features]
+default = ["llzk-backend", "picus-backend"]
+llzk-backend = ["dep:haloumi-llzk"]
+picus-backend = ["dep:haloumi-picus"]

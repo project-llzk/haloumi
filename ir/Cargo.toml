@@ -17,8 +17,8 @@ log.workspace = true
 thiserror.workspace = true
 internment.workspace = true
 eqv.workspace = true
-haloumi-core = { path = "../core", version = "0.5.3"}
-haloumi-lowering = { path = "../lowering", version = "0.5.3" }
+haloumi-core = { path = "../core", version = "0.5.4"}
+haloumi-lowering = { path = "../lowering", version = "0.5.4" }
 num-bigint.workspace = true
 bit-set.workspace = true
 

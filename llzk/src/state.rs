@@ -3,6 +3,7 @@ use melior::Context;
 
 use super::LlzkParams;
 
+#[derive(Debug)]
 pub struct LlzkCodegenState<'c> {
     context: &'c Context,
     params: LlzkParams<'c>,

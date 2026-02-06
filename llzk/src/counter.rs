@@ -1,5 +1,6 @@
 use std::{cell::RefCell, ops::RangeFrom};
 
+#[derive(Debug)]
 pub struct Counter {
     inner: RefCell<RangeFrom<usize>>,
 }

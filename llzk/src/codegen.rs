@@ -16,6 +16,7 @@ use haloumi_synthesis::io::{AdviceIO, InstanceIO};
 
 use super::factory;
 
+#[derive(Debug)]
 pub struct LlzkCodegen<'c, 's> {
     state: &'s LlzkCodegenState<'c>,
     module: Module<'c>,

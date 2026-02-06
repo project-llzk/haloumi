@@ -1,19 +1,25 @@
-pub use codegen::LlzkCodegen;
+#![doc = include_str!("../README.md")]
+#![deny(rustdoc::broken_intra_doc_links)]
+#![deny(missing_debug_implementations)]
+#![deny(missing_docs)]
+
+use codegen::LlzkCodegen;
 use haloumi_backend::Backend;
 use melior::ir::Module;
-pub use state::LlzkCodegenState;
+use state::LlzkCodegenState;
 
 pub use params::LlzkParams;
 
 mod codegen;
 mod counter;
-mod error;
+pub mod error;
 mod extras;
 mod factory;
 mod lowering;
-pub(crate) mod params;
+mod params;
 mod state;
 
+/// Instance of a [`Backend`] prepared for lowering to LLZK.
 pub type LlzkBackend<'c, 's> = Backend<LlzkCodegen<'c, 's>, LlzkCodegenState<'c>>;
 
 /// Output produced by the LLZK backend.

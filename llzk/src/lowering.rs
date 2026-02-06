@@ -23,6 +23,7 @@ use haloumi_core::{
     slot::{Slot as FuncIO, arg::ArgNo, output::OutputId as FieldId},
 };
 
+#[derive(Debug)]
 pub struct LlzkStructLowering<'c, 's> {
     context: &'c Context,
     struct_op: StructDefOpRefMut<'c, 's>,

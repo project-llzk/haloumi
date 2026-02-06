@@ -106,7 +106,7 @@ impl<'c: 's, 's> Codegen<'c, 's> for LlzkCodegen<'c, 's> {
     }
 }
 
-fn create_pipeline<'c>(context: &'c Context) -> PassManager<'c> {
+fn create_pipeline(context: &Context) -> PassManager<'_> {
     let pm = PassManager::new(context);
     pm.nested_under("builtin.module")
         .nested_under("struct.def")
@@ -125,7 +125,7 @@ fn create_pipeline<'c>(context: &'c Context) -> PassManager<'c> {
 
 #[cfg(test)]
 mod tests {
-    use crate::LlzkParamsBuilder;
+    use crate::params::LlzkParams;
 
     use super::*;
     use haloumi_core::{
@@ -151,8 +151,7 @@ mod tests {
         ($test_name:ident, $expected:literal, $io:expr $(,)?) => {
             #[rstest]
             fn $test_name(ctx: LlzkContext) {
-                let state: LlzkCodegenState =
-                    LlzkParamsBuilder::new(&ctx).no_optimize().build().into();
+                let state: LlzkCodegenState = LlzkParams::new(&ctx).no_optimize().into();
                 let codegen = LlzkCodegen::initialize(&state);
                 let (advice_io, instance_io) = $io;
                 let main = codegen

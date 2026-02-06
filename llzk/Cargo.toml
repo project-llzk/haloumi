@@ -18,10 +18,12 @@ haloumi-ir = { path = "../ir", version = "0.5.3"}
 haloumi-lowering = { path = "../lowering", version = "0.5.3"}
 haloumi-synthesis = { path = "../synthesis", version = "0.5.3"}
 haloumi-backend = { path = "../backend", version = "0.5.3"}
+
 log.workspace = true
 thiserror.workspace = true
 eqv.workspace = true
 disjoint.workspace = true
+
 llzk = { git = "https://github.com/project-llzk/llzk-rs", package = "llzk", features =["bigint"] }
 melior = "0.25"
 mlir-sys = "0.5.0"
@@ -30,3 +32,13 @@ anyhow = "1"
 regex = "1.11"
 lazy_static = "1.5"
 
+[dev-dependencies]
+ff.workspace = true
+simplelog = {version = "0.12", features = ["test"] }
+similar-asserts = "1.7"
+quickcheck = "1"
+quickcheck_macros = "1"
+rstest = "0.26"
+group = "0.13"
+mlir-testutils = {version = "0.1.0", features = ["similar-asserts"]}
+halo2curves = "0.7.0"

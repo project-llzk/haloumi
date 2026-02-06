@@ -210,7 +210,7 @@ macro_rules! wrap {
     };
 }
 
-impl<'c> Lowering for LlzkStructLowering<'c, '_> {
+impl Lowering for LlzkStructLowering<'_, '_> {
     fn generate_constraint(
         &self,
         op: CmpOp,
@@ -290,7 +290,7 @@ impl<'c> Lowering for LlzkStructLowering<'c, '_> {
     }
 }
 
-impl<'c> ExprLowering for LlzkStructLowering<'c, '_> {
+impl ExprLowering for LlzkStructLowering<'_, '_> {
     type CellOutput = ValueWrap;
 
     fn lower_sum(
@@ -500,21 +500,17 @@ impl<'c> ExprLowering for LlzkStructLowering<'c, '_> {
 
 #[cfg(test)]
 mod tests {
-    use halo2_frontend_core::{
+    use haloumi_core::{
         query::{Advice, Instance},
         table::Column,
     };
     use log::LevelFilter;
     use simplelog::{Config, TestLogger};
+    use std::fmt::Write as _;
 
-    use crate::{
-        LlzkParamsBuilder,
-        backend::{
-            codegen::Codegen as _,
-            llzk::{LlzkCodegen, LlzkCodegenState},
-        },
-        io::{AdviceIO, InstanceIO},
-    };
+    use crate::{LlzkCodegen, LlzkCodegenState, params::LlzkParams};
+    use haloumi_backend::codegen::Codegen as _;
+    use haloumi_synthesis::io::{AdviceIO, InstanceIO};
 
     use super::*;
     use ff::Field as _;
@@ -884,10 +880,9 @@ mod tests {
     ) {
         let _ = TestLogger::init(LevelFilter::Debug, Config::default());
         let context = LlzkContext::new();
-        let state: LlzkCodegenState = LlzkParamsBuilder::new(&context)
+        let state: LlzkCodegenState = LlzkParams::new(&context)
             .with_top_level(cfg.struct_name)
             .no_optimize()
-            .build()
             .into();
         let codegen = LlzkCodegen::initialize(&state);
         let advice_io = cfg.advice_io();
@@ -944,20 +939,21 @@ mod tests {
         }
 
         fn inputs(&self) -> String {
-            (1..=self.n_inputs)
-                .map(|n| {
-                    format!(
-                        "{} %arg{n}: {}{}",
-                        if n == 1 { "" } else { "," },
-                        self.input_type_str(),
-                        if n <= self.n_public_inputs {
-                            " {llzk.pub = #llzk.pub}"
-                        } else {
-                            ""
-                        }
-                    )
-                })
-                .collect()
+            (1..=self.n_inputs).fold(String::new(), |mut acc, n| {
+                write!(
+                    acc,
+                    "{} %arg{n}: {}{}",
+                    if n == 1 { "" } else { "," },
+                    self.input_type_str(),
+                    if n <= self.n_public_inputs {
+                        " {llzk.pub = #llzk.pub}"
+                    } else {
+                        ""
+                    }
+                )
+                .unwrap();
+                acc
+            })
         }
 
         fn input_type_str(&self) -> &'static str {
@@ -981,18 +977,19 @@ mod tests {
         }
 
         fn fields(&self) -> String {
-            (0..self.n_outputs)
-                .map(|n| {
-                    format!(
-                        "struct.field @out_{n} : !felt.type{}\n",
-                        if n < self.n_public_outputs {
-                            " {llzk.pub}"
-                        } else {
-                            ""
-                        }
-                    )
-                })
-                .collect()
+            (0..self.n_outputs).fold(String::new(), |mut acc, n| {
+                writeln!(
+                    acc,
+                    "struct.field @out_{n} : !felt.type{}",
+                    if n < self.n_public_outputs {
+                        " {llzk.pub}"
+                    } else {
+                        ""
+                    }
+                )
+                .unwrap();
+                acc
+            })
         }
     }
 

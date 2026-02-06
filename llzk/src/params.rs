@@ -11,7 +11,8 @@ pub struct LlzkParams<'c> {
 }
 
 impl<'c> LlzkParams<'c> {
-    fn new(context: &'c LlzkContext) -> Self {
+    /// Creates new parameters with the default configuration.
+    pub fn new(context: &'c LlzkContext) -> Self {
         Self {
             context,
             top_level: Default::default(),
@@ -39,63 +40,42 @@ impl<'c> LlzkParams<'c> {
     pub fn optimize(&self) -> bool {
         self.optimize
     }
-}
 
-/// Builder for creating [`LlzkParams`] instances.
-#[derive(Debug)]
-pub struct LlzkParamsBuilder<'c>(LlzkParams<'c>);
-
-impl<'c> LlzkParamsBuilder<'c> {
-    /// Creates a new builder.
-    pub fn new(context: &'c LlzkContext) -> Self {
-        Self(LlzkParams::new(context))
-    }
+    // Builder methods
 
     /// Sets the name of the top-level struct.
-    pub fn with_top_level<S: ToString>(&mut self, s: S) -> &mut Self {
-        self.0.top_level = Some(s.to_string());
+    pub fn with_top_level<S: ToString>(mut self, s: S) -> Self {
+        self.top_level = Some(s.to_string());
         self
     }
 
     /// Removes the name of the top-level struct.
-    pub fn no_top_level(&mut self) -> &mut Self {
-        self.0.top_level = None;
+    pub fn no_top_level(mut self) -> Self {
+        self.top_level = None;
         self
     }
 
     /// Sets lowering to inlining everything into one module.
-    pub fn inline(&mut self) -> &mut Self {
-        self.0.inline = true;
+    pub fn with_inline(mut self) -> Self {
+        self.inline = true;
         self
     }
 
     /// Sets lowering to creating separate modules for each group.
-    pub fn no_inline(&mut self) -> &mut Self {
-        self.0.inline = false;
+    pub fn no_inline(mut self) -> Self {
+        self.inline = false;
         self
     }
 
     /// Enables optimizations.
-    pub fn optimize(&mut self) -> &mut Self {
-        self.0.optimize = true;
+    pub fn with_optimization(mut self) -> Self {
+        self.optimize = true;
         self
     }
 
     /// Disables optimizations.
-    pub fn no_optimize(&mut self) -> &mut Self {
-        self.0.optimize = false;
+    pub fn no_optimize(mut self) -> Self {
+        self.optimize = false;
         self
-    }
-
-    /// Completes the build process and returns the parameters.
-    pub fn build(&mut self) -> LlzkParams<'c> {
-        let context = self.0.context;
-        std::mem::replace(&mut self.0, LlzkParams::new(context))
-    }
-}
-
-impl<'c> From<LlzkParamsBuilder<'c>> for LlzkParams<'c> {
-    fn from(value: LlzkParamsBuilder<'c>) -> Self {
-        value.0
     }
 }

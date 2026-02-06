@@ -21,6 +21,22 @@ haloumi-picus = { path = "../picus", version = "0.5.3", optional = true }
 ff.workspace = true
 thiserror.workspace = true
 
+[dev-dependencies]
+simplelog = {version = "0.12", features = ["test"] }
+quickcheck = "1"
+quickcheck_macros = "1"
+rstest = "0.26"
+group = "0.13"
+haloumi-test-circuits = { path = "../support/test-circuits" }
+haloumi-midnight-integration = { path = "../support/midnight" }
+paste = "1"
+anyhow = "1"
+halo2curves.workspace = true
+log.workspace = true
+similar-asserts.workspace = true
+mlir-testutils.workspace = true
+llzk.workspace = true
+
 [features]
 default = ["llzk-backend", "picus-backend"]
 llzk-backend = ["dep:haloumi-llzk"]

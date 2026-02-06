@@ -10,7 +10,8 @@ pub struct IRGenParams<'lc, 'gc, F: Field, E> {
 }
 
 impl<'lc, 'gc, F: Field, E> IRGenParams<'lc, 'gc, F, E> {
-    fn new() -> Self {
+    /// Creates new parameters with the default configuration.
+    pub fn new() -> Self {
         Self {
             debug_comments: false,
             lookup_cb: None,
@@ -28,37 +29,37 @@ impl<'lc, 'gc, F: Field, E> IRGenParams<'lc, 'gc, F, E> {
     //=====-----------------------------------------------------------------------=====//
 
     /// Enables debug comments.
-    pub fn with_debug_comments(&mut self) -> &mut Self {
+    pub fn with_debug_comments(mut self) -> Self {
         self.debug_comments = true;
         self
     }
 
     /// Disables debug comments.
-    pub fn without_debug_comments(&mut self) -> &mut Self {
+    pub fn without_debug_comments(mut self) -> Self {
         self.debug_comments = false;
         self
     }
 
     /// Sets the lookup callbacks.
-    pub fn lookup_callbacks(&mut self, lc: &'lc dyn LookupCallbacks<F, E>) -> &mut Self {
+    pub fn lookup_callbacks(mut self, lc: &'lc dyn LookupCallbacks<F, E>) -> Self {
         self.lookup_cb = Some(lc);
         self
     }
 
     /// Unsets the lookup callbacks.
-    pub fn no_lookup_callbacks(&mut self) -> &mut Self {
+    pub fn no_lookup_callbacks(mut self) -> Self {
         self.lookup_cb = None;
         self
     }
 
     /// Sets the gate callbacks.
-    pub fn gate_callbacks(&mut self, gc: &'gc dyn GateCallbacks<F, E>) -> &mut Self {
+    pub fn gate_callbacks(mut self, gc: &'gc dyn GateCallbacks<F, E>) -> Self {
         self.gate_cb = Some(gc);
         self
     }
 
     /// Unsets the gate callbacks.
-    pub fn no_gate_callbacks(&mut self) -> &mut Self {
+    pub fn no_gate_callbacks(mut self) -> Self {
         self.gate_cb = None;
         self
     }

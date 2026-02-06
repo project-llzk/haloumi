@@ -17,7 +17,7 @@ use haloumi_synthesis::io::{AdviceIO, InstanceIO};
 
 use inner::PicusCodegenInner;
 use lowering::PicusModuleLowering;
-pub use params::PicusParams;
+pub use params::{PicusParams, PicusParamsBuilder};
 use pcl::{opt::MutOptimizer as _, vars::VarStr};
 use utils::mk_io;
 use vars::{NamingConvention, VarKey, VarKeySeed};

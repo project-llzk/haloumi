@@ -35,6 +35,3 @@ bigint-felt = ["dep:num-bigint"]
 criterion = "0.7"
 ff.workspace = true
 
-[[bench]]
-name = "vars_benchmark"
-harness = false

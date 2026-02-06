@@ -7,8 +7,11 @@ members = [
   "ir-gen",
   "backend",
   "picus",
-  "llzk"
-, "driver"]
+  "llzk",
+  "driver",
+  "support/midnight",
+  "support/test-circuits"
+]
 resolver = "2"
 
 [workspace.package]
@@ -31,3 +34,9 @@ log = "0.4"
 eqv = "0.1"
 bit-set = "0.8"
 disjoint = "0.8"
+llzk = { git = "https://github.com/project-llzk/llzk-rs", package = "llzk", features =["bigint"] }
+
+# Testing dependencies
+halo2curves = "0.7.0"
+similar-asserts = "1.7"
+mlir-testutils = {version = "0.1.0", features = ["similar-asserts"]}

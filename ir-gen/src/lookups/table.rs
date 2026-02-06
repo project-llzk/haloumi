@@ -110,8 +110,8 @@ pub(crate) enum TableGenError {
     Synthesis(#[from] haloumi_synthesis::error::Error),
 }
 
-pub(crate) fn tables_for_lookup<'syn, F, E>(
-    syn: &'syn SynthesizedCircuit<F, E>,
+pub(crate) fn tables_for_lookup<F, E>(
+    syn: &SynthesizedCircuit<F, E>,
     l: &Lookup<E>,
 ) -> LazyLookupTableGenerator<F, impl FnOnce() -> LookupTableBox<F>>
 where
@@ -125,8 +125,8 @@ where
     })
 }
 
-pub(crate) fn tables_for_lookup_impl<'syn, F, E>(
-    syn: &'syn SynthesizedCircuit<F, E>,
+pub(crate) fn tables_for_lookup_impl<F, E>(
+    syn: &SynthesizedCircuit<F, E>,
     l: &Lookup<E>,
 ) -> Result<Vec<LookupTableRow<F>>, TableGenError>
 where
@@ -147,8 +147,8 @@ where
             .collect()
     }
 
-    fn find_table<'syn, F, E>(
-        syn: &'syn SynthesizedCircuit<F, E>,
+    fn find_table<F, E>(
+        syn: &SynthesizedCircuit<F, E>,
         q: &[E::FixedQuery],
     ) -> Result<Vec<Vec<F>>, TableGenError>
     where

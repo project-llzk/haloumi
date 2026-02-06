@@ -13,8 +13,8 @@ use ff::Field;
 use haloumi_core::expressions::{EvaluableExpr, ExprBuilder, ExpressionInfo};
 use haloumi_core::table::{Any, Column, RegionIndex};
 use haloumi_synthesis::SynthesizedCircuit;
-use haloumi_synthesis::groups::GroupsIO;
 use haloumi_synthesis::groups::Group;
+use haloumi_synthesis::groups::GroupsIO;
 use haloumi_synthesis::io::{AdviceIO, InstanceIO};
 use haloumi_synthesis::regions::RegionData;
 
@@ -39,12 +39,12 @@ impl IRCtx {
 
     /// Returns the IO advice cells for the given group.
     pub fn advice_io_of_group(&self, idx: usize) -> &AdviceIO {
-        &self.groups_io.advice_io(idx)
+        self.groups_io.advice_io(idx)
     }
 
     /// Returns the IO instance cells for the given group.
     pub fn instance_io_of_group(&self, idx: usize) -> &InstanceIO {
-        &self.groups_io.instance_io(idx)
+        self.groups_io.instance_io(idx)
     }
 
     pub(crate) fn advice_cells(&self) -> &HashMap<RegionIndex, AdviceCells> {

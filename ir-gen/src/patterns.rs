@@ -32,7 +32,7 @@ impl<F, E> GateRewritePattern<F, E> for FallbackGateRewriter
 where
     E: std::fmt::Debug + EvaluableExpr<F> + ExprBuilder<F>,
 {
-    fn match_gate<'syn>(&self, _gate: GateScope<'syn, '_, F, E>) -> MatchResult
+    fn match_gate(&self, _gate: GateScope<'_, '_, F, E>) -> MatchResult
     where
         F: Field,
     {

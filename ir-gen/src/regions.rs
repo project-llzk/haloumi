@@ -38,7 +38,7 @@ impl From<RegionResolutionError> for ResolutionError {
 
 /// Creates a map from region index to its data
 #[inline]
-pub fn region_data<'s, F: Field, E>(syn: &'s SynthesizedCircuit<F, E>) -> RegionByIndex<'s> {
+pub fn region_data<F: Field, E>(syn: &SynthesizedCircuit<F, E>) -> RegionByIndex<'_> {
     syn.groups()
         .iter()
         .inspect(|g| log::debug!("[region_data] For group '{}'", g.name()))

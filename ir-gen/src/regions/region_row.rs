@@ -94,7 +94,7 @@ impl<F: Field> QueryResolver<F> for RegionRow<'_, '_, '_, F> {
         let base = self
             .region
             .start()
-            .ok_or_else(|| RegionResolutionError::SizelessRegion)?;
+            .ok_or(RegionResolutionError::SizelessRegion)?;
         Ok(ResolvedQuery::IO(self.row.resolve_advice_query_impl(
             query,
             |col, row| match self.region.relativize(row) {

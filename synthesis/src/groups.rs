@@ -129,7 +129,7 @@ impl GroupBase {
     }
 
     /// Returns a list of region data.
-    pub fn regions<'a>(&'a self) -> Vec<RegionData<'a>> {
+    pub fn regions(&self) -> Vec<RegionData<'_>> {
         self.regions.regions()
     }
 

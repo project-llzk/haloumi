@@ -110,7 +110,7 @@ impl Regions {
     }
 
     /// Returns the list of regions.
-    pub fn regions<'a>(&'a self) -> Vec<RegionData<'a>> {
+    pub fn regions(&self) -> Vec<RegionData<'_>> {
         self.regions.iter().map(RegionData::new).collect()
     }
 

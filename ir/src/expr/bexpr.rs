@@ -580,8 +580,8 @@ impl<L, R> EqvRelation<IRBexpr<L>, IRBexpr<R>> for SymbolicEqv
 where
     SymbolicEqv: EqvRelation<L, R>,
 {
-    /// Two boolean expressions are equivalent if they are structurally equal and their inner entities
-    /// are equivalent.
+    /// Two boolean expressions are equivalent if they are structurally equal and their inner
+    /// entities are equivalent.
     fn equivalent(lhs: &IRBexpr<L>, rhs: &IRBexpr<R>) -> bool {
         match (&lhs.0, &rhs.0) {
             (IRBexprImpl::True, IRBexprImpl::True) | (IRBexprImpl::False, IRBexprImpl::False) => {

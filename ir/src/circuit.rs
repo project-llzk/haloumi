@@ -64,7 +64,7 @@ impl<E, C> IRCircuit<E, C> {
     }
 
     ///// Validates the IR, returning errors if it failed.
-    //pub fn validate(&self) -> (Result<(), ValidationFailed>, Vec<String>) {
+    // pub fn validate(&self) -> (Result<(), ValidationFailed>, Vec<String>) {
     //    let mut errors = vec![];
     //
     //    for group in &self.body {

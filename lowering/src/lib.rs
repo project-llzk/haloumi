@@ -66,7 +66,8 @@ pub trait Lowering: ExprLowering {
     fn generate_post_condition(&self, expr: &Self::CellOutput) -> Result<()>;
 }
 
-/// Defines the interface code generators expose for generating expressions in their corresponding IR.
+/// Defines the interface code generators expose for generating expressions in their corresponding
+/// IR.
 pub trait ExprLowering {
     /// The type representing a generated expression.
     type CellOutput;
@@ -100,7 +101,8 @@ pub trait ExprLowering {
     /// Emits a boolean expression representing a greater-than relation between the operands.
     fn lower_gt(&self, lhs: &Self::CellOutput, rhs: &Self::CellOutput) -> Result<Self::CellOutput>;
 
-    /// Emits a boolean expression representing a greater-than or equal relation between the operands.
+    /// Emits a boolean expression representing a greater-than or equal relation between the
+    /// operands.
     fn lower_ge(&self, lhs: &Self::CellOutput, rhs: &Self::CellOutput) -> Result<Self::CellOutput>;
 
     /// Emits a boolean expression representing the negation of equality between the operands.

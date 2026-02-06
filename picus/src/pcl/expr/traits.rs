@@ -20,6 +20,7 @@ pub trait MaybeVarLike {
 }
 
 pub trait ConstraintEmitter {
+    #[allow(dead_code)]
     fn emit(&mut self, lhs: Expr, rhs: Expr);
 }
 

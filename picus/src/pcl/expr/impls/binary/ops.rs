@@ -1,4 +1,4 @@
-use haloumi_ir::{Felt, Prime};
+use haloumi_ir::Prime;
 
 use crate::pcl::{
     display::TextRepresentable,

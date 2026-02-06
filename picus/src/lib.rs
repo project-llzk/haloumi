@@ -1,3 +1,8 @@
+#![doc = include_str!("../README.md")]
+#![deny(rustdoc::broken_intra_doc_links)]
+#![deny(missing_debug_implementations)]
+#![deny(missing_docs)]
+
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
@@ -11,7 +16,7 @@ use haloumi_synthesis::io::{AdviceIO, InstanceIO};
 //use anyhow::Result;
 
 use inner::PicusCodegenInner;
-pub use lowering::PicusModuleLowering;
+use lowering::PicusModuleLowering;
 pub use params::PicusParams;
 use pcl::{opt::MutOptimizer as _, vars::VarStr};
 use utils::mk_io;
@@ -19,14 +24,15 @@ use vars::{NamingConvention, VarKey, VarKeySeed};
 
 mod inner;
 mod lowering;
-pub(crate) mod params;
-pub mod pcl;
+mod params;
+mod pcl;
 mod utils;
 mod vars;
 
+/// Instance of a [`Backend`] prepared for lowering to PCL.
 pub type PicusBackend = Backend<PicusCodegen, InnerState>;
 type InnerState = Rc<RefCell<PicusCodegenInner>>;
-pub type PicusModule = pcl::Module<VarKey>;
+type PicusModule = pcl::Module<VarKey>;
 /// Output produced by the picus backend.
 pub type PicusOutput = pcl::Program<VarKey>;
 type PipelineBuilder = pcl::opt::OptimizerPipelineBuilder<VarKey>;
@@ -38,7 +44,8 @@ impl From<PicusParams> for InnerState {
     }
 }
 
-#[derive(Clone)]
+/// Code generator for PCL.
+#[derive(Debug, Clone)]
 pub struct PicusCodegen {
     inner: InnerState,
 }
@@ -188,7 +195,12 @@ pub enum PicusCodegenError {
     #[error(
         "Inconsistency detected in circuit variables. Was expecting {expected} IO variables by {actual} were generated"
     )]
-    ConsistencyCheckFailed { expected: usize, actual: usize },
+    ConsistencyCheckFailed {
+        /// Expected number of variables.
+        expected: usize,
+        /// Actual number of variables.
+        actual: usize,
+    },
     /// Prime not set for program.
     #[error("Prime was not set!")]
     PrimeNotSet,

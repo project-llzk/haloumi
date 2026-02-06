@@ -157,6 +157,7 @@ pub fn add(lhs: &Expr, rhs: &Expr) -> Expr {
     binop(BinaryOp::Add, lhs, rhs)
 }
 
+#[allow(dead_code)]
 pub fn sub(lhs: &Expr, rhs: &Expr) -> Expr {
     binop(BinaryOp::Sub, lhs, rhs)
 }
@@ -165,6 +166,7 @@ pub fn mul(lhs: &Expr, rhs: &Expr) -> Expr {
     binop(BinaryOp::Mul, lhs, rhs)
 }
 
+#[allow(dead_code)]
 pub fn div(lhs: &Expr, rhs: &Expr) -> Expr {
     binop(BinaryOp::Div, lhs, rhs)
 }

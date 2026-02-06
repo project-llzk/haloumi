@@ -5,11 +5,10 @@ use crate::pcl::{
     display::TextRepresentable,
     errors::ExprArgsError,
     expr::{Expr, traits::ConstraintExpr},
-    note::Note,
     vars::VarStr,
 };
 use anyhow::Result;
-use haloumi_ir::{Felt, Prime};
+use haloumi_ir::Prime;
 
 pub trait ExprArgs {
     fn args(&self) -> Vec<Expr>;
@@ -39,6 +38,7 @@ pub trait StmtConstantFolding {
     fn fold(&self, prime: Prime) -> Option<Stmt>;
 }
 
+#[allow(dead_code)]
 pub trait CallLikeMut: CallLike {
     fn set_callee(&mut self, new_name: String);
 }

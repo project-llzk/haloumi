@@ -11,5 +11,5 @@ mod program;
 pub mod stmt;
 pub mod vars;
 
-pub use module::{Module, ModuleLike, ModuleRef, ModuleWithVars};
+pub use module::{Module, ModuleLike, ModuleRef};
 pub use program::Program;

@@ -3,7 +3,7 @@ use std::{
     hash::{DefaultHasher, Hash as _, Hasher as _},
 };
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 use ops::{OpFolder as _, OpLike};
 
 use crate::pcl::{

@@ -1,7 +1,7 @@
 use crate::{PicusCodegenError, PicusModule, Pipeline, PipelineBuilder, params::PicusParams};
 
 use haloumi_backend::codegen::CodegenParams;
-use haloumi_ir::{Felt, Prime};
+use haloumi_ir::Prime;
 
 pub use super::lowering::PicusModuleLowering;
 use super::{

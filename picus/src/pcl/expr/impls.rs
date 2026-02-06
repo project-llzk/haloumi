@@ -4,7 +4,7 @@ use std::{
     hash::{DefaultHasher, Hash as _, Hasher as _},
 };
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::Result;
 use haloumi_ir::{Felt, Prime};
 
 use crate::pcl::{

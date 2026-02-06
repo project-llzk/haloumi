@@ -68,6 +68,7 @@ pub trait Temp<'o>: VarKind + Sized {
     type Ctx: Copy;
     type Output: Into<Self> + Into<VarStr> + Clone + 'o;
 
+    #[allow(dead_code)]
     fn temp(ctx: Self::Ctx) -> Self::Output;
 }
 

@@ -149,6 +149,7 @@ impl<K: VarKind> MutOptimizer<Program<K>> for OptimizerPipeline<K> {
     }
 }
 
+#[allow(dead_code)]
 pub trait ExprOptimizer: Optimizer<dyn ExprLike, Expr> {
     fn create<I>(i: I) -> Box<dyn Optimizer<dyn ExprLike, Expr>>
     where
@@ -159,6 +160,7 @@ pub trait ExprOptimizer: Optimizer<dyn ExprLike, Expr> {
     }
 }
 
+#[allow(dead_code)]
 pub trait StmtOptimizer: MutOptimizer<dyn StmtLike> {
     fn create<I>(i: I) -> Box<dyn MutOptimizer<dyn StmtLike>>
     where
@@ -169,6 +171,7 @@ pub trait StmtOptimizer: MutOptimizer<dyn StmtLike> {
     }
 }
 
+#[allow(dead_code)]
 pub trait ModuleOptimizer<K: VarKind>: MutOptimizer<Module<K>> {
     fn create<I>(i: I) -> Box<dyn MutOptimizer<Module<K>>>
     where

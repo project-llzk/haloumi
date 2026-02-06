@@ -1,6 +1,5 @@
 use std::collections::{HashMap, HashSet};
 
-use anyhow::Result;
 use haloumi_ir::Felt;
 
 use crate::pcl::{

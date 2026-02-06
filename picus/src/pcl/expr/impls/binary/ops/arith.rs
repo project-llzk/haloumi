@@ -14,8 +14,10 @@ use super::{OpFolder, OpLike, try_fold};
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum BinaryOp {
     Add,
+    #[allow(dead_code)]
     Sub,
     Mul,
+    #[allow(dead_code)]
     Div,
 }
 

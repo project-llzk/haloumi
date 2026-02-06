@@ -21,7 +21,11 @@ pub struct PicusModuleLowering {
 }
 
 impl PicusModuleLowering {
-    pub fn new(module: PicusModuleRef, naming_convention: NamingConvention, prime: Prime) -> Self {
+    pub(crate) fn new(
+        module: PicusModuleRef,
+        naming_convention: NamingConvention,
+        prime: Prime,
+    ) -> Self {
         Self {
             module,
             naming_convention,
@@ -31,7 +35,7 @@ impl PicusModuleLowering {
 }
 
 impl PicusModuleLowering {
-    pub fn lower_func_io(&self, func_io: FuncIO) -> PicusExpr {
+    pub(crate) fn lower_func_io(&self, func_io: FuncIO) -> PicusExpr {
         let seed = VarKeySeed::io(func_io, self.naming_convention);
         expr::var(&self.module, seed)
     }

@@ -23,8 +23,24 @@ impl Prime {
         self.0.as_ref()
     }
 
-    fn minus_one(&self) -> Felt {
-        Felt::from_parts(self.value() - 1usize, *self)
+    /// Returns a field element from the given value.
+    pub fn felt(&self, i: impl Into<BigUint>) -> Felt {
+        Felt::from_parts(i.into(), *self)
+    }
+
+    /// Returns the value 0 in the field.
+    pub fn zero(&self) -> Felt {
+        self.felt(0u8)
+    }
+
+    /// Returns the value 1 in the field.
+    pub fn one(&self) -> Felt {
+        self.felt(1u8)
+    }
+
+    /// Returns the value -1 in the field.
+    pub fn minus_one(&self) -> Felt {
+        self.felt(self.value() - 1u8)
     }
 }
 

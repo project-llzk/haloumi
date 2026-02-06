@@ -1,6 +1,6 @@
 [package]
-name = "haloumi-backend"
-description = "Generic backend API of the haloumi framework."
+name = "haloumi-picus"
+description = "Haloumi backend to the Picus Constraint Language."
 categories = {workspace = true}
 version = {workspace = true}
 authors = {workspace = true}
@@ -17,7 +17,24 @@ haloumi-ir-gen = { path = "../ir-gen", version = "0.5.3"}
 haloumi-ir = { path = "../ir", version = "0.5.3"}
 haloumi-lowering = { path = "../lowering", version = "0.5.3"}
 haloumi-synthesis = { path = "../synthesis", version = "0.5.3"}
+haloumi-backend = { path = "../backend", version = "0.5.3"}
 log.workspace = true
 thiserror.workspace = true
 eqv.workspace = true
 disjoint.workspace = true
+num-bigint = { version = "0.4", optional = true }
+anyhow = "1"
+regex = "1.11"
+lazy_static = "1.5"
+
+[features]
+default = []
+bigint-felt = ["dep:num-bigint"]
+
+[dev-dependencies]
+criterion = "0.7"
+ff.workspace = true
+
+[[bench]]
+name = "vars_benchmark"
+harness = false

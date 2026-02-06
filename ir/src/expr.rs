@@ -67,7 +67,7 @@ impl ExprProperties {
     }
 
     fn full() -> Self {
-        Self(BitSet::from_bytes(&std::usize::MAX.to_be_bytes()))
+        Self(BitSet::from_bytes(&usize::MAX.to_be_bytes()))
     }
 }
 

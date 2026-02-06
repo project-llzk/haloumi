@@ -368,13 +368,10 @@ impl<T> IRStmt<T> {
 
     /// Propagates the metadata of this statement to the inner statements.
     pub fn propagate_meta(&mut self) {
-        match &mut self.0 {
-            IRStmtImpl::Seq(s) => {
-                for stmt in s.iter_mut() {
-                    stmt.meta_mut().complete_with(self.1);
-                }
+        if let IRStmtImpl::Seq(s) = &mut self.0 {
+            for stmt in s.iter_mut() {
+                stmt.meta_mut().complete_with(self.1);
             }
-            _ => {}
         }
     }
 }

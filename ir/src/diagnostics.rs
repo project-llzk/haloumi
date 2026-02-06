@@ -193,7 +193,7 @@ impl std::fmt::Display for DiagnosticsError {
     }
 }
 
-impl<'d, D: Diagnostic + Send + Sync + 'static> FromIterator<D> for DiagnosticsError {
+impl<D: Diagnostic + Send + Sync + 'static> FromIterator<D> for DiagnosticsError {
     fn from_iter<T: IntoIterator<Item = D>>(iter: T) -> Self {
         Self {
             diags: iter

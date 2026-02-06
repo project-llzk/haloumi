@@ -6,7 +6,8 @@ members = [
   "synthesis",
   "ir-gen",
   "backend",
-  "picus"
+  "picus",
+  "llzk"
 ]
 resolver = "2"
 

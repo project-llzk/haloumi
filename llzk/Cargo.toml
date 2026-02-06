@@ -1,0 +1,32 @@
+[package]
+name = "haloumi-llzk"
+description = "Haloumi backend to LLZK."
+categories = {workspace = true}
+version = {workspace = true}
+authors = {workspace = true}
+edition = {workspace = true}
+rust-version = {workspace = true}
+readme = "README.md"
+repository = {workspace = true}
+license-file = {workspace = true}
+keywords = {workspace = true}
+
+[dependencies]
+haloumi-core = { path = "../core", version = "0.5.3"}
+haloumi-ir-gen = { path = "../ir-gen", version = "0.5.3"}
+haloumi-ir = { path = "../ir", version = "0.5.3"}
+haloumi-lowering = { path = "../lowering", version = "0.5.3"}
+haloumi-synthesis = { path = "../synthesis", version = "0.5.3"}
+haloumi-backend = { path = "../backend", version = "0.5.3"}
+log.workspace = true
+thiserror.workspace = true
+eqv.workspace = true
+disjoint.workspace = true
+llzk = { git = "https://github.com/project-llzk/llzk-rs", package = "llzk", features =["bigint"] }
+melior = "0.25"
+mlir-sys = "0.5.0"
+num-bigint = { version = "0.4", optional = true }
+anyhow = "1"
+regex = "1.11"
+lazy_static = "1.5"
+

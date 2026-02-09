@@ -3,6 +3,17 @@
 use crate::expr::{IRAexpr, IRAexprImpl};
 use haloumi_core::cmp::CmpOp;
 
+/// Matches the sum part of [`canonicalize_constraint`].
+fn match_sum(sum_lhs: &IRAexpr, sum_rhs: &IRAexpr) -> Option<(CmpOp, IRAexpr, IRAexpr)> {
+    if let IRAexprImpl::Negated(y) = &sum_rhs.0 {
+        return Some((CmpOp::Eq, sum_lhs.clone(), (**y).clone()));
+    }
+    if let IRAexprImpl::Negated(y) = &sum_lhs.0 {
+        return Some((CmpOp::Eq, (**y).clone(), sum_rhs.clone()));
+    }
+    None
+}
+
 pub fn canonicalize_constraint(
     op: CmpOp,
     lhs: &IRAexpr,
@@ -13,13 +24,7 @@ pub fn canonicalize_constraint(
         (CmpOp::Eq, IRAexprImpl::Sum(sum_lhs, sum_rhs), IRAexprImpl::Constant(zero))
             if *zero == 0usize =>
         {
-            if let IRAexprImpl::Negated(y) = &sum_rhs.0 {
-                return Some((CmpOp::Eq, (**sum_lhs).clone(), (**y).clone()));
-            }
-            if let IRAexprImpl::Negated(y) = &sum_lhs.0 {
-                return Some((CmpOp::Eq, (**y).clone(), (**sum_rhs).clone()));
-            }
-            None
+            match_sum(sum_lhs, sum_rhs)
         }
         // (= (* 1 (+ X (- Y))) 0) => (= X Y) OR (= (* 1 (+ (- X) Y)) 0) => (= X Y)
         (CmpOp::Eq, IRAexprImpl::Product(mul_lhs, mul_rhs), IRAexprImpl::Constant(zero))
@@ -29,13 +34,7 @@ pub fn canonicalize_constraint(
                 (IRAexprImpl::Constant(one), IRAexprImpl::Sum(sum_lhs, sum_rhs))
                     if *one == 1usize =>
                 {
-                    if let IRAexprImpl::Negated(y) = &sum_rhs.0 {
-                        return Some((CmpOp::Eq, (**sum_lhs).clone(), (**y).clone()));
-                    }
-                    if let IRAexprImpl::Negated(y) = &sum_lhs.0 {
-                        return Some((CmpOp::Eq, (**y).clone(), (**sum_rhs).clone()));
-                    }
-                    None
+                    match_sum(sum_lhs, sum_rhs)
                 }
                 _ => None,
             }
@@ -54,6 +53,7 @@ mod tests {
     use haloumi_core::slot::Slot;
 
     use ff::PrimeField;
+    use rstest::rstest;
 
     /// Implementation of BabyBear used for testing.
     #[derive(PrimeField)]
@@ -67,35 +67,42 @@ mod tests {
         IRAexpr(IRAexprImpl::Constant(Felt::from(v.into())))
     }
 
-    #[test]
-    fn test_subtraction_to_equal() {
-        let x = IRAexpr(IRAexprImpl::IO(Slot::Arg(0.into())));
-        let y = IRAexpr(IRAexprImpl::IO(Slot::Arg(1.into())));
-        {
-            // (= (+ X (- Y)) 0) => (= X Y)
-            let output = canonicalize_constraint(
-                CmpOp::Eq,
-                &IRAexpr(IRAexprImpl::Sum(
-                    Box::new(x.clone()),
-                    Box::new(IRAexpr(IRAexprImpl::Negated(Box::new(y.clone())))),
-                )),
-                &c(0),
-            );
-            let expected = Some((CmpOp::Eq, x.clone(), y.clone()));
-            similar_asserts::assert_eq!(expected, output);
-        }
-        {
-            //  (= (+ (- X) Y) 0) => (= X Y)
-            let output = canonicalize_constraint(
-                CmpOp::Eq,
-                &IRAexpr(IRAexprImpl::Sum(
-                    Box::new(IRAexpr(IRAexprImpl::Negated(Box::new(x.clone())))),
-                    Box::new(y.clone()),
-                )),
-                &c(0),
-            );
-            let expected = Some((CmpOp::Eq, x.clone(), y.clone()));
-            similar_asserts::assert_eq!(expected, output);
-        }
+    fn x() -> IRAexpr {
+        IRAexpr(IRAexprImpl::IO(Slot::Arg(0.into())))
+    }
+
+    fn y() -> IRAexpr {
+        IRAexpr(IRAexprImpl::IO(Slot::Arg(0.into())))
+    }
+
+    #[rstest]
+    // (= (+ X (- Y)) 0) => (= X Y)
+    #[case(x() + -y())]
+    // (= (+ (- X) Y) 0) => (= X Y)
+    #[case(-x() + y())]
+    // (= (* 1 (+ X (- Y))) 0) => (= X Y)
+    #[case(c(1) * (x() + -y()))]
+    // (= (* 1 (+ (- X) Y)) 0) => (= X Y)
+    #[case(c(1) * (-x() + y()))]
+    fn test_subtraction_to_equal(#[case] e: IRAexpr) {
+        let expected = Some((CmpOp::Eq, x(), y()));
+        let output = canonicalize_constraint(CmpOp::Eq, &e, &c(0));
+        similar_asserts::assert_eq!(expected, output);
+    }
+
+    #[rstest]
+    #[case(x() + y())]
+    #[case(x() * y())]
+    #[case(c(1) * (x() + y()))]
+    fn test_no_match(#[case] e: IRAexpr) {
+        let output = canonicalize_constraint(CmpOp::Eq, &e, &c(0));
+        similar_asserts::assert_eq!(None, output);
+    }
+
+    #[rstest]
+    #[case(x() + y())]
+    fn match_lhs_not_zero(#[case] e: IRAexpr) {
+        let output = canonicalize_constraint(CmpOp::Eq, &e, &c(1));
+        similar_asserts::assert_eq!(None, output);
     }
 }

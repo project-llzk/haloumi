@@ -226,8 +226,10 @@ impl Canonicalize for IRAexpr {
                     *self = inner.clone();
                 }
             }
-            IRAexprImpl::Sum(_, _) => todo!(),
-            IRAexprImpl::Product(_, _) => todo!(),
+            IRAexprImpl::Sum(lhs, rhs) | IRAexprImpl::Product(lhs, rhs) => {
+                lhs.canonicalize();
+                rhs.canonicalize();
+            }
         };
     }
 }

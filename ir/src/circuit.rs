@@ -62,37 +62,6 @@ impl<E, C> IRCircuit<E, C> {
             .find(|g| g.is_main())
             .expect("A main group is required")
     }
-
-    ///// Validates the IR, returning errors if it failed.
-    // pub fn validate(&self) -> (Result<(), ValidationFailed>, Vec<String>) {
-    //    let mut errors = vec![];
-    //
-    //    for group in &self.body {
-    //        let (status, group_errors) = group.validate(&self.body);
-    //        if status.is_err() {
-    //            for err in group_errors {
-    //                errors.push(format!("Error in group \"{}\": {err}", group.name()));
-    //            }
-    //        }
-    //    }
-    //
-    //    (
-    //        if errors.is_empty() {
-    //            Ok(())
-    //        } else {
-    //            Err(ValidationFailed {
-    //                name: self
-    //                    .body
-    //                    .iter()
-    //                    .find_map(|g| g.is_main().then_some(g.name()))
-    //                    .unwrap_or("circuit")
-    //                    .to_string(),
-    //                error_count: errors.len(),
-    //            })
-    //        },
-    //        errors,
-    //    )
-    //}
 }
 
 impl<E, C, D> Validatable for IRCircuit<E, C>

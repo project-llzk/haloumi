@@ -199,10 +199,13 @@ impl<T> IRBexpr<T> {
         }
     }
 
+    #[inline]
+    /// Creates a comparison predicate.
     pub(crate) fn cmp(op: CmpOp, lhs: T, rhs: T) -> Self {
         Self(IRBexprImpl::Cmp(op, lhs, rhs))
     }
 
+    #[inline]
     /// Creates a expression that indicates the backend must prove deterministic.
     pub fn det(expr: T) -> Self {
         Self(IRBexprImpl::Det(expr))

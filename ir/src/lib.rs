@@ -16,3 +16,5 @@ pub mod stmt;
 pub mod traits;
 pub use circuit::IRCircuit;
 pub use haloumi_core::{cmp::*, eqv::*, felt::*, slot::*};
+#[cfg(test)]
+mod test_utils;

@@ -15,7 +15,7 @@ use std::{
 };
 
 /// Represents an arithmetic expression.
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct IRAexpr(pub(crate) IRAexprImpl);
 
 #[derive(PartialEq, Eq, Clone)]
@@ -246,6 +246,12 @@ impl std::fmt::Debug for IRAexprImpl {
     }
 }
 
+impl std::fmt::Debug for IRAexpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(&self.0, f)
+    }
+}
+
 impl EqvRelation<IRAexpr> for SymbolicEqv {
     /// Two arithmetic expressions are equivalent if they are structurally equal, constant values
     /// equal and variables are equivalent.
@@ -327,8 +333,14 @@ impl IRPrintable for IRAexpr {
 }
 
 #[cfg(test)]
-mod folding_tests {
+mod tests {
     use super::*;
+    use crate::{
+        printer::IRPrinter,
+        test_utils::{MockCellOutput, MockTestExprLowering},
+    };
+    use haloumi_core::slot::arg::ArgNo;
+    use mockall::predicate;
     use rstest::rstest;
 
     use ff::PrimeField;
@@ -340,78 +352,376 @@ mod folding_tests {
     #[PrimeFieldReprEndianness = "little"]
     pub struct BabyBear([u64; 1]);
 
+    const BABYBEAR: u64 = 2013265921;
+
+    /// Creates a constant felt under BabyBear
+    fn f(v: impl Into<BabyBear>) -> Felt {
+        Felt::from(v.into())
+    }
+
     /// Creates a constant value under BabyBear
     fn c(v: impl Into<BabyBear>) -> IRAexpr {
-        IRAexpr(IRAexprImpl::Constant(Felt::from(v.into())))
+        IRAexpr::constant(f(v))
+    }
+
+    /// Creates a slot expression with the given value as argument number.
+    fn arg(n: usize) -> IRAexpr {
+        IRAexpr::slot(ArgNo::from(n))
+    }
+
+    /// Creates a slot expression for a relative advice cell reference.
+    fn rel(col: usize, base: usize, offset: usize) -> IRAexpr {
+        Slot::advice_rel(col, base, offset).into()
+    }
+
+    /// Creates a slot expression for an absolute advice cell reference.
+    fn abs(col: usize, row: usize) -> IRAexpr {
+        Slot::advice_abs(col, row).into()
     }
 
     #[rstest]
-    fn folding_constant_within_field() {
-        let mut test = c(5);
-        let expected = test.clone();
+    #[case::within_field(c(5), c(5))]
+    #[case::outside_field(c(BABYBEAR + 1), c(1))]
+    fn fold_constant(#[case] mut test: IRAexpr, #[case] expected: IRAexpr) {
         test.constant_fold().unwrap();
         assert_eq!(test, expected);
     }
 
     #[rstest]
-    fn folding_constant_outside_field() {
-        let mut test = c(2013265922);
-        let expected = c(1);
-        test.constant_fold().unwrap();
+    #[case(c(1), arg(0), arg(0))]
+    #[case(arg(0), c(1), arg(0))]
+    #[case(c(0), arg(0), c(0))]
+    #[case(arg(0), c(0), c(0))]
+    #[case(c(BABYBEAR - 1), arg(0), -arg(0))]
+    #[case(arg(0), c(BABYBEAR - 1), -arg(0))]
+    #[case(c(2), c(4), c(8))]
+    #[case(c(2), arg(2), c(2) * arg(2))]
+    fn fold_mult(#[case] lhs: IRAexpr, #[case] rhs: IRAexpr, #[case] expected: IRAexpr) {
+        let mut mul = lhs * rhs;
+        mul.constant_fold().unwrap();
+        assert_eq!(mul, expected);
+    }
+
+    #[rstest]
+    #[case(c(0), arg(0), arg(0))]
+    #[case(arg(0), c(0), arg(0))]
+    #[case(c(2), c(2), c(4))]
+    #[case(c(2), arg(2), c(2) + arg(2))]
+    fn fold_sum(#[case] lhs: IRAexpr, #[case] rhs: IRAexpr, #[case] expected: IRAexpr) {
+        let mut sum = lhs + rhs;
+        sum.constant_fold().unwrap();
+        assert_eq!(sum, expected);
+    }
+
+    #[rstest]
+    #[case(c(0), c(0))]
+    #[case(c(10), c(BABYBEAR - 10))]
+    #[case(arg(0), -arg(0))]
+    fn fold_neg(#[case] expr: IRAexpr, #[case] expected: IRAexpr) {
+        let mut neg = -expr;
+        neg.constant_fold().unwrap();
+        assert_eq!(neg, expected);
+    }
+
+    #[rstest]
+    #[case(-(-c(1)), c(1))]
+    #[case(-c(1), -c(1))]
+    #[case(arg(1), arg(1))]
+    #[case(-(-arg(1)), arg(1))]
+    #[case(-(-arg(1)) + c(1), arg(1) + c(1))]
+    #[case(c(2) + -(-arg(1)), c(2) + arg(1))]
+    #[case(-(-arg(1)) * c(2), arg(1) * c(2))]
+    #[case(c(2) * -(-arg(1)), c(2) * arg(1))]
+    // Test canonicalization doesn't fold constants. That's the constant folder's job.
+    #[case(arg(1) + c(0), arg(1) + c(0))]
+    #[case(arg(1) * c(1), arg(1) * c(1))]
+    #[case(arg(1) * c(0), arg(1) * c(0))]
+    fn canon(#[case] mut expr: IRAexpr, #[case] expected: IRAexpr) {
+        expr.canonicalize();
+        assert_eq!(expr, expected);
+    }
+
+    #[derive(thiserror::Error, Debug)]
+    #[error("mock error")]
+    struct MockError;
+
+    fn do_nothing(_: &mut Slot) -> Result<(), MockError> {
+        Ok(())
+    }
+
+    fn fail(_: &mut Slot) -> Result<(), MockError> {
+        Err(MockError)
+    }
+
+    #[rstest]
+    #[case(c(0), c(0), do_nothing)]
+    #[case(arg(0), arg(0), do_nothing)]
+    #[case(-c(0), -c(0), do_nothing)]
+    #[case(-arg(0), -arg(0), do_nothing)]
+    #[case(c(0) + c(0), c(0) + c(0), do_nothing)]
+    #[case(c(0) * c(0), c(0) * c(0), do_nothing)]
+    #[case(arg(0) + c(0), arg(0) + c(0), do_nothing)]
+    #[case(arg(0) * c(0), arg(0) * c(0), do_nothing)]
+    #[case(c(0) + arg(0), c(0) + arg(0), do_nothing)]
+    #[case(c(0) * arg(0), c(0) * arg(0), do_nothing)]
+    #[case(arg(0) + arg(0), arg(0) + arg(0), do_nothing)]
+    #[case(arg(0) * arg(0), arg(0) * arg(0), do_nothing)]
+    #[case(c(0), c(0), fail)]
+    #[should_panic(expected = "MockError")]
+    #[case(arg(0), arg(0), fail)]
+    #[case(-c(0), -c(0), fail)]
+    #[should_panic(expected = "MockError")]
+    #[case(-arg(0), -arg(0), fail)]
+    #[case(c(0) + c(0), c(0) + c(0), fail)]
+    #[case(c(0) * c(0), c(0) * c(0), fail)]
+    #[should_panic(expected = "MockError")]
+    #[case(arg(0) + c(0), arg(0) + c(0), fail)]
+    #[should_panic(expected = "MockError")]
+    #[case(arg(0) * c(0), arg(0) * c(0), fail)]
+    #[should_panic(expected = "MockError")]
+    #[case(c(0) + arg(0), c(0) + arg(0), fail)]
+    #[should_panic(expected = "MockError")]
+    #[case(c(0) * arg(0), c(0) * arg(0), fail)]
+    #[should_panic(expected = "MockError")]
+    #[case(arg(0) + arg(0), arg(0) + arg(0), fail)]
+    #[should_panic(expected = "MockError")]
+    #[case(arg(0) * arg(0), arg(0) * arg(0), fail)]
+    fn map_io(
+        #[case] mut test: IRAexpr,
+        #[case] expected: IRAexpr,
+        #[case] f: fn(&mut Slot) -> Result<(), MockError>,
+    ) {
+        test.try_map_io(&f).unwrap();
+        assert_eq!(test, expected);
+    }
+
+    #[test]
+    fn test_from_slot() {
+        let arg = ArgNo::from(0);
+        let slot = Slot::from(arg);
+        let test = IRAexpr::from(slot);
+        let expected = IRAexpr::slot(arg);
         assert_eq!(test, expected);
     }
 
     #[rstest]
-    fn mult_identity() {
-        let lhs = c(1);
-        let rhs = IRAexpr(IRAexprImpl::IO(Slot::Arg(0.into())));
-        let mut mul = IRAexpr(IRAexprImpl::Product(Box::new(lhs), Box::new(rhs.clone())));
-        mul.constant_fold().unwrap();
-        assert_eq!(mul, rhs);
+    #[case(c(0), "0")]
+    #[case(arg(0), "arg0")]
+    #[case(-c(0), "(- 0)")]
+    #[case(arg(0) + c(1), "(+ arg0 1)")]
+    #[case(arg(0) * c(1), "(* arg0 1)")]
+    fn test_debug(#[case] expr: IRAexpr, #[case] expected: &'static str) {
+        let test = format!("{expr:?}");
+        assert_eq!(test, expected);
     }
 
     #[rstest]
-    fn mult_identity_rev() {
-        let rhs = c(1);
-        let lhs = IRAexpr(IRAexprImpl::IO(Slot::Arg(0.into())));
-        let mut mul = IRAexpr(IRAexprImpl::Product(Box::new(lhs.clone()), Box::new(rhs)));
-        mul.constant_fold().unwrap();
-        assert_eq!(mul, lhs);
+    #[case(c(0), "(const 0)")]
+    #[case(arg(0), "(input 0)")]
+    #[case(-arg(0), "(- (input 0))")]
+    #[case(arg(0) + c(2), "(+ (input 0) (const 2))")]
+    #[case(arg(0) + -c(2), "(+ (input 0)\n   (- (const 2)))")]
+    #[case(arg(0) + c(2) + arg(1), "(+ \n   (+ (input 0) (const 2))\n   (input 1))")]
+    #[case(arg(0) * c(2), "(* (input 0) (const 2))")]
+    #[case(arg(0) * c(2) * arg(1), "(* \n   (* (input 0) (const 2))\n   (input 1))")]
+    fn test_ir_printable(#[case] expr: IRAexpr, #[case] expected: &'static str) {
+        let printer = IRPrinter::from(&expr);
+        let test = format!("{printer}");
+        assert_eq!(test, expected);
     }
 
     #[rstest]
-    fn mult_by_zero() {
-        let lhs = c(0);
-        let rhs = IRAexpr(IRAexprImpl::IO(Slot::Arg(0.into())));
-        let mut mul = IRAexpr(IRAexprImpl::Product(Box::new(lhs.clone()), Box::new(rhs)));
-        mul.constant_fold().unwrap();
-        assert_eq!(mul, lhs);
+    #[case(c(0), ExprProperty::Const.into())]
+    #[case(-c(0), ExprProperty::Const.into())]
+    #[case(c(0) + c(1), ExprProperty::Const.into())]
+    #[case(c(0) * c(1), ExprProperty::Const.into())]
+    #[case(arg(0), ExprProperties::default())]
+    #[case(-arg(0), ExprProperties::default())]
+    #[case(arg(0) + c(0), ExprProperties::default())]
+    #[case(arg(0) * c(0), ExprProperties::default())]
+    #[case(c(0) + arg(0), ExprProperties::default())]
+    #[case(c(0) * arg(0), ExprProperties::default())]
+    fn test_expr_properties(#[case] expr: IRAexpr, #[case] expected: ExprProperties) {
+        let output: ExprProperties = expr.evaluate();
+        assert_eq!(output, expected);
     }
 
     #[rstest]
-    fn mult_by_zero_rev() {
-        let rhs = c(0);
-        let lhs = IRAexpr(IRAexprImpl::IO(Slot::Arg(0.into())));
-        let mut mul = IRAexpr(IRAexprImpl::Product(Box::new(lhs), Box::new(rhs.clone())));
-        mul.constant_fold().unwrap();
-        assert_eq!(mul, rhs);
+    #[case(c(0), c(0), true)]
+    #[case(c(0), arg(0), false)]
+    #[case(c(0), c(1), false)]
+    #[case(arg(0), arg(1), false)]
+    #[case(arg(0), arg(0), true)]
+    #[case(rel(0, 5, 3), rel(0, 5, 3), true)]
+    #[case(rel(0, 5, 3), rel(0, 5, 4), false)]
+    #[case(rel(0, 5, 3), rel(0, 10, 3), true)]
+    #[case(rel(0, 5, 3), abs(0, 8), true)]
+    #[case(rel(0, 5, 3), abs(0, 10), false)]
+    #[case(-c(0), -c(0), true)]
+    #[case(-c(0), -c(1), false)]
+    #[case(-arg(0), -arg(1), false)]
+    #[case(-arg(0), -arg(0), true)]
+    #[case(-rel(0, 5, 3), -rel(0, 5, 3), true)]
+    #[case(-rel(0, 5, 3), -rel(0, 5, 4), false)]
+    #[case(-rel(0, 5, 3), -rel(0, 10, 3), true)]
+    #[case(-rel(0, 5, 3), -abs(0, 8), true)]
+    #[case(-rel(0, 5, 3), -abs(0, 10), false)]
+    #[case(c(0) + c(1), c(0) + c(1), true)]
+    #[case(c(0) + c(1), c(1) + c(1), false)]
+    #[case(arg(0) + c(1), arg(1) + c(1), false)]
+    #[case(arg(0) + c(1), arg(0) + c(1), true)]
+    #[case(rel(0, 5, 3) + c(1), rel(0, 5, 3) + c(1), true)]
+    #[case(rel(0, 5, 3) + c(1), rel(0, 5, 4) + c(1), false)]
+    #[case(rel(0, 5, 3) + c(1), rel(0, 10, 3) + c(1), true)]
+    #[case(rel(0, 5, 3) + c(1), abs(0, 8) + c(1), true)]
+    #[case(rel(0, 5, 3) + c(1), abs(0, 10) + c(1), false)]
+    #[case(c(0) * c(1), c(0) * c(1), true)]
+    #[case(c(0) * c(1), c(1) * c(1), false)]
+    #[case(arg(0) * c(1), arg(1) * c(1), false)]
+    #[case(arg(0) * c(1), arg(0) * c(1), true)]
+    #[case(rel(0, 5, 3) * c(1), rel(0, 5, 3) * c(1), true)]
+    #[case(rel(0, 5, 3) * c(1), rel(0, 5, 4) * c(1), false)]
+    #[case(rel(0, 5, 3) * c(1), rel(0, 10, 3) * c(1), true)]
+    #[case(rel(0, 5, 3) * c(1), abs(0, 8) * c(1), true)]
+    #[case(rel(0, 5, 3) * c(1), abs(0, 10) * c(1), false)]
+    fn test_eqv(#[case] lhs: IRAexpr, #[case] rhs: IRAexpr, #[case] expected: bool) {
+        let output = SymbolicEqv::equivalent(&lhs, &rhs);
+        assert_eq!(output, expected);
     }
 
     #[rstest]
-    fn sum_identity() {
-        let lhs = c(0);
-        let rhs = IRAexpr(IRAexprImpl::IO(Slot::Arg(0.into())));
-        let mut sum = IRAexpr(IRAexprImpl::Sum(Box::new(lhs), Box::new(rhs.clone())));
-        sum.constant_fold().unwrap();
-        assert_eq!(sum, rhs);
+    #[case(c(0), Some(f(0)))]
+    #[case(-c(1), Some(f(BABYBEAR - 1)))]
+    #[case(arg(0), None)]
+    #[case(-arg(0), None)]
+    #[case(c(10) + c(20), Some(f(30)))]
+    #[case(arg(0) + c(0), None)]
+    #[case(c(0) + arg(0), None)]
+    #[case(c(10) * c(2), Some(f(20)))]
+    #[case(arg(0) * c(0), None)]
+    #[case(c(0) * arg(0), None)]
+    fn test_evaluate(#[case] expr: IRAexpr, #[case] expected: Option<Felt>) {
+        let output: Option<Felt> = expr.evaluate();
+        assert_eq!(output, expected);
     }
 
-    #[rstest]
-    fn sum_identity_rev() {
-        let rhs = c(0);
-        let lhs = IRAexpr(IRAexprImpl::IO(Slot::Arg(0.into())));
-        let mut sum = IRAexpr(IRAexprImpl::Sum(Box::new(lhs.clone()), Box::new(rhs)));
-        sum.constant_fold().unwrap();
-        assert_eq!(sum, lhs);
+    #[test]
+    fn test_lowering_const() {
+        let body = |f| Ok(MockCellOutput::Const(0, f));
+        let mut lowering = MockTestExprLowering::new();
+        lowering
+            .expect_lower_constant()
+            .with(predicate::eq(f(0)))
+            .times(1)
+            .returning(body);
+        let expr = c(0);
+        let output = expr.lower(&lowering).unwrap();
+        assert_eq!(output, body(f(0)).unwrap());
+    }
+
+    #[test]
+    fn test_lowering_slot() {
+        let body = |s| Ok(MockCellOutput::Slot(0, s));
+        let mut lowering = MockTestExprLowering::new();
+        lowering
+            .expect_lower_funcio()
+            .with(predicate::eq(Slot::from(ArgNo::from(0))))
+            .times(1)
+            .returning(body);
+        let expr = arg(0);
+        let output = expr.lower(&lowering).unwrap();
+        assert_eq!(output, body(ArgNo::from(0).into()).unwrap());
+    }
+
+    #[test]
+    fn test_lowering_neg() {
+        let body_lower_funcio = |s| Ok(MockCellOutput::Slot(0, s));
+        let body_lower_neg = |e: &MockCellOutput| Ok(MockCellOutput::Neg(1, e.id()));
+        let mut lowering = MockTestExprLowering::new();
+        let slot = Slot::from(ArgNo::from(0));
+        lowering
+            .expect_lower_funcio()
+            .with(predicate::eq(slot))
+            .times(1)
+            .returning(body_lower_funcio);
+        let slot_output = body_lower_funcio(slot).unwrap();
+        lowering
+            .expect_lower_neg()
+            .with(predicate::eq(slot_output))
+            .times(1)
+            .returning(body_lower_neg);
+        let expr = -arg(0);
+        let output = expr.lower(&lowering).unwrap();
+        assert_eq!(output, body_lower_neg(&slot_output).unwrap());
+    }
+
+    #[test]
+    fn test_lowering_sum() {
+        let body_lower_constant = |f| Ok(MockCellOutput::Const(0, f));
+        let body_lower_funcio = |s| Ok(MockCellOutput::Slot(1, s));
+        let body_lower_sum = |lhs: &MockCellOutput, rhs: &MockCellOutput| {
+            Ok(MockCellOutput::Sum(2, lhs.id(), rhs.id()))
+        };
+        let mut lowering = MockTestExprLowering::new();
+        let constant = f(0);
+        let slot = Slot::from(ArgNo::from(0));
+        lowering
+            .expect_lower_constant()
+            .with(predicate::eq(constant))
+            .times(1)
+            .returning(body_lower_constant);
+        let constant_output = body_lower_constant(constant).unwrap();
+        lowering
+            .expect_lower_funcio()
+            .with(predicate::eq(slot))
+            .times(1)
+            .returning(body_lower_funcio);
+        let slot_output = body_lower_funcio(slot).unwrap();
+        lowering
+            .expect_lower_sum()
+            .with(predicate::eq(constant_output), predicate::eq(slot_output))
+            .times(1)
+            .returning(body_lower_sum);
+        let expr = c(0) + arg(0);
+        let output = expr.lower(&lowering).unwrap();
+        assert_eq!(
+            output,
+            body_lower_sum(&constant_output, &slot_output).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_lowering_product() {
+        let body_lower_constant = |f| Ok(MockCellOutput::Const(0, f));
+        let body_lower_funcio = |s| Ok(MockCellOutput::Slot(1, s));
+        let body_lower_product = |lhs: &MockCellOutput, rhs: &MockCellOutput| {
+            Ok(MockCellOutput::Product(2, lhs.id(), rhs.id()))
+        };
+        let mut lowering = MockTestExprLowering::new();
+        let constant = f(0);
+        let slot = Slot::from(ArgNo::from(0));
+        lowering
+            .expect_lower_constant()
+            .with(predicate::eq(constant))
+            .times(1)
+            .returning(body_lower_constant);
+        let constant_output = body_lower_constant(constant).unwrap();
+        lowering
+            .expect_lower_funcio()
+            .with(predicate::eq(slot))
+            .times(1)
+            .returning(body_lower_funcio);
+        let slot_output = body_lower_funcio(slot).unwrap();
+        lowering
+            .expect_lower_product()
+            .with(predicate::eq(constant_output), predicate::eq(slot_output))
+            .times(1)
+            .returning(body_lower_product);
+        let expr = c(0) * arg(0);
+        let output = expr.lower(&lowering).unwrap();
+        assert_eq!(
+            output,
+            body_lower_product(&constant_output, &slot_output).unwrap()
+        );
     }
 }

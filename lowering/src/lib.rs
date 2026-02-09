@@ -164,5 +164,5 @@ pub trait ExprLowering {
     /// Emits an expression representing the given IO.
     fn lower_funcio<IO>(&self, io: IO) -> Result<Self::CellOutput>
     where
-        IO: Into<Slot>;
+        IO: Into<Slot> + 'static;
 }

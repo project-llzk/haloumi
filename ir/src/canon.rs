@@ -48,19 +48,13 @@ pub fn canonicalize_constraint(
 mod tests {
     use super::*;
     use crate::expr::IRAexpr;
+    use crate::test_utils::BabyBear;
     use haloumi_core::cmp::CmpOp;
     use haloumi_core::felt::Felt;
     use haloumi_core::slot::Slot;
 
     use ff::PrimeField;
     use rstest::rstest;
-
-    /// Implementation of BabyBear used for testing.
-    #[derive(PrimeField)]
-    #[PrimeFieldModulus = "2013265921"]
-    #[PrimeFieldGenerator = "31"]
-    #[PrimeFieldReprEndianness = "little"]
-    pub struct BabyBear([u64; 1]);
 
     /// Creates a constant value under BabyBear
     fn c(v: impl Into<BabyBear>) -> IRAexpr {

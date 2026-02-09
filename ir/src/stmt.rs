@@ -753,4 +753,4 @@ impl<T: IRPrintable> IRPrintable for IRStmt<T> {
 pub struct TryMapError(#[from] Box<dyn std::error::Error>);
 
 #[cfg(test)]
-mod test;
+mod tests;

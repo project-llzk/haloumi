@@ -1,6 +1,17 @@
 use haloumi_core::{felt::Felt, slot::Slot};
 use haloumi_lowering::ExprLowering;
 
+use ff::PrimeField;
+
+/// Implementation of BabyBear used for testing.
+#[derive(PrimeField)]
+#[PrimeFieldModulus = "2013265921"]
+#[PrimeFieldGenerator = "31"]
+#[PrimeFieldReprEndianness = "little"]
+pub struct BabyBear([u64; 1]);
+
+pub const BABYBEAR: u64 = 2013265921;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MockCellOutput {
     Const(usize, Felt),

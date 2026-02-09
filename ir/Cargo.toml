@@ -30,3 +30,6 @@ halo2curves = "0.9"
 quickcheck = "1"
 quickcheck_macros = "1"
 mockall = "0.14"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage,coverage_nightly)'] }

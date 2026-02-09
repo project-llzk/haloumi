@@ -175,7 +175,7 @@ where
 #[cfg(test)]
 mod test {
 
-    use crate::stmt::test::TestHelper;
+    use crate::stmt::tests::TestHelper;
 
     use super::*;
     use haloumi_core::table::RotationExt;
@@ -189,7 +189,7 @@ mod test {
     mod ff {
 
         use super::*;
-        use crate::stmt::test::ff::{MockExpr, a, c, f, i};
+        use crate::stmt::tests::ff::{MockExpr, a, c, f, i};
         use haloumi_core::table::Rotation;
 
         #[test]

@@ -98,7 +98,7 @@ fn test_partial_eq_on_i32() {
 pub mod ff {
     use std::ops::{Add, Mul};
 
-    use crate::stmt::{IRStmt, test::TestHelper};
+    use crate::stmt::{IRStmt, tests::TestHelper};
     use haloumi_core::table::{Rotation, RotationExt};
 
     #[derive(Debug, PartialEq, Eq, Clone)]

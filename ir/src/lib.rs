@@ -2,6 +2,7 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 mod canon;
 mod circuit;
@@ -17,4 +18,5 @@ pub mod traits;
 pub use circuit::IRCircuit;
 pub use haloumi_core::{cmp::*, eqv::*, felt::*, slot::*};
 #[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
 mod test_utils;

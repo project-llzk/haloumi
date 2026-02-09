@@ -337,22 +337,11 @@ mod tests {
     use super::*;
     use crate::{
         printer::IRPrinter,
-        test_utils::{MockCellOutput, MockTestExprLowering},
+        test_utils::{BABYBEAR, BabyBear, MockCellOutput, MockTestExprLowering},
     };
     use haloumi_core::slot::arg::ArgNo;
     use mockall::predicate;
     use rstest::rstest;
-
-    use ff::PrimeField;
-
-    /// Implementation of BabyBear used for testing.
-    #[derive(PrimeField)]
-    #[PrimeFieldModulus = "2013265921"]
-    #[PrimeFieldGenerator = "31"]
-    #[PrimeFieldReprEndianness = "little"]
-    pub struct BabyBear([u64; 1]);
-
-    const BABYBEAR: u64 = 2013265921;
 
     /// Creates a constant felt under BabyBear
     fn f(v: impl Into<BabyBear>) -> Felt {

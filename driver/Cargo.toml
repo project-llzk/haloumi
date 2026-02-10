@@ -12,12 +12,12 @@ categories.workspace = true
 keywords.workspace = true
 
 [dependencies]
-haloumi-core = { path = "../core", version = "0.5.4"}
-haloumi-ir = { path = "../ir", version = "0.5.4"}
-haloumi-ir-gen = { path = "../ir-gen", version = "0.5.4"}
-haloumi-synthesis = { path = "../synthesis", version = "0.5.4"}
-haloumi-llzk = { path = "../llzk", version = "0.5.4", optional = true }
-haloumi-picus = { path = "../picus", version = "0.5.4", optional = true }
+haloumi-core = { path = "../core", version = "0.5.5"}
+haloumi-ir = { path = "../ir", version = "0.5.5"}
+haloumi-ir-gen = { path = "../ir-gen", version = "0.5.5"}
+haloumi-synthesis = { path = "../synthesis", version = "0.5.5"}
+haloumi-llzk = { path = "../llzk", version = "0.5.5", optional = true }
+haloumi-picus = { path = "../picus", version = "0.5.5", optional = true }
 ff.workspace = true
 thiserror.workspace = true
 

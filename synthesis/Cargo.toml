@@ -13,7 +13,7 @@ keywords = {workspace = true}
 
 [dependencies]
 ff.workspace = true
-haloumi-core = { path = "../core", version = "0.5.4"}
+haloumi-core = { path = "../core", version = "0.5.5"}
 thiserror.workspace = true
 log.workspace = true
 bit-set.workspace = true

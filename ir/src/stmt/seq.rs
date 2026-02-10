@@ -73,7 +73,10 @@ where
     }
 }
 
-impl<T: LowerableExpr> LowerableStmt for Seq<T> {
+impl<T: LowerableExpr> LowerableStmt for Seq<T>
+where
+    IRStmt<T>: LowerableStmt,
+{
     fn lower<L>(self, l: &L) -> haloumi_lowering::Result<()>
     where
         L: Lowering + ?Sized,

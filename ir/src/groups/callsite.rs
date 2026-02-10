@@ -146,6 +146,7 @@ where
 impl<E> LowerableStmt for CallSite<E>
 where
     E: LowerableExpr + From<Slot>,
+    IRStmt<E>: LowerableStmt,
 {
     fn lower<L>(self, l: &L) -> haloumi_lowering::Result<()>
     where

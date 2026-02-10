@@ -44,6 +44,9 @@ mod sealed {
 pub trait EmitIf<T>: sealed::EmitIfSealed {
     /// Creates a conditional block.
     fn emit_if(self, cond: IRConstBexpr<T>) -> IRStmt<T>;
+
+    /// Creates a conditional block that only gets folded if the boolean expression folds to false.
+    fn emit_if_false(self, cond: IRBexpr<T>) -> IRStmt<T>;
 }
 
 impl<T, I> EmitIf<T> for I
@@ -51,6 +54,10 @@ where
     I: IntoIterator<Item = IRStmt<T>>,
 {
     fn emit_if(self, cond: IRConstBexpr<T>) -> IRStmt<T> {
+        CondBlock::new(cond.into(), self.into_iter().collect()).into()
+    }
+
+    fn emit_if_false(self, cond: IRBexpr<T>) -> IRStmt<T> {
         CondBlock::new(cond, self.into_iter().collect()).into()
     }
 }
@@ -456,7 +463,6 @@ where
                 }
                 validation.into()
             }
-            IRStmtImpl::CondBlock(cond_block) => cond_block.validate(),
             _ => Validation::new().into(),
         }
     }
@@ -663,7 +669,10 @@ impl std::fmt::Display for UnresolvedCondBlockError {
 
 impl std::error::Error for UnresolvedCondBlockError where Self: std::fmt::Debug {}
 
-impl<T: LowerableExpr> LowerableStmt for IRStmt<T> {
+impl<T: LowerableExpr> LowerableStmt for IRStmt<T>
+where
+    CondBlock<T>: LowerableStmt,
+{
     fn lower<L>(self, l: &L) -> haloumi_lowering::Result<()>
     where
         L: Lowering + ?Sized,
@@ -675,7 +684,7 @@ impl<T: LowerableExpr> LowerableStmt for IRStmt<T> {
             IRStmtImpl::AssumeDeterministic(ad) => ad.lower(l),
             IRStmtImpl::Assert(assert) => assert.lower(l),
             IRStmtImpl::PostCond(pc) => pc.lower(l),
-            IRStmtImpl::CondBlock(_) => Err(lowering_err!(UnresolvedCondBlockError)),
+            IRStmtImpl::CondBlock(cb) => cb.lower(l),
             IRStmtImpl::Seq(seq) => seq.lower(l),
         }
     }

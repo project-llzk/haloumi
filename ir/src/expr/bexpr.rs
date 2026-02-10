@@ -928,6 +928,12 @@ where
     }
 }
 
+impl<A> From<IRConstBexpr<A>> for IRBexpr<A> {
+    fn from(value: IRConstBexpr<A>) -> Self {
+        value.0
+    }
+}
+
 impl<A> Validatable for IRConstBexpr<A>
 where
     IRBexpr<A>: Evaluate<ExprProperties>,

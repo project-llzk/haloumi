@@ -1,5 +1,9 @@
 use eqv::{EqvRelation, equiv};
 use haloumi_core::eqv::SymbolicEqv;
+use haloumi_lowering::{
+    Lowering, Result as LoweringResult,
+    lowerable::{LowerableExpr, LowerableStmt},
+};
 
 use crate::{
     diagnostics::Diagnostic,
@@ -15,13 +19,13 @@ use crate::{
 /// pattern that handles it.
 #[derive(Clone, PartialEq)]
 pub struct CondBlock<T> {
-    cond: IRConstBexpr<T>,
+    cond: IRBexpr<T>,
     // Body of the block. Boxed for indirection.
     body: Box<IRStmt<T>>,
 }
 
 impl<T> CondBlock<T> {
-    pub fn new(cond: IRConstBexpr<T>, body: IRStmt<T>) -> Self {
+    pub fn new(cond: IRBexpr<T>, body: IRStmt<T>) -> Self {
         Self {
             cond,
             body: Box::new(body),
@@ -38,27 +42,27 @@ impl<T> CondBlock<T> {
 
     pub fn map<O>(self, f: &mut impl FnMut(T) -> O) -> CondBlock<O> {
         CondBlock {
-            cond: IRConstBexpr::map(self.cond, f),
+            cond: IRBexpr::map(self.cond, f),
             body: Box::new(self.body.map(f)),
         }
     }
 
     pub fn map_into<O>(&self, f: &mut impl FnMut(&T) -> O) -> CondBlock<O> {
         CondBlock {
-            cond: IRConstBexpr::map_into(&self.cond, f),
+            cond: IRBexpr::map_into(&self.cond, f),
             body: Box::new(self.body.map_into(f)),
         }
     }
 
     pub fn try_map<O, E>(self, f: &mut impl FnMut(T) -> Result<O, E>) -> Result<CondBlock<O>, E> {
         Ok(CondBlock {
-            cond: IRConstBexpr::try_map(self.cond, f)?,
+            cond: IRBexpr::try_map(self.cond, f)?,
             body: Box::new(self.body.try_map(f)?),
         })
     }
 
     pub fn map_inplace(&mut self, f: &mut impl FnMut(&mut T)) {
-        IRConstBexpr::map_inplace(&mut self.cond, f);
+        IRBexpr::map_inplace(&mut self.cond, f);
         self.body.map_inplace(f);
     }
 
@@ -66,17 +70,17 @@ impl<T> CondBlock<T> {
         &mut self,
         f: &mut impl FnMut(&mut T) -> Result<(), E>,
     ) -> Result<(), E> {
-        IRConstBexpr::try_map_inplace(&mut self.cond, f)?;
+        IRBexpr::try_map_inplace(&mut self.cond, f)?;
         self.body.try_map_inplace(f)
     }
 
-    pub fn validate<D>(&self) -> Result<Vec<D>, Vec<D>>
-    where
-        IRConstBexpr<T>: Validatable<Diagnostic = D, Context = ()>,
-        D: Diagnostic,
-    {
-        self.cond.validate()
-    }
+    //pub fn validate<D>(&self) -> Result<Vec<D>, Vec<D>>
+    //where
+    //    IRConstBexpr<T>: Validatable<Diagnostic = D, Context = ()>,
+    //    D: Diagnostic,
+    //{
+    //    self.cond.validate()
+    //}
 
     pub fn constant_fold(&mut self) -> Result<Option<IRStmt<T>>, Error>
     where
@@ -87,12 +91,10 @@ impl<T> CondBlock<T> {
         self.body.constant_fold()?;
         self.cond.constant_fold()?;
 
-        let const_value = self.cond.const_value().ok_or(NonConstIRBexprError)?;
-        Ok(Some(if const_value {
-            std::mem::take(&mut self.body)
-        } else {
-            IRStmt::empty()
-        }))
+        Ok(match self.cond.const_value() {
+            Some(false) => Some(IRStmt::empty()),
+            _ => None,
+        })
     }
 
     pub fn canonicalize(&mut self)
@@ -123,6 +125,21 @@ impl<T: std::fmt::Debug> std::fmt::Debug for CondBlock<T> {
         writeln!(f, " {{")?;
         std::fmt::Debug::fmt(self.body(), f)?;
         writeln!(f, " }}")
+    }
+}
+
+impl<T: LowerableExpr> LowerableStmt for CondBlock<T>
+where
+    IRBexpr<T>: ConstantFolding<T = bool>,
+{
+    fn lower<L>(self, l: &L) -> LoweringResult<()>
+    where
+        L: Lowering + ?Sized,
+    {
+        match self.cond.const_value() {
+            Some(false) => Ok(()),
+            _ => self.body.lower(l),
+        }
     }
 }
 

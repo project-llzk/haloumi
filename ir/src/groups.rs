@@ -470,6 +470,7 @@ impl<E> LowerableStmt for IRGroup<E>
 where
     E: LowerableExpr + std::fmt::Debug,
     CallSite<E>: LowerableStmt,
+    IRStmt<E>: LowerableStmt,
 {
     fn lower<L>(self, l: &L) -> haloumi_lowering::Result<()>
     where

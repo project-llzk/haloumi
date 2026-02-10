@@ -46,7 +46,7 @@ pub trait EmitIf<T>: sealed::EmitIfSealed {
     fn emit_if(self, cond: IRConstBexpr<T>) -> IRStmt<T>;
 
     /// Creates a conditional block that only gets folded if the boolean expression folds to false.
-    fn emit_if_false(self, cond: IRBexpr<T>) -> IRStmt<T>;
+    fn emit_unless_false(self, cond: IRBexpr<T>) -> IRStmt<T>;
 }
 
 impl<T, I> EmitIf<T> for I
@@ -57,7 +57,7 @@ where
         CondBlock::new(cond.into(), self.into_iter().collect()).into()
     }
 
-    fn emit_if_false(self, cond: IRBexpr<T>) -> IRStmt<T> {
+    fn emit_unless_false(self, cond: IRBexpr<T>) -> IRStmt<T> {
         CondBlock::new(cond, self.into_iter().collect()).into()
     }
 }

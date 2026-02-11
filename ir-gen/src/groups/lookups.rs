@@ -77,22 +77,27 @@ where
 /// Renames all temporaries in call outputs and [`ExprOrTemp::Temp`] to a fresh new set.
 ///
 /// It doesn't go inside `T` so it won't rename temporaries inside it.
-fn rebase_temps<T>(stmt: &mut IRStmt<ExprOrTemp<T>>, temps: &mut Temps) {
+fn rebase_temps<T: std::fmt::Debug>(stmt: &mut IRStmt<ExprOrTemp<T>>, temps: &mut Temps) {
+    log::debug!("Rebasing lookup IR: {stmt:?}");
     let mut local_temps = HashMap::new();
     stmt.try_map_inplace(&mut |expr| -> Result<(), Infallible> {
         if let ExprOrTemp::Temp(temp) = expr {
-            *temp = *local_temps
+            let new_temp = *local_temps
                 .entry(*temp)
                 .or_insert_with(|| temps.next().unwrap());
+            log::debug!("Replacing temp {temp:?} in expr with {new_temp:?}");
+            *temp = new_temp;
         }
         Ok(())
     })
     .unwrap();
     stmt.try_map_slot_inplace(&mut |slot| -> Result<(), Infallible> {
         if let Slot::Temp(temp) = slot {
-            *temp = **local_temps
+            let new_temp = **local_temps
                 .entry(Temp(*temp))
                 .or_insert_with(|| temps.next().unwrap());
+            log::debug!("Replacing temp {temp:?} in slot with {new_temp:?}");
+            *temp = new_temp;
         }
         Ok(())
     })

@@ -43,7 +43,7 @@ pub fn region_data<F: Field, E>(syn: &SynthesizedCircuit<F, E>) -> RegionByIndex
         .iter()
         .inspect(|g| log::debug!("[region_data] For group '{}'", g.name()))
         .flat_map(|g| g.regions())
-        .inspect(|r| log::info!("[region_data]  Region {r:?}"))
+        .inspect(|r| log::debug!("[region_data]  Region {r:?}"))
         .map(|r| {
             r.index()
                 .map(|i| (i, r))

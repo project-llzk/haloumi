@@ -62,12 +62,7 @@ where
             // temporaries are created from the same `Temps` instance and thus will be unique
             // across the body of the group.
             if n > 0 {
-                let mut local_temps = HashMap::new();
-                rebase_temps(&mut region_ir, &mut |temp| {
-                    *local_temps
-                        .entry(temp)
-                        .or_insert_with(|| temps.next().unwrap())
-                });
+                rebase_temps(&mut region_ir, &mut temps);
             }
 
             Ok(prepend_comment(
@@ -82,19 +77,150 @@ where
 /// Renames all temporaries in call outputs and [`ExprOrTemp::Temp`] to a fresh new set.
 ///
 /// It doesn't go inside `T` so it won't rename temporaries inside it.
-fn rebase_temps<T>(stmt: &mut IRStmt<ExprOrTemp<T>>, renaming_fn: &mut impl FnMut(Temp) -> Temp) {
+fn rebase_temps<T>(stmt: &mut IRStmt<ExprOrTemp<T>>, temps: &mut Temps) {
+    let mut local_temps = HashMap::new();
     stmt.try_map_inplace(&mut |expr| -> Result<(), Infallible> {
         if let ExprOrTemp::Temp(temp) = expr {
-            *temp = renaming_fn(*temp);
+            *temp = *local_temps
+                .entry(*temp)
+                .or_insert_with(|| temps.next().unwrap());
         }
         Ok(())
     })
     .unwrap();
     stmt.try_map_slot_inplace(&mut |slot| -> Result<(), Infallible> {
         if let Slot::Temp(temp) = slot {
-            *temp = *renaming_fn(Temp(*temp));
+            *temp = **local_temps
+                .entry(Temp(*temp))
+                .or_insert_with(|| temps.next().unwrap());
         }
         Ok(())
     })
     .unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    type S = IRStmt<ExprOrTemp<()>>;
+
+    #[test]
+    fn test_rebase_temps() {
+        let mut temps = Temps::new();
+
+        let mut input_stmt = S::call(
+            "called module",
+            [ExprOrTemp::Temp(temps.next().unwrap())],
+            [temps.next().unwrap().into()],
+        );
+        let expected_stmt = S::call(
+            "called module",
+            [ExprOrTemp::Temp(Temp(2))],
+            [Slot::Temp(3)],
+        );
+
+        rebase_temps(&mut input_stmt, &mut temps);
+        assert_eq!(input_stmt, expected_stmt);
+    }
+
+    #[test]
+    fn test_rebase_temps_2() {
+        let mut temps = Temps::new();
+
+        let base_input_stmt = S::call(
+            "called module",
+            [ExprOrTemp::Temp(temps.next().unwrap())],
+            [temps.next().unwrap().into()],
+        );
+        let mut input_stmt = [base_input_stmt.clone(), base_input_stmt];
+        let expected_stmt = [
+            S::call(
+                "called module",
+                [ExprOrTemp::Temp(Temp(2))],
+                [Slot::Temp(3)],
+            ),
+            S::call(
+                "called module",
+                [ExprOrTemp::Temp(Temp(4))],
+                [Slot::Temp(5)],
+            ),
+        ];
+
+        for stmt in &mut input_stmt {
+            rebase_temps(stmt, &mut temps);
+        }
+        assert_eq!(input_stmt, expected_stmt);
+    }
+
+    #[test]
+    fn test_rebase_temps_3() {
+        let mut temps = Temps::new();
+
+        let base_input_stmt = S::seq([
+            S::comment("begin block"),
+            S::call(
+                "called module",
+                [ExprOrTemp::Temp(temps.next().unwrap())],
+                [temps.next().unwrap().into()],
+            ),
+            S::call(
+                "second module",
+                [ExprOrTemp::Temp(temps.next().unwrap())],
+                [temps.next().unwrap().into()],
+            ),
+            S::comment("end block"),
+        ]);
+        let mut input_stmt = [
+            base_input_stmt.clone(),
+            base_input_stmt.clone(),
+            base_input_stmt,
+        ];
+        let expected_stmt = S::seq([
+            S::comment("begin block"),
+            S::call(
+                "called module",
+                [ExprOrTemp::Temp(Temp(0))],
+                [Slot::Temp(1)],
+            ),
+            S::call(
+                "second module",
+                [ExprOrTemp::Temp(Temp(2))],
+                [Slot::Temp(3)],
+            ),
+            S::comment("end block"),
+            S::comment("begin block"),
+            S::call(
+                "called module",
+                [ExprOrTemp::Temp(Temp(4))],
+                [Slot::Temp(6)],
+            ),
+            S::call(
+                "second module",
+                [ExprOrTemp::Temp(Temp(5))],
+                [Slot::Temp(7)],
+            ),
+            S::comment("end block"),
+            S::comment("begin block"),
+            S::call(
+                "called module",
+                [ExprOrTemp::Temp(Temp(8))],
+                [Slot::Temp(10)],
+            ),
+            S::call(
+                "second module",
+                [ExprOrTemp::Temp(Temp(9))],
+                [Slot::Temp(11)],
+            ),
+            S::comment("end block"),
+        ]);
+
+        for (n, stmt) in input_stmt.iter_mut().enumerate() {
+            if n > 0 {
+                rebase_temps(stmt, &mut temps);
+            }
+        }
+        let input_stmt = S::seq(input_stmt);
+        assert_eq!(input_stmt, expected_stmt);
+    }
 }

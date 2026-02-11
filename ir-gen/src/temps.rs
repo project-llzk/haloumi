@@ -27,6 +27,7 @@ impl From<Temp> for Slot {
 }
 
 /// Wrapper that allows adding temporaries in expressions that don't directly support them
+#[derive(PartialEq)]
 pub enum ExprOrTemp<E> {
     /// Temporary variable.
     Temp(Temp),

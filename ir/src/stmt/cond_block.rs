@@ -6,11 +6,10 @@ use haloumi_lowering::{
 };
 
 use crate::{
-    diagnostics::Diagnostic,
     error::Error,
-    expr::{IRBexpr, IRConstBexpr, NonConstIRBexprError},
+    expr::IRBexpr,
     stmt::IRStmt,
-    traits::{Canonicalize, ConstantFolding, Validatable},
+    traits::{Canonicalize, ConstantFolding},
 };
 
 /// Block of IR that is emitted conditionally.

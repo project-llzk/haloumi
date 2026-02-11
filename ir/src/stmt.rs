@@ -14,7 +14,6 @@ use haloumi_core::{cmp::CmpOp, eqv::SymbolicEqv, slot::Slot};
 use haloumi_lowering::{
     Lowering,
     lowerable::{LowerableExpr, LowerableStmt},
-    lowering_err,
 };
 use std::fmt::Write;
 

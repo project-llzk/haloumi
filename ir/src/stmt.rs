@@ -343,6 +343,7 @@ impl<T> IRStmt<T> {
             IRStmtImpl::ConstraintCall(call) => call.outputs_mut().iter_mut().for_each(f),
             IRStmtImpl::AssumeDeterministic(det) => f(det.value_mut()),
             IRStmtImpl::Seq(seq) => seq.iter_mut().for_each(|stmt| stmt.map_slot_inplace(f)),
+            IRStmtImpl::CondBlock(cb) => cb.body_mut().map_slot_inplace(f),
             _ => {}
         }
     }
@@ -358,6 +359,7 @@ impl<T> IRStmt<T> {
             IRStmtImpl::Seq(seq) => seq
                 .iter_mut()
                 .try_for_each(|stmt| stmt.try_map_slot_inplace(f)),
+            IRStmtImpl::CondBlock(cb) => cb.body_mut().try_map_slot_inplace(f),
             _ => Ok(()),
         }
     }

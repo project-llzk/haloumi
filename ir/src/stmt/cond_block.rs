@@ -35,8 +35,16 @@ impl<T> CondBlock<T> {
         &self.cond
     }
 
+    pub fn cond_mut(&mut self) -> &mut IRBexpr<T> {
+        &mut self.cond
+    }
+
     pub fn body(&self) -> &IRStmt<T> {
         &self.body
+    }
+
+    pub fn body_mut(&mut self) -> &mut IRStmt<T> {
+        &mut self.body
     }
 
     pub fn map<O>(self, f: &mut impl FnMut(T) -> O) -> CondBlock<O> {
@@ -72,14 +80,6 @@ impl<T> CondBlock<T> {
         IRBexpr::try_map_inplace(&mut self.cond, f)?;
         self.body.try_map_inplace(f)
     }
-
-    //pub fn validate<D>(&self) -> Result<Vec<D>, Vec<D>>
-    //where
-    //    IRConstBexpr<T>: Validatable<Diagnostic = D, Context = ()>,
-    //    D: Diagnostic,
-    //{
-    //    self.cond.validate()
-    //}
 
     pub fn constant_fold(&mut self) -> Result<Option<IRStmt<T>>, Error>
     where

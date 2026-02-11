@@ -489,11 +489,8 @@ where
         &self,
         _: &Self::Context,
     ) -> Result<Vec<Self::Diagnostic>, Vec<Self::Diagnostic>> {
-        let mut validation = Validation::new();
-        for stmt in self.iter() {
-            validation.append_from_result(stmt.validate(), "");
-        }
-        validation.into()
+        // Nothing that requires validation anymore.
+        Validation::new().into()
     }
 }
 

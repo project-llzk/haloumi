@@ -19,6 +19,7 @@ use std::fmt::Write;
 
 mod assert;
 mod assume_determ;
+mod block_comment;
 mod call;
 mod comment;
 mod cond_block;
@@ -28,6 +29,7 @@ mod seq;
 
 use assert::Assert;
 use assume_determ::AssumeDeterministic;
+use block_comment::BlockComment;
 use call::Call;
 use comment::Comment;
 use cond_block::CondBlock;
@@ -82,6 +84,8 @@ enum IRStmtImpl<T> {
     PostCond(PostCond<T>),
     /// A conditionally emitted block.
     CondBlock(CondBlock<T>),
+    /// A block of code with a header comment.
+    BlockComment(BlockComment<T>),
 }
 
 impl<T> HasMeta for IRStmt<T> {
@@ -112,6 +116,7 @@ impl<T: PartialEq> PartialEq for IRStmt<T> {
             (IRStmtImpl::Assert(lhs), IRStmtImpl::Assert(rhs)) => lhs.eq(rhs),
             (IRStmtImpl::PostCond(lhs), IRStmtImpl::PostCond(rhs)) => lhs.eq(rhs),
             (IRStmtImpl::CondBlock(lhs), IRStmtImpl::CondBlock(rhs)) => lhs.eq(rhs),
+            (IRStmtImpl::BlockComment(lhs), IRStmtImpl::BlockComment(rhs)) => lhs.eq(rhs),
             (IRStmtImpl::Seq(_), _) | (_, IRStmtImpl::Seq(_)) => unreachable!(),
             _ => false,
         })
@@ -131,6 +136,7 @@ impl<T: std::fmt::Debug> std::fmt::Debug for IRStmt<T> {
             IRStmtImpl::PostCond(pc) => write!(f, "{pc:?}"),
             IRStmtImpl::CondBlock(cb) => write!(f, "{cb:?}"),
             IRStmtImpl::Seq(seq) => write!(f, "{seq:?}"),
+            IRStmtImpl::BlockComment(bc) => write!(f, "{bc:?}"),
         }
     }
 }
@@ -221,6 +227,15 @@ impl<T> IRStmt<T> {
         }
     }
 
+    /// Prepends a comment to the statement.
+    pub fn with_comment(self, comment: String) -> Self {
+        let meta = self.1.clone();
+        Self(
+            IRStmtImpl::BlockComment(BlockComment::new(Some(comment), self)),
+            meta,
+        )
+    }
+
     /// Transforms the inner expression type into another.
     pub fn map<O>(self, f: &mut impl FnMut(T) -> O) -> IRStmt<O> {
         match self.0 {
@@ -232,6 +247,9 @@ impl<T> IRStmt<T> {
             IRStmtImpl::PostCond(pc) => pc.map(f).into(),
             IRStmtImpl::CondBlock(cb) => cb.map(f).into(),
             IRStmtImpl::Seq(seq) => Seq::new(seq.into_iter().map(|s| s.map(f))).into(),
+            IRStmtImpl::BlockComment(bc) => {
+                BlockComment::new(bc.value().map(ToOwned::to_owned), bc.take_body().map(f)).into()
+            }
         }
     }
 
@@ -286,6 +304,9 @@ impl<T> IRStmt<T> {
             IRStmtImpl::PostCond(pc) => pc.map_into(f).into(),
             IRStmtImpl::CondBlock(cb) => cb.map_into(f).into(),
             IRStmtImpl::Seq(seq) => Seq::new(seq.iter().map(|s| s.map_into(f))).into(),
+            IRStmtImpl::BlockComment(bc) => {
+                BlockComment::new(bc.value().map(ToOwned::to_owned), bc.body().map_into(f)).into()
+            }
         }
     }
 
@@ -305,6 +326,11 @@ impl<T> IRStmt<T> {
                     .collect::<Result<Vec<_>, _>>()?,
             )
             .into(),
+            IRStmtImpl::BlockComment(bc) => BlockComment::new(
+                bc.value().map(ToOwned::to_owned),
+                bc.take_body().try_map(f)?,
+            )
+            .into(),
         })
     }
 
@@ -317,6 +343,8 @@ impl<T> IRStmt<T> {
             IRStmtImpl::PostCond(pc) => pc.map_inplace(f),
             IRStmtImpl::CondBlock(cb) => cb.map_inplace(f),
             IRStmtImpl::Seq(seq) => seq.iter_mut().for_each(|stmt| stmt.map_inplace(f)),
+
+            IRStmtImpl::BlockComment(bc) => bc.body_mut().map_inplace(f),
             _ => {}
         }
     }
@@ -333,6 +361,7 @@ impl<T> IRStmt<T> {
             IRStmtImpl::PostCond(pc) => pc.try_map_inplace(f),
             IRStmtImpl::CondBlock(cb) => cb.try_map_inplace(f),
             IRStmtImpl::Seq(seq) => seq.iter_mut().try_for_each(|stmt| stmt.try_map_inplace(f)),
+            IRStmtImpl::BlockComment(bc) => bc.body_mut().try_map_inplace(f),
             _ => Ok(()),
         }
     }
@@ -344,6 +373,7 @@ impl<T> IRStmt<T> {
             IRStmtImpl::AssumeDeterministic(det) => f(det.value_mut()),
             IRStmtImpl::Seq(seq) => seq.iter_mut().for_each(|stmt| stmt.map_slot_inplace(f)),
             IRStmtImpl::CondBlock(cb) => cb.body_mut().map_slot_inplace(f),
+            IRStmtImpl::BlockComment(bc) => bc.body_mut().map_slot_inplace(f),
             _ => {}
         }
     }
@@ -360,6 +390,7 @@ impl<T> IRStmt<T> {
                 .iter_mut()
                 .try_for_each(|stmt| stmt.try_map_slot_inplace(f)),
             IRStmtImpl::CondBlock(cb) => cb.body_mut().try_map_slot_inplace(f),
+            IRStmtImpl::BlockComment(bc) => bc.body_mut().try_map_slot_inplace(f),
             _ => Ok(()),
         }
     }
@@ -422,6 +453,7 @@ where
                 }
             }
             IRStmtImpl::Seq(seq) => seq.constant_fold()?,
+            IRStmtImpl::BlockComment(bc) => bc.constant_fold()?,
         }
         Ok(())
     }
@@ -439,6 +471,7 @@ impl Canonicalize for IRStmt<IRAexpr> {
             IRStmtImpl::PostCond(pc) => pc.canonicalize(),
             IRStmtImpl::CondBlock(cb) => cb.canonicalize(),
             IRStmtImpl::Seq(seq) => seq.canonicalize(),
+            IRStmtImpl::BlockComment(bc) => bc.canonicalize(),
         }
     }
 }
@@ -456,16 +489,11 @@ where
         &self,
         _: &Self::Context,
     ) -> Result<Vec<Self::Diagnostic>, Vec<Self::Diagnostic>> {
-        match &self.0 {
-            IRStmtImpl::Seq(seq) => {
-                let mut validation = Validation::new();
-                for stmt in seq.iter() {
-                    validation.append_from_result(stmt.validate(), "");
-                }
-                validation.into()
-            }
-            _ => Validation::new().into(),
+        let mut validation = Validation::new();
+        for stmt in self.iter() {
+            validation.append_from_result(stmt.validate(), "");
         }
+        validation.into()
     }
 }
 
@@ -496,6 +524,9 @@ where
             }
             (IRStmtImpl::CondBlock(lhs), IRStmtImpl::CondBlock(rhs)) => {
                 equiv! { SymbolicEqv | lhs, rhs }
+            }
+            (IRStmtImpl::BlockComment(lhs), IRStmtImpl::BlockComment(rhs)) => {
+                equiv! { SymbolicEqv | lhs.body(), rhs.body()}
             }
             (IRStmtImpl::Seq(_), _) | (_, IRStmtImpl::Seq(_)) => unreachable!(),
             _ => false,
@@ -653,6 +684,11 @@ impl<T> From<Seq<T>> for IRStmt<T> {
         Self(IRStmtImpl::Seq(value), Default::default())
     }
 }
+impl<T> From<BlockComment<T>> for IRStmt<T> {
+    fn from(value: BlockComment<T>) -> Self {
+        Self(IRStmtImpl::BlockComment(value), Default::default())
+    }
+}
 
 /// Error raised while lowering if the lowered statement was a conditionally emitted block what was
 /// not resolved yet.
@@ -687,6 +723,7 @@ where
             IRStmtImpl::PostCond(pc) => pc.lower(l),
             IRStmtImpl::CondBlock(cb) => cb.lower(l),
             IRStmtImpl::Seq(seq) => seq.lower(l),
+            IRStmtImpl::BlockComment(block_comment) => block_comment.lower(l),
         }
     }
 }
@@ -702,6 +739,7 @@ impl<T: Clone> Clone for IRStmt<T> {
             IRStmtImpl::PostCond(e) => e.clone().into(),
             IRStmtImpl::CondBlock(e) => e.clone().into(),
             IRStmtImpl::Seq(stmts) => stmts.clone().into(),
+            IRStmtImpl::BlockComment(block_comment) => block_comment.clone().into(),
         }
     }
 }
@@ -714,12 +752,14 @@ impl<T: IRPrintable> IRPrintable for IRStmt<T> {
             }
             IRStmtImpl::Constraint(constraint) => {
                 ctx.block(format!("assert/{}", constraint.op()).as_str(), |ctx| {
-                    if constraint.lhs().depth() > 1 {
-                        ctx.nl()?;
+                    if constraint.lhs().depth() == 1 {
+                        writeln!(ctx, " ")?;
                     }
                     constraint.lhs().fmt(ctx)?;
-                    if constraint.lhs().depth() > 1 || constraint.rhs().depth() > 1 {
+                    if constraint.rhs().depth() > 1 {
                         ctx.nl()?;
+                    } else {
+                        writeln!(ctx, " ")?;
                     }
                     constraint.rhs().fmt(ctx)
                 })
@@ -746,6 +786,13 @@ impl<T: IRPrintable> IRPrintable for IRStmt<T> {
             }),
             IRStmtImpl::PostCond(post_cond) => {
                 ctx.block("post-cond", |ctx| post_cond.cond().fmt(ctx))
+            }
+            IRStmtImpl::BlockComment(block_comment) => {
+                if let Some(comment) = block_comment.value() {
+                    ctx.nl()?;
+                    writeln!(ctx, "; {}", comment)?;
+                }
+                block_comment.body().fmt(ctx)
             }
         }
     }

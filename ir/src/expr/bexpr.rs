@@ -843,14 +843,17 @@ impl<T: IRPrintable> IRPrintable for IRBexpr<T> {
 pub struct IRConstBexpr<A>(IRBexpr<A>);
 
 impl<A> IRConstBexpr<A> {
+    #[allow(dead_code)]
     pub(crate) fn map<O>(expr: IRConstBexpr<O>, f: &mut impl FnMut(O) -> A) -> Self {
         Self(expr.0.map(f))
     }
 
+    #[allow(dead_code)]
     pub(crate) fn map_into<O>(expr: &IRConstBexpr<O>, f: &mut impl FnMut(&O) -> A) -> Self {
         Self(expr.0.map_into(f))
     }
 
+    #[allow(dead_code)]
     pub(crate) fn try_map<O, E>(
         expr: IRConstBexpr<O>,
         f: &mut impl FnMut(O) -> Result<A, E>,
@@ -858,10 +861,12 @@ impl<A> IRConstBexpr<A> {
         Ok(Self(expr.0.try_map(f)?))
     }
 
+    #[allow(dead_code)]
     pub(crate) fn map_inplace(expr: &mut Self, f: &mut impl FnMut(&mut A)) {
         expr.0.map_inplace(f);
     }
 
+    #[allow(dead_code)]
     pub(crate) fn try_map_inplace<E>(
         expr: &mut Self,
         f: &mut impl FnMut(&mut A) -> Result<(), E>,

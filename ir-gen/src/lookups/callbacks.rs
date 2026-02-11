@@ -67,9 +67,8 @@ pub trait LookupCallbacks<F: Field, E> {
             .iter()
             .zip(tables.iter())
             .map(|(lookup, table)| {
-                let lookup_stmt = self.on_lookup(*lookup, *table, temps)?;
-                let comment = LookupStmt::comment(format!("Lookup \"{}\"", lookup.name()));
-                Ok(LookupStmt::seq([comment, lookup_stmt]))
+                self.on_lookup(*lookup, *table, temps)
+                    .map(|stmt| stmt.with_comment(format!("Lookup \"{}\"", lookup.name())))
             })
             .collect()
     }

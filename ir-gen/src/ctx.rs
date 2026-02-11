@@ -72,7 +72,7 @@ impl AdviceCells {
             rows: region.rows(),
             start: region.start(),
         };
-        log::info!("{region:?} Produced the following {cells:?}");
+        log::debug!("{region:?} Produced the following {cells:?}");
         cells
     }
 

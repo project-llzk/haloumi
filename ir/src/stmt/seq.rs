@@ -52,7 +52,10 @@ impl<T> Seq<T> {
     {
         self.0
             .iter_mut()
-            .try_for_each(|inner| inner.constant_fold())
+            .try_for_each(|inner| inner.constant_fold())?;
+        // Remove any statement that is empty.
+        self.0.retain(|stmt| !stmt.is_empty());
+        Ok(())
     }
 
     /// Appends a statement to the sequence

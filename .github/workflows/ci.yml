@@ -17,7 +17,7 @@ jobs:
           - dev
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Cache cargo crates
         uses: actions/cache@v4
         with:
@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: 'Install rust-toolchain.toml'
         run: rustup toolchain install
       - name: cargo fetch
@@ -52,7 +52,7 @@ jobs:
     timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@nightly
       - run: rustup component add rustfmt --toolchain nightly
       - run: cargo +nightly fmt --all -- --check
@@ -64,11 +64,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: 'Install rust-toolchain.toml'
         run: rustup toolchain install
 
       - name: Run Clippy on `core`
         if: always()
         run: cargo clippy -p haloumi-core --all-targets --all-features -- -Dwarnings
-

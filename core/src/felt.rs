@@ -3,7 +3,7 @@
 use ff::PrimeField;
 use internment::Intern;
 use num_bigint::BigUint;
-use std::ops::{Add, AddAssign, Deref, Mul, MulAssign, Rem, RemAssign, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Deref, Mul, MulAssign, Neg, Rem, RemAssign, Sub, SubAssign};
 
 /// Interned value of the prime of a finite field.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -11,15 +11,26 @@ pub struct Prime(Intern<BigUint>);
 
 impl Prime {
     /// Creates the prime from the given [`PrimeField`].
-    fn new<F: PrimeField>() -> Self {
+    pub fn new<F: PrimeField>() -> Self {
         let f = -F::ONE;
         Self(Intern::new(
             BigUint::from_bytes_le(f.to_repr().as_ref()) + 1usize,
         ))
     }
 
-    fn value(&self) -> &BigUint {
+    /// Returns the value of the prime.
+    pub fn value(&self) -> &BigUint {
         self.0.as_ref()
+    }
+
+    fn minus_one(&self) -> Felt {
+        Felt::from_parts(self.value() - 1usize, *self)
+    }
+}
+
+impl std::fmt::Display for Prime {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.value())
     }
 }
 
@@ -39,6 +50,14 @@ impl Felt {
         Self {
             value: Intern::new(BigUint::from_bytes_le(f.to_repr().as_ref())),
             prime: Prime::new::<F>(),
+        }
+    }
+
+    /// Creates a new felt from its raw parts.
+    pub fn from_parts(value: BigUint, prime: Prime) -> Self {
+        Self {
+            value: Intern::new(value),
+            prime,
         }
     }
 
@@ -63,6 +82,17 @@ impl Felt {
             value: Intern::new(value % self.prime.value()),
             prime: self.prime,
         }
+    }
+
+    /// Returns true if the felt represents -1 mod P.
+    pub fn is_minus_one(&self) -> bool {
+        *self == self.prime().minus_one()
+    }
+}
+
+impl<F: PrimeField> From<F> for Felt {
+    fn from(value: F) -> Self {
+        Self::new(value)
     }
 }
 
@@ -111,11 +141,31 @@ impl Rem for Felt {
     }
 }
 
+impl Rem<Prime> for Felt {
+    type Output = Self;
+
+    fn rem(self, prime: Prime) -> Self::Output {
+        if self.prime() == prime {
+            return self;
+        }
+        if self.prime() > prime {
+            return Self::from_parts(self.value.as_ref().clone(), prime);
+        }
+        Self::from_parts(self.as_ref() % prime.value(), prime)
+    }
+}
+
 impl RemAssign for Felt {
     /// # Panics
     ///
     /// If the primes are different.
     fn rem_assign(&mut self, rhs: Self) {
+        *self = *self % rhs;
+    }
+}
+
+impl RemAssign<Prime> for Felt {
+    fn rem_assign(&mut self, rhs: Prime) {
         *self = *self % rhs;
     }
 }
@@ -188,14 +238,23 @@ impl MulAssign for Felt {
     }
 }
 
+impl Neg for Felt {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        self.replace(self.prime().value() - self.as_ref())
+    }
+}
+
 impl std::fmt::Display for Felt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_ref())
     }
 }
 
+#[allow(missing_docs)]
 #[cfg(test)]
-mod tests {
+pub mod tests {
 
     use super::*;
     use ff::PrimeField;

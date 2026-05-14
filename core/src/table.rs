@@ -20,7 +20,7 @@ pub trait ColumnType: std::fmt::Debug + Copy + Clone + PartialEq + Eq + std::has
 }
 
 /// Erased column type.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub enum Any {
     /// Fixed type.
     Fixed,
@@ -28,6 +28,16 @@ pub enum Any {
     Advice,
     /// Instance type.
     Instance,
+}
+
+impl std::fmt::Debug for Any {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Fixed => write!(f, "Fix"),
+            Self::Advice => write!(f, "Adv"),
+            Self::Instance => write!(f, "Ins"),
+        }
+    }
 }
 
 impl ColumnType for Any {
@@ -59,10 +69,16 @@ impl ColumnType for Instance {
 }
 
 /// A column with a type.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Column<C: ColumnType> {
     index: usize,
     column_type: C,
+}
+
+impl<C: ColumnType + std::fmt::Debug> std::fmt::Debug for Column<C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}:{}", self.column_type, self.index)
+    }
 }
 
 impl<C: ColumnType> Column<C> {
@@ -157,7 +173,7 @@ impl TryFrom<Column<Any>> for Column<Instance> {
 }
 
 /// Represents a cell in the table.
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
 pub struct Cell {
     /// The index of the region this cell belongs to.
     pub region_index: RegionIndex,

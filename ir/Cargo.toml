@@ -1,0 +1,35 @@
+[package]
+name = "haloumi-ir"
+description = "Intermediate representation of the haloumi framework."
+categories = {workspace = true}
+version = {workspace = true}
+authors = {workspace = true}
+edition = {workspace = true}
+rust-version = {workspace = true}
+readme = "README.md"
+repository = {workspace = true}
+license-file = {workspace = true}
+keywords = {workspace = true}
+
+[dependencies]
+ff.workspace = true 
+log.workspace = true
+thiserror.workspace = true
+internment.workspace = true
+eqv.workspace = true
+haloumi-core = { path = "../core", version = "0.5.3"}
+haloumi-lowering = { path = "../lowering", version = "0.5.3" }
+num-bigint.workspace = true
+bit-set.workspace = true
+
+[dev-dependencies]
+rstest = "0.26"
+similar-asserts = "1.7"
+ff = { workspace = true, features = ["derive"] }
+halo2curves = "0.9"
+quickcheck = "1"
+quickcheck_macros = "1"
+mockall = "0.14"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage,coverage_nightly)'] }

@@ -1,17 +1,21 @@
 [workspace]
-members = [
-  "core"
+members = [ 
+  "core",
+  "lowering",
+  "ir"
 ]
 resolver = "2"
 
 [workspace.package]
-version = "0.3.0"
+version = "0.5.3"
 authors = ["Daniel Dominguez (Veridise) <daniel@veridise.com>"]
 edition = "2024"
 rust-version = "1.85"
 readme = "README.md"
 repository = "https://github.com/project-llzk/haloumi"
 license-file = "LICENSE"
+categories = ["compilers"]
+keywords = ["halo2", "llzk", "haloumi"]
 
 [workspace.dependencies]
 ff = "0.13"
@@ -20,4 +24,5 @@ internment = "0.8.6"
 num-bigint = "0.4"
 log = "0.4"
 eqv = "0.1"
+bit-set = "0.8"
 

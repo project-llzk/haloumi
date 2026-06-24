@@ -4,6 +4,7 @@
 #![deny(missing_docs)]
 
 pub mod cmp;
+pub mod constraints;
 pub mod eqv;
 pub mod error;
 pub mod expressions;

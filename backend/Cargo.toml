@@ -1,0 +1,23 @@
+[package]
+name = "haloumi-backend"
+description = "Generic backend API of the haloumi framework."
+categories = {workspace = true}
+version = {workspace = true}
+authors = {workspace = true}
+edition = {workspace = true}
+rust-version = {workspace = true}
+readme = "README.md"
+repository = {workspace = true}
+license-file = {workspace = true}
+keywords = {workspace = true}
+
+[dependencies]
+haloumi-core = { path = "../core", version = "0.5.5"}
+haloumi-ir-gen = { path = "../ir-gen", version = "0.5.5"}
+haloumi-ir = { path = "../ir", version = "0.5.5"}
+haloumi-lowering = { path = "../lowering", version = "0.5.5"}
+haloumi-synthesis = { path = "../synthesis", version = "0.5.5"}
+log.workspace = true
+thiserror.workspace = true
+eqv.workspace = true
+disjoint.workspace = true

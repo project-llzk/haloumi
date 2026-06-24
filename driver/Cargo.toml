@@ -1,0 +1,43 @@
+[package]
+name = "haloumi"
+description = "Entrypoint crate for the Haloumi framework."
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+readme.workspace = true
+repository.workspace = true
+license-file.workspace = true
+categories.workspace = true
+keywords.workspace = true
+
+[dependencies]
+haloumi-core = { path = "../core", version = "0.5.5"}
+haloumi-ir = { path = "../ir", version = "0.5.5"}
+haloumi-ir-gen = { path = "../ir-gen", version = "0.5.5"}
+haloumi-synthesis = { path = "../synthesis", version = "0.5.5"}
+haloumi-llzk = { path = "../llzk", version = "0.5.5", optional = true }
+haloumi-picus = { path = "../picus", version = "0.5.5", optional = true }
+ff.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+simplelog = {version = "0.12", features = ["test"] }
+quickcheck = "1"
+quickcheck_macros = "1"
+rstest = "0.26"
+group = "0.13"
+haloumi-test-circuits = { path = "../support/test-circuits" }
+haloumi-midnight-integration = { path = "../support/midnight" }
+paste = "1"
+anyhow = "1"
+halo2curves.workspace = true
+log.workspace = true
+similar-asserts.workspace = true
+mlir-testutils.workspace = true
+llzk.workspace = true
+
+[features]
+default = ["llzk-backend", "picus-backend"]
+llzk-backend = ["dep:haloumi-llzk"]
+picus-backend = ["dep:haloumi-picus"]

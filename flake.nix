@@ -44,14 +44,6 @@
           ];
         };
 
-        # Lit tests need FileCheck but directly adding the LLVM `bin` dir to the path causes
-        # linking problems in `llzk-sys`. Instead, create a symlink in a new directory for the path.
-        createFileCheckSymlink = ''
-          mkdir -p $PWD/build-tools
-          ln -sf "${pkgs.llzk-llvmPackages.llvm}/bin/FileCheck" $PWD/build-tools/FileCheck
-          export PATH="$PWD/build-tools:$PATH"
-        '';
-
         haloumi = pkgs.rustPlatform.buildRustPackage (
           {
             pname = "haloumi";
@@ -75,7 +67,6 @@
               "haloumi"
             ];
             dontUsePytestCheck = true;
-            preBuild = createFileCheckSymlink;
           }
           // pkgs.llzkSharedEnvironment.env
           // pkgs.llzkSharedEnvironment.pkgSettings
@@ -92,22 +83,9 @@
             {
               nativeBuildInputs = pkgs.llzkSharedEnvironment.nativeBuildInputs;
               buildInputs = pkgs.llzkSharedEnvironment.devBuildInputs ++ [
-                pkgs.changelogCreator
                 pkgs.nixfmt-rfc-style
                 pkgs.rust-bin.stable.latest.default
-                pkgs.pre-commit
               ];
-
-              shellHook = ''
-                # Bail out of pipes where any command fails
-                set -uo pipefail
-                ${createFileCheckSymlink}
-                # set up pre-commit
-                pre-commit install
-
-                echo "Welcome to the haloumi devshell!"
-                echo "To commit without pre-commit hooks, use \`git commit --no-verify\`"
-              '';
             }
             // pkgs.llzkSharedEnvironment.env
             // pkgs.llzkSharedEnvironment.devSettings

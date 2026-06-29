@@ -37,7 +37,7 @@ impl StructIO {
         &self,
         context: &'c Context,
         header: &str,
-    ) -> impl Iterator<Item = Result<FieldDefOp<'c>, LlzkError>> {
+    ) -> impl Iterator<Item = Result<MemberDefOp<'c>, LlzkError>> {
         let public_filename = filename(header, Some("public outputs"));
         let private_filename = filename(header, Some("private outputs"));
         std::iter::repeat_n(true, self.public_outputs)
@@ -54,16 +54,11 @@ impl StructIO {
             .enumerate()
             .map(|(n, (public, loc))| {
                 let name = format!("out_{n}");
-                r#struct::field(loc, &name, FeltType::new(context), false, public)
+                dialect::r#struct::member(loc, &name, FeltType::new(context), false, public)
             })
     }
 
-    pub fn args<'c>(
-        &self,
-        ctx: &'c Context,
-        is_main: bool,
-        struct_name: &str,
-    ) -> Vec<(Type<'c>, Location<'c>)> {
+    pub fn args<'c>(&self, ctx: &'c Context, struct_name: &str) -> Vec<(Type<'c>, Location<'c>)> {
         let public_filename = filename(struct_name, Some("public inputs"));
         let private_filename = filename(struct_name, Some("private inputs"));
         let public_locs = std::iter::repeat(&public_filename)
@@ -76,12 +71,10 @@ impl StructIO {
             .chain(private_locs)
             .map(|(n, filename)| Location::new(ctx, filename, n, 0));
 
-        let ty: Type<'c> = if is_main {
-            StructType::from_str(ctx, "Signal").into()
-        } else {
-            FeltType::new(ctx).into()
-        };
-        let types = std::iter::repeat_n(ty, self.public_inputs + self.private_inputs);
+        let types = std::iter::repeat_n(
+            Type::from(FeltType::new(ctx)),
+            self.public_inputs + self.private_inputs,
+        );
 
         std::iter::zip(types, locs).collect()
     }
@@ -121,7 +114,6 @@ pub fn create_struct<'c>(
     struct_name: &str,
     idx: usize,
     io: StructIO,
-    is_main: bool,
 ) -> Result<StructDefOp<'c>, LlzkError> {
     log::debug!("context = {context:?}");
     let loc = struct_def_op_location(context, struct_name, idx);
@@ -130,20 +122,20 @@ pub fn create_struct<'c>(
         .fields(context, struct_name)
         .map(|r| r.map(Operation::from));
 
-    let func_args = io.args(context, is_main, struct_name);
+    let func_args = io.args(context, struct_name);
     let arg_attrs = io.arg_attrs(context);
 
     log::debug!("Creating function with arguments: {func_args:?}");
 
     let funcs = [
-        r#struct::helpers::compute_fn(
+        dialect::r#struct::helpers::compute_fn(
             loc,
             StructType::from_str(context, struct_name),
             &func_args,
             Some(&arg_attrs),
         )
         .map(Operation::from),
-        r#struct::helpers::constrain_fn(
+        dialect::r#struct::helpers::constrain_fn(
             loc,
             StructType::from_str(context, struct_name),
             &func_args,
@@ -152,5 +144,5 @@ pub fn create_struct<'c>(
         .map(Operation::from),
     ];
 
-    r#struct::def(loc, struct_name, &[], fields.chain(funcs))
+    dialect::r#struct::def(loc, struct_name, fields.chain(funcs))
 }

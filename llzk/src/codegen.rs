@@ -33,11 +33,9 @@ impl<'c, 's> LlzkCodegen<'c, 's> {
         &self,
         name: &str,
         io: StructIO,
-        is_main: bool,
     ) -> Result<LlzkStructLowering<'c, 's>, Error> {
-        let s =
-            factory::create_struct(self.context(), name, self.struct_count.next(), io, is_main)?;
-        Ok(LlzkStructLowering::new(self.context(), self.add_struct(s)?))
+        let s = factory::create_struct(self.context(), name, self.struct_count.next(), io)?;
+        LlzkStructLowering::new(self.context(), self.add_struct(s)?)
     }
 
     fn context(&self) -> &'c Context {
@@ -52,7 +50,7 @@ impl<'c: 's, 's> Codegen<'c, 's> for LlzkCodegen<'c, 's> {
     type Error = Error;
 
     fn initialize(state: &'s Self::State) -> Self {
-        let module = llzk_module(Location::unknown(state.context()));
+        let module = llzk_module(Location::unknown(state.context()), Some("haloumi"));
         Self {
             state,
             module,
@@ -67,7 +65,7 @@ impl<'c: 's, 's> Codegen<'c, 's> for LlzkCodegen<'c, 's> {
     ) -> Result<Self::FuncOutput, Self::Error> {
         let name = self.state.params().top_level().unwrap_or("Main");
         log::debug!("Creating Main struct with name '{name}'");
-        self.create_lowering_scope(name, StructIO::from_io(advice_io, instance_io), true)
+        self.create_lowering_scope(name, StructIO::from_io(advice_io, instance_io))
     }
 
     fn define_function(
@@ -76,7 +74,7 @@ impl<'c: 's, 's> Codegen<'c, 's> for LlzkCodegen<'c, 's> {
         inputs: usize,
         outputs: usize,
     ) -> Result<Self::FuncOutput, Self::Error> {
-        self.create_lowering_scope(name, StructIO::from_io_count(inputs, outputs), false)
+        self.create_lowering_scope(name, StructIO::from_io_count(inputs, outputs))
     }
 
     fn on_scope_end(&self, _: Self::FuncOutput) -> Result<(), Self::Error> {
@@ -84,8 +82,6 @@ impl<'c: 's, 's> Codegen<'c, 's> for LlzkCodegen<'c, 's> {
     }
 
     fn generate_output(mut self) -> Result<Self::Output, Self::Error> {
-        let signal = r#struct::helpers::define_signal_struct(self.context())?;
-        self.module.body().insert_operation(0, signal.into());
         verify_operation_with_diags(&self.module.as_operation()).map_err(|err| {
             Error::VerificationFailed {
                 err,
@@ -110,13 +106,13 @@ fn create_pipeline(context: &Context) -> PassManager<'_> {
     let pm = PassManager::new(context);
     pm.nested_under("builtin.module")
         .nested_under("struct.def")
-        .add_pass(llzk_passes::create_field_write_validator_pass());
+        .add_pass(llzk_passes::create_member_write_validator_pass());
     pm.add_pass(melior_passes::create_canonicalizer());
     pm.add_pass(melior_passes::create_cse());
     pm.add_pass(llzk_passes::create_redundant_read_and_write_elimination_pass());
     pm.nested_under("builtin.module")
         .nested_under("struct.def")
-        .add_pass(llzk_passes::create_field_write_validator_pass());
+        .add_pass(llzk_passes::create_member_write_validator_pass());
 
     let opm = pm.as_operation_pass_manager();
     log::debug!("Optimization pipeline: {opm}");

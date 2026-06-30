@@ -747,7 +747,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi"
-version = "0.5.11"
+version = "0.5.12"
 dependencies = [
  "anyhow",
  "ff",
@@ -775,7 +775,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-backend"
-version = "0.5.11"
+version = "0.5.12"
 dependencies = [
  "disjoint",
  "eqv",
@@ -790,7 +790,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-core"
-version = "0.5.11"
+version = "0.5.12"
 dependencies = [
  "eqv",
  "ff",
@@ -807,7 +807,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-ir"
-version = "0.5.11"
+version = "0.5.12"
 dependencies = [
  "bit-set",
  "eqv",
@@ -827,7 +827,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-ir-gen"
-version = "0.5.11"
+version = "0.5.12"
 dependencies = [
  "ff",
  "haloumi-core",
@@ -839,7 +839,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-llzk"
-version = "0.5.11"
+version = "0.5.12"
 dependencies = [
  "anyhow",
  "disjoint",
@@ -871,7 +871,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-lowering"
-version = "0.5.11"
+version = "0.5.12"
 dependencies = [
  "ff",
  "haloumi-core",
@@ -880,7 +880,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-midnight-integration"
-version = "0.5.11"
+version = "0.5.12"
 dependencies = [
  "ff",
  "haloumi-core",
@@ -889,7 +889,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-picus"
-version = "0.5.11"
+version = "0.5.12"
 dependencies = [
  "anyhow",
  "criterion",
@@ -911,7 +911,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-synthesis"
-version = "0.5.11"
+version = "0.5.12"
 dependencies = [
  "bit-set",
  "ff",
@@ -922,7 +922,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-test-circuits"
-version = "0.5.11"
+version = "0.5.12"
 dependencies = [
  "anyhow",
  "ff",

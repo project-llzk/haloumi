@@ -669,7 +669,7 @@ dependencies = [
 [[package]]
 name = "halo2_proofs"
 version = "0.3.2"
-source = "git+https://github.com/project-llzk/halo2.git?branch=haloumi-integration#2b8b674a342c702935c72378247873151009b1be"
+source = "git+https://github.com/project-llzk/halo2.git?branch=haloumi-integration#2af013987b6fa0334f4728daec9336e84ce93fbb"
 dependencies = [
  "blake2b_simd",
  "ff",

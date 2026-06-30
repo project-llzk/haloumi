@@ -42,7 +42,7 @@ impl<F: Field> MulChip<F> {
         let selector = meta.selector();
         let instance = meta.instance_column();
 
-        meta.enable_constant(col_fixed);
+        meta.enable_constant(col_fixed2);
         meta.enable_equality(col_a);
         meta.enable_equality(col_b);
         meta.enable_equality(col_c);

@@ -55,7 +55,7 @@ macro_rules! basic_picus_test {
     ($name:ident, $circuit:expr, $expected:expr, $expected_opt:expr, $ir_params:expr $(,)?) => {
         paste::paste! {
         #[cfg(feature = "picus-backend")]
-        mod [< $name _picus >] {
+        mod [<mdnt_ $name _picus >] {
             use super::*;
             #[test]
             fn no_opt() {

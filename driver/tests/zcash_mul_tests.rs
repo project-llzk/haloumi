@@ -31,7 +31,7 @@ basic_picus_test! {
 basic_picus_test! {
     mul_fixed,
     MulFixedConstraintCircuitSynthesis::default(),
-    include_str!("expected/picus/mul_with_fixed_constraint.picus"),
+    include_str!("expected/picus/mul_with_fixed_constraint_zcash.picus"),
     include_str!("expected/picus/mul_with_fixed_constraint_opt.picus")
 }
 

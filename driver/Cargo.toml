@@ -27,7 +27,8 @@ quickcheck = "1"
 quickcheck_macros = "1"
 rstest = "0.26"
 group = "0.13"
-haloumi-test-circuits = { path = "../support/test-circuits" }
+haloumi-mdnt-test-circuits = { path = "../support/mdnt-test-circuits" }
+haloumi-zcash-test-circuits = { path = "../support/zcash-test-circuits" }
 haloumi-midnight-integration = { path = "../support/midnight" }
 paste = "1"
 anyhow = "1"
@@ -36,6 +37,16 @@ log.workspace = true
 similar-asserts.workspace = true
 mlir-testutils.workspace = true
 llzk.workspace = true
+
+[dev-dependencies.zcash-halo2_proofs]
+git = "https://github.com/project-llzk/halo2.git"
+branch = "haloumi-integration"
+default-features = false
+features = [
+    "region-groups",
+    "haloumi"
+]
+package = "halo2_proofs"
 
 [features]
 default = ["llzk-backend", "picus-backend"]

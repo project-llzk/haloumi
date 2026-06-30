@@ -10,7 +10,8 @@ members = [
   "llzk",
   "driver",
   "support/midnight",
-  "support/test-circuits"
+  "support/mdnt-test-circuits",
+  "support/zcash-test-circuits"
 ]
 resolver = "2"
 
@@ -40,3 +41,7 @@ llzk = { version = "0.5.0", features =["bigint"] }
 halo2curves = "0.7.0"
 similar-asserts = "1.7"
 mlir-testutils = {version = "0.1.0", features = ["similar-asserts"]}
+
+# Patch haloumi dependency of ZCash's Halo2 with the local version for testing.
+[patch.crates-io]
+haloumi = { path = "driver/" }

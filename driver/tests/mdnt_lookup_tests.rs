@@ -11,45 +11,44 @@ use haloumi_ir::stmt::IRStmt;
 use haloumi_ir_gen::lookups::callbacks::LookupError;
 use haloumi_mdnt_test_circuits::lookup;
 use haloumi_midnight_integration::plonk::_Expression;
-#[cfg(feature = "picus-backend")]
-use mdnt_common::picus::basic_picus_test;
+use mdnt_common::basic_test;
 use mdnt_common::synthesis_impl;
 use std::borrow::Cow;
 
 mod mdnt_common;
 
-basic_picus_test! {
+basic_test! {
     lookup_circuit,
     LookupCircuitSynthesis::default(),
-    include_str!("expected/picus/lookup.picus"),
-    include_str!("expected/picus/lookup_opt.picus"),
+    "lookup",
+    "lookup_opt",
     IRGenParams::new()
                         .lookup_callbacks(&LookupCallbackHandler)
 }
 
-basic_picus_test! {
+basic_test! {
     lookup_2x3_circuit,
     Lookup2x3CircuitSynthesis::default(),
-    include_str!("expected/picus/lookup_2x3.picus"),
-    include_str!("expected/picus/lookup_2x3_opt.picus"),
+    "lookup_2x3",
+    "lookup_2x3_opt",
     IRGenParams::new()
                         .lookup_callbacks(&LookupCallbackHandler)
 }
 
-basic_picus_test! {
+basic_test! {
     lookup_2x3_fixed_circuit,
     Lookup2x3FixedCircuitSynthesis::default(),
-    include_str!("expected/picus/lookup_2x3.picus"),
-    include_str!("expected/picus/lookup_2x3_opt.picus"),
+    "lookup_2x3",
+    "lookup_2x3_opt",
     IRGenParams::new()
                         .lookup_callbacks(&LookupCallbackHandler)
 }
 
-basic_picus_test! {
+basic_test! {
     lookup_2x3_zerosel_circuit,
     Lookup2x3ZeroSelCircuitSynthesis::default(),
-    include_str!("expected/picus/lookup_2x3.picus"),
-    include_str!("expected/picus/lookup_2x3_opt.picus"),
+    "lookup_2x3",
+    "lookup_2x3_opt",
     IRGenParams::new()
                         .lookup_callbacks(&LookupCallbackHandler)
 }

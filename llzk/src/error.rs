@@ -12,6 +12,15 @@ pub enum Error {
     /// Raised when an output is missing.
     #[error("Struct is missing output #{0}")]
     MissingOutput(FieldId),
+    /// Raised when an call's member is missing.
+    #[error("Struct is missing callee #{0}")]
+    MissingCalleeMember(usize),
+    /// Raised when an call's member output is missing.
+    #[error("Struct is missing callee's #{0} output #{1}")]
+    MissingCalleeMemberOutput(usize, usize),
+    /// Raised when an call's member is missing.
+    #[error("Missing struct of type #{0}")]
+    MissingStruct(String),
     /// Raised if the constrain function is missing.
     #[error("Constrain function is missing!")]
     MissingConstrainFunc,
@@ -41,6 +50,9 @@ pub enum Error {
         /// Additional context notes.
         note: &'static str,
     },
+    /// Other kinds of errors.
+    #[error("{0}")]
+    Other(String),
 }
 
 impl From<Error> for haloumi_lowering::error::Error {

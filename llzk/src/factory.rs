@@ -103,8 +103,8 @@ impl StructIO {
         Self {
             private_inputs: inputs,
             public_inputs: 0,
-            private_outputs: outputs,
-            public_outputs: 0,
+            private_outputs: 0,
+            public_outputs: outputs,
         }
     }
 }

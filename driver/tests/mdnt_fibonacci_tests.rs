@@ -1,21 +1,21 @@
 use halo2curves::bn256::Fr;
 use haloumi_mdnt_test_circuits::fibonacci;
-use mdnt_common::{picus::basic_picus_test, synthesis_impl};
+use mdnt_common::{basic_test, synthesis_impl};
 
 mod mdnt_common;
 
-basic_picus_test! {
+basic_test! {
     fibonacci_circuit,
     FibonacciCircuitSynthesis::default(),
-    include_str!("expected/picus/fibonacci.picus"),
-    include_str!("expected/picus/fibonacci_opt.picus")
+    "fibonacci",
+    "fibonacci_opt"
 }
 
-basic_picus_test! {
+basic_test! {
     fibonacci_grouped_circuit,
     GroupedFibonacciCircuitSynthesis::default(),
-    include_str!("expected/picus/fibonacci_grouped.picus"),
-    include_str!("expected/picus/fibonacci_grouped_opt.picus")
+    "fibonacci_grouped",
+    "fibonacci_grouped_opt"
 }
 
 synthesis_impl!(

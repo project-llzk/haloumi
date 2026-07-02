@@ -1,93 +1,84 @@
 use halo2curves::bn256::Fr;
 use haloumi::ir::r#gen::IRGenParams;
 use haloumi_mdnt_test_circuits::mul;
-use mdnt_common::llzk::basic_llzk_test;
-use mdnt_common::picus::basic_picus_test;
+use mdnt_common::basic_test;
 use mdnt_common::synthesis_impl;
 
 mod mdnt_common;
 
-basic_picus_test! {
+basic_test! {
     mul_circuit,
     MulCircuitSynthesis::default(),
-    include_str!("expected/picus/mul_circuit.picus"),
-    include_str!("expected/picus/mul_circuit_opt.picus")
+    "mul_circuit",
+    "mul_circuit_opt"
 }
 
-basic_llzk_test! {
-    mul_circuit,
-    MulCircuitSynthesis::default(),
-    include_str!("expected/llzk/mul_circuit.mlir"),
-    include_str!("expected/llzk/mul_circuit_opt.mlir")
-}
-
-basic_picus_test! {
+basic_test! {
     mul_flipped,
     MulFlippedCircuitSynthesis::default(),
-    include_str!("expected/picus/mul_flipped_constraint.picus"),
-    include_str!("expected/picus/mul_flipped_constraint_opt.picus")
+    "mul_flipped_constraint",
+    "mul_flipped_constraint_opt"
 }
 
-basic_picus_test! {
+basic_test! {
     mul_fixed,
     MulFixedConstraintCircuitSynthesis::default(),
-    include_str!("expected/picus/mul_with_fixed_constraint.picus"),
-    include_str!("expected/picus/mul_with_fixed_constraint_opt.picus")
+    "mul_with_fixed_constraint",
+    "mul_with_fixed_constraint_opt"
 }
 
-basic_picus_test! {
+basic_test! {
     recursive_groups,
     RecursiveMulCircuitSynthesis::default(),
-    include_str!("expected/picus/recursive_groups.picus"),
-    include_str!("expected/picus/recursive_groups_opt.picus")
+    "recursive_groups",
+    "recursive_groups_opt"
 }
 
 // This test makes sure that the order in which input and output variables are printed is
 // the same as their declaration order.
-basic_picus_test! {
+basic_test! {
     ten_plus_io,
     TenPlusIOCircuitSynthesis::default(),
-    include_str!("expected/picus/ten_plus_io.picus"),
-    include_str!("expected/picus/ten_plus_io_opt.picus")
+    "ten_plus_io",
+    "ten_plus_io_opt"
 }
 
-basic_picus_test! {
+basic_test! {
     grouped,
     GroupedMulsCircuitSynthesis::default(),
-    include_str!("expected/picus/grouped_muls.picus"),
-    include_str!("expected/picus/grouped_muls_opt.picus")
+    "grouped_muls",
+    "grouped_muls_opt"
 }
 
-basic_picus_test! {
+basic_test! {
     different_bodies,
     DifferentBodiesCircuitSynthesis::default(),
-    include_str!("expected/picus/different_bodies.picus"),
-    include_str!("expected/picus/different_bodies_opt.picus")
+    "different_bodies",
+    "different_bodies_opt"
 }
 
-basic_picus_test! {
+basic_test! {
     same_body,
     SameBodyCircuitSynthesis::default(),
-    include_str!("expected/picus/same_body.picus"),
-    include_str!("expected/picus/same_body_opt.picus")
+    "same_body",
+    "same_body_opt"
 }
 
-basic_picus_test! {
+basic_test! {
     deep_callstack,
     DeepCallstackCircuitSynthesis::default(),
-    include_str!("expected/picus/deep_callstack.picus"),
-    include_str!("expected/picus/deep_callstack_opt.picus")
+    "deep_callstack",
+    "deep_callstack_opt"
 }
 
-basic_picus_test! {
+basic_test! {
     mul_rewriter,
     MulCircuitSynthesis::default(),
-    include_str!("expected/picus/mul_with_rewriter.picus"),
-    include_str!("expected/picus/mul_with_rewriter_opt.picus"),
+    "mul_with_rewriter",
+    "mul_with_rewriter_opt",
     IRGenParams::new().gate_callbacks(&mdnt_common::GC)
 }
 
-#[cfg(feature = "picus-backend")]
 mod mul_inject {
     use crate::ensure_validation;
     use haloumi::{
@@ -107,6 +98,8 @@ mod mul_inject {
 
     const EXPECTED_PICUS: &str = include_str!("expected/picus/mul_inject.picus");
     const EXPECTED_OPT_PICUS: &str = include_str!("expected/picus/mul_inject_opt.picus");
+    const EXPECTED_LLZK: &str = include_str!("expected/llzk/mul_inject.mlir");
+    const EXPECTED_OPT_LLZK: &str = include_str!("expected/llzk/mul_inject_opt.mlir");
 
     fn ir_to_inject<'e>() -> Vec<(
         RegionIndex,
@@ -148,6 +141,7 @@ mod mul_inject {
         resolved
     }
 
+    #[cfg(feature = "picus-backend")]
     #[test]
     fn picus() {
         mdnt_common::setup();
@@ -162,6 +156,7 @@ mod mul_inject {
         );
     }
 
+    #[cfg(feature = "picus-backend")]
     #[test]
     fn opt_picus() {
         mdnt_common::setup();
@@ -178,6 +173,43 @@ mod mul_inject {
             &resolved,
             mdnt_common::picus::opt_picus_params(),
             EXPECTED_OPT_PICUS,
+        );
+    }
+
+    #[cfg(feature = "llzk-backend")]
+    #[test]
+    fn llzk() {
+        mdnt_common::setup();
+        let mut driver = Driver::default();
+        let resolved = generate_ir(&mut driver);
+
+        let ctx = llzk::context::LlzkContext::new();
+        mdnt_common::llzk::check_llzk(
+            &driver,
+            &resolved,
+            mdnt_common::llzk::llzk_params(&ctx),
+            EXPECTED_LLZK,
+        );
+    }
+
+    #[cfg(feature = "llzk-backend")]
+    #[test]
+    fn opt_llzk() {
+        mdnt_common::setup();
+        let mut driver = Driver::default();
+        let mut resolved = generate_ir(&mut driver);
+
+        resolved.constant_fold().unwrap();
+        ensure_validation!(resolved);
+        resolved.canonicalize();
+        ensure_validation!(resolved);
+
+        let ctx = llzk::context::LlzkContext::new();
+        mdnt_common::llzk::check_llzk(
+            &driver,
+            &resolved,
+            mdnt_common::llzk::opt_llzk_params(&ctx),
+            EXPECTED_OPT_LLZK,
         );
     }
 }

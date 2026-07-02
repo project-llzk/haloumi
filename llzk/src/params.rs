@@ -1,3 +1,4 @@
+use haloumi_ir::Prime;
 use llzk::prelude::*;
 use melior::Context;
 
@@ -8,6 +9,7 @@ pub struct LlzkParams<'c> {
     top_level: Option<String>,
     inline: bool,
     optimize: bool,
+    spec: Option<(String, Prime)>,
 }
 
 impl<'c> LlzkParams<'c> {
@@ -18,6 +20,7 @@ impl<'c> LlzkParams<'c> {
             top_level: Default::default(),
             optimize: true,
             inline: false,
+            spec: None,
         }
     }
 
@@ -39,6 +42,11 @@ impl<'c> LlzkParams<'c> {
     /// Returns true if optimization is enabled.
     pub fn optimize(&self) -> bool {
         self.optimize
+    }
+
+    /// Returns the prime field spec, if available.
+    pub fn spec(&self) -> Option<(&str, Prime)> {
+        self.spec.as_ref().map(|(s, p)| (s.as_str(), *p))
     }
 
     // Builder methods
@@ -76,6 +84,18 @@ impl<'c> LlzkParams<'c> {
     /// Disables optimizations.
     pub fn no_optimize(mut self) -> Self {
         self.optimize = false;
+        self
+    }
+
+    /// Sets the prime field spec.
+    pub fn with_prime_field(mut self, name: &str, prime: Prime) -> Self {
+        self.spec = Some((name.to_owned(), prime));
+        self
+    }
+
+    /// Removes the prime field spec.
+    pub fn no_prime_field(mut self) -> Self {
+        self.spec = None;
         self
     }
 }

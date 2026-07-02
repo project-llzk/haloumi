@@ -6,6 +6,8 @@ use melior::{
     ir::{Identifier, Location, Operation, Type},
 };
 
+use crate::state::LlzkCodegenState;
+
 /// Generates a pseudo-filename for use in location metadata in the generated IR.
 pub fn filename(name: &str, section: Option<&str>) -> String {
     use std::fmt::Write;
@@ -35,7 +37,7 @@ pub struct StructIO {
 impl StructIO {
     fn fields<'c>(
         &self,
-        context: &'c Context,
+        state: &LlzkCodegenState<'c>,
         header: &str,
     ) -> impl Iterator<Item = Result<MemberDefOp<'c>, LlzkError>> {
         let public_filename = filename(header, Some("public outputs"));
@@ -49,16 +51,20 @@ impl StructIO {
                 } else {
                     &private_filename
                 };
-                (public, Location::new(context, filename, n, 0))
+                (public, Location::new(state.context(), filename, n, 0))
             })
             .enumerate()
             .map(|(n, (public, loc))| {
                 let name = format!("out_{n}");
-                dialect::r#struct::member(loc, &name, FeltType::new(context), false, public)
+                dialect::r#struct::member(loc, &name, state.felt_type(), false, public)
             })
     }
 
-    pub fn args<'c>(&self, ctx: &'c Context, struct_name: &str) -> Vec<(Type<'c>, Location<'c>)> {
+    pub fn args<'c>(
+        &self,
+        state: &LlzkCodegenState<'c>,
+        struct_name: &str,
+    ) -> Vec<(Type<'c>, Location<'c>)> {
         let public_filename = filename(struct_name, Some("public inputs"));
         let private_filename = filename(struct_name, Some("private inputs"));
         let public_locs = std::iter::repeat(&public_filename)
@@ -69,10 +75,10 @@ impl StructIO {
             .take(self.private_inputs);
         let locs = public_locs
             .chain(private_locs)
-            .map(|(n, filename)| Location::new(ctx, filename, n, 0));
+            .map(|(n, filename)| Location::new(state.context(), filename, n, 0));
 
         let types = std::iter::repeat_n(
-            Type::from(FeltType::new(ctx)),
+            Type::from(state.felt_type()),
             self.public_inputs + self.private_inputs,
         );
 
@@ -110,34 +116,34 @@ impl StructIO {
 }
 
 pub fn create_struct<'c>(
-    context: &'c Context,
+    state: &LlzkCodegenState<'c>,
     struct_name: &str,
     idx: usize,
     io: StructIO,
 ) -> Result<StructDefOp<'c>, LlzkError> {
-    log::debug!("context = {context:?}");
-    let loc = struct_def_op_location(context, struct_name, idx);
+    log::debug!("context = {:?}", state.context());
+    let loc = struct_def_op_location(state.context(), struct_name, idx);
     log::debug!("Struct location: {loc:?}");
     let fields = io
-        .fields(context, struct_name)
+        .fields(state, struct_name)
         .map(|r| r.map(Operation::from));
 
-    let func_args = io.args(context, struct_name);
-    let arg_attrs = io.arg_attrs(context);
+    let func_args = io.args(state, struct_name);
+    let arg_attrs = io.arg_attrs(state.context());
 
     log::debug!("Creating function with arguments: {func_args:?}");
 
     let funcs = [
         dialect::r#struct::helpers::compute_fn(
             loc,
-            StructType::from_str(context, struct_name),
+            StructType::from_str(state.context(), struct_name),
             &func_args,
             Some(&arg_attrs),
         )
         .map(Operation::from),
         dialect::r#struct::helpers::constrain_fn(
             loc,
-            StructType::from_str(context, struct_name),
+            StructType::from_str(state.context(), struct_name),
             &func_args,
             Some(&arg_attrs),
         )

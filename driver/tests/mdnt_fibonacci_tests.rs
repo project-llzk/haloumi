@@ -8,14 +8,14 @@ basic_test! {
     fibonacci_circuit,
     FibonacciCircuitSynthesis::default(),
     "fibonacci",
-    "fibonacci_opt"
+    "fibonacci_opt", Fr
 }
 
 basic_test! {
     fibonacci_grouped_circuit,
     GroupedFibonacciCircuitSynthesis::default(),
     "fibonacci_grouped",
-    "fibonacci_grouped_opt"
+    "fibonacci_grouped_opt", Fr
 }
 
 synthesis_impl!(

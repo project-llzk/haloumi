@@ -2,8 +2,8 @@
 mod inner {
     use ff::PrimeField;
     use haloumi::{
-        driver::Driver, ir::r#gen::IRGenParams, ir::r#gen::circuit::resolved::ResolvedIRCircuit,
-        synthesis::CircuitSynthesis,
+        core::felt::Prime, driver::Driver, ir::r#gen::IRGenParams,
+        ir::r#gen::circuit::resolved::ResolvedIRCircuit, synthesis::CircuitSynthesis,
     };
     use haloumi_llzk::LlzkParams;
     use haloumi_midnight_integration::plonk::{_Expression, ConstraintSystem};
@@ -12,13 +12,15 @@ mod inner {
     use crate::mdnt_common::common_lowering;
 
     #[allow(dead_code)]
-    pub fn llzk_params(ctx: &LlzkContext) -> LlzkParams<'_> {
-        LlzkParams::new(ctx).no_optimize()
+    pub fn llzk_params<F: PrimeField>(ctx: &LlzkContext) -> LlzkParams<'_> {
+        LlzkParams::new(ctx)
+            .no_optimize()
+            .with_prime_field("f", Prime::new::<F>())
     }
 
     #[allow(dead_code)]
-    pub fn opt_llzk_params(ctx: &LlzkContext) -> LlzkParams<'_> {
-        LlzkParams::new(ctx)
+    pub fn opt_llzk_params<F: PrimeField>(ctx: &LlzkContext) -> LlzkParams<'_> {
+        LlzkParams::new(ctx).with_prime_field("f", Prime::new::<F>())
     }
 
     #[allow(dead_code)]
@@ -60,7 +62,7 @@ pub use inner::*;
 
 #[allow(unused_macros)]
 macro_rules! basic_llzk_test {
-    ($name:ident, $circuit:expr, $expected:expr, $expected_opt:expr, $ir_params:expr $(,)?) => {
+    ($name:ident, $circuit:expr, $expected:expr, $expected_opt:expr, $field:ty, $ir_params:expr $(,)?) => {
         paste::paste! {
         #[cfg(feature = "llzk-backend")]
         mod [<mdnt_ $name _llzk >] {
@@ -71,7 +73,7 @@ macro_rules! basic_llzk_test {
                 let ctx = llzk::context::LlzkContext::new();
                 mdnt_common::llzk::llzk_test(
                     $circuit,
-                    mdnt_common::llzk::llzk_params(&ctx),
+                    mdnt_common::llzk::llzk_params::<$field>(&ctx),
                     $ir_params,
                     $expected,
                     false,
@@ -84,7 +86,7 @@ macro_rules! basic_llzk_test {
                 let ctx = llzk::context::LlzkContext::new();
                 mdnt_common::llzk::llzk_test(
                     $circuit,
-                    mdnt_common::llzk::opt_llzk_params(&ctx),
+                    mdnt_common::llzk::opt_llzk_params::<$field>(&ctx),
                     $ir_params,
                     $expected_opt,
                     true,
@@ -93,12 +95,13 @@ macro_rules! basic_llzk_test {
         }
         }
     };
-    ($name:ident, $circuit:expr, $expected:expr, $expected_opt:expr $(,)?) => {
+    ($name:ident, $circuit:expr, $expected:expr, $expected_opt:expr, $field:ty $(,)?) => {
         $crate::mdnt_common::llzk::basic_llzk_test! {
             $name,
             $circuit,
             $expected,
             $expected_opt,
+            $field,
             haloumi::ir::r#gen::IRGenParams::new()
         }
     };

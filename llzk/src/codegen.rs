@@ -34,8 +34,8 @@ impl<'c, 's> LlzkCodegen<'c, 's> {
         name: &str,
         io: StructIO,
     ) -> Result<LlzkStructLowering<'c, 's>, Error> {
-        let s = factory::create_struct(self.context(), name, self.struct_count.next(), io)?;
-        LlzkStructLowering::new(self.context(), self.add_struct(s)?)
+        let s = factory::create_struct(self.state, name, self.struct_count.next(), io)?;
+        LlzkStructLowering::new(self.state, self.add_struct(s)?)
     }
 
     fn context(&self) -> &'c Context {
@@ -50,7 +50,10 @@ impl<'c: 's, 's> Codegen<'c, 's> for LlzkCodegen<'c, 's> {
     type Error = Error;
 
     fn initialize(state: &'s Self::State) -> Self {
-        let module = llzk_module(Location::unknown(state.context()), Some("haloumi"));
+        let mut module = llzk_module(Location::unknown(state.context()), Some("haloumi"));
+        if let Some(spec) = state.spec() {
+            module.add_field_spec(spec);
+        }
         Self {
             state,
             module,

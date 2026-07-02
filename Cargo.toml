@@ -45,3 +45,4 @@ mlir-testutils = {version = "0.1.0", features = ["similar-asserts"]}
 # Patch haloumi dependency of ZCash's Halo2 with the local version for testing.
 [patch.crates-io]
 haloumi = { path = "driver/" }
+llzk = { path = "../llzk-rs/llzk"}

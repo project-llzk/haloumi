@@ -1,5 +1,6 @@
 use crate::error::{Error, UnexpectedTypeError};
 use crate::factory::filename;
+use crate::state::LlzkCodegenState;
 //use backend_err::{Result, backend_err};
 use haloumi_lowering::{ExprLowering, Lowering, Result as LoweringResult, bail_backend};
 use llzk::builder::OpBuilder;
@@ -63,17 +64,17 @@ impl MemberKind<'_> {
         }
     }
 
-    fn member_type<'c>(&self, context: &'c Context) -> Type<'c> {
+    fn member_type<'c>(&self, state: &LlzkCodegenState<'c>) -> Type<'c> {
         match self {
-            MemberKind::Advice { .. } | MemberKind::Fixed { .. } => FeltType::new(context).into(),
-            MemberKind::Callee { name, .. } => StructType::from_str(context, name).into(),
+            MemberKind::Advice { .. } | MemberKind::Fixed { .. } => state.felt_type().into(),
+            MemberKind::Callee { name, .. } => StructType::from_str(state.context(), name).into(),
         }
     }
 }
 
 #[derive(Debug)]
 pub struct LlzkStructLowering<'c, 's> {
-    context: &'c Context,
+    state: &'s LlzkCodegenState<'c>,
     builder: OpBuilder<'c, 'c>,
     struct_op: StructDefOpRefMut<'c, 's>,
     constraints_counter: Rc<Counter>,
@@ -82,9 +83,12 @@ pub struct LlzkStructLowering<'c, 's> {
 }
 
 impl<'c, 's> LlzkStructLowering<'c, 's> {
-    pub fn new(context: &'c Context, struct_op: StructDefOpRefMut<'c, 's>) -> Result<Self, Error> {
+    pub fn new(
+        state: &'s LlzkCodegenState<'c>,
+        struct_op: StructDefOpRefMut<'c, 's>,
+    ) -> Result<Self, Error> {
         let builder = OpBuilder::at_block_end(
-            context,
+            state.context(),
             struct_op
                 .constrain_func()
                 .ok_or(Error::MissingConstrainFunc)?
@@ -93,7 +97,7 @@ impl<'c, 's> LlzkStructLowering<'c, 's> {
                 .ok_or(Error::MissingBlock)?,
         );
         Ok(Self {
-            context,
+            state,
             struct_op,
             builder,
             constraints_counter: Rc::new(Default::default()),
@@ -103,7 +107,7 @@ impl<'c, 's> LlzkStructLowering<'c, 's> {
     }
 
     fn context(&self) -> &'c Context {
-        self.context
+        self.state.context()
     }
 
     fn builder(&self) -> &OpBuilder<'c, 'c> {
@@ -121,7 +125,7 @@ impl<'c, 's> LlzkStructLowering<'c, 's> {
             dialect::r#struct::member(
                 kind.location(self.context(), self.struct_name()),
                 &name,
-                kind.member_type(self.context()),
+                kind.member_type(self.state),
                 false,
                 false,
             )
@@ -188,18 +192,7 @@ impl<'c, 's> LlzkStructLowering<'c, 's> {
     /// Returns the (n+1)-th argument of the constrain function. The index is offset by one because
     /// in the constrain function the first argument is always an instance of the struct.
     fn get_arg(&self, arg_no: ArgNo) -> Result<Value<'c, '_>, Error> {
-        let val = self.get_arg_impl(*arg_no + 1)?;
-        let signal_typ = StructType::from_str(self.context(), "Signal");
-        if val.r#type() == signal_typ.into() {
-            return self.append_expr(dialect::r#struct::readm(
-                self.builder(),
-                Location::unknown(self.context()),
-                FeltType::new(self.context()).into(),
-                val,
-                "reg",
-            )?);
-        }
-        Ok(val)
+        Ok(self.get_arg_impl(*arg_no + 1)?)
     }
 
     fn get_component(&self) -> Result<Value<'c, '_>, Error> {
@@ -231,7 +224,8 @@ impl<'c, 's> LlzkStructLowering<'c, 's> {
     }
 
     fn lower_constant_impl(&self, f: Felt) -> Result<Value<'c, '_>, Error> {
-        let const_attr = FeltConstAttribute::from_biguint(self.context(), f.as_ref(), None);
+        let const_attr =
+            FeltConstAttribute::from_biguint(self.context(), f.as_ref(), self.state.field_name());
         self.append_expr(dialect::felt::constant(
             Location::unknown(self.context()),
             const_attr,

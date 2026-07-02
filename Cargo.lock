@@ -1082,7 +1082,9 @@ checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
 
 [[package]]
 name = "llzk"
-version = "0.5.0"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a196255ac2d61cbfd89f8653caba09dfca95b2fc5bbcc808a627a55c771e473"
 dependencies = [
  "llzk-macro",
  "llzk-sys",
@@ -1097,6 +1099,8 @@ dependencies = [
 [[package]]
 name = "llzk-macro"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "380db9ed7396c5099aee48137fc036f0d622c12646ffeff958c8e0dd224bfdf7"
 dependencies = [
  "convert_case",
  "proc-macro2",
@@ -1107,7 +1111,9 @@ dependencies = [
 
 [[package]]
 name = "llzk-sys"
-version = "30.0.0"
+version = "30.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "722b6d7536cd2d09e8f2af35eb6079472ba4a7eea8d524d05cfc28688ba938a8"
 dependencies = [
  "anyhow",
  "llzk-sys-build-support",
@@ -1117,6 +1123,8 @@ dependencies = [
 [[package]]
 name = "llzk-sys-build-support"
 version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5bf1cd6f37f319be9366795a415a7dbb02e859656ed9e867f7f6d345548a9cad"
 dependencies = [
  "anyhow",
  "bindgen 0.71.1",

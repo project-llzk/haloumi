@@ -126,37 +126,37 @@ jobs:
 
       - name: Run Clippy on `haloumi-core`
         if: always()
-        run: cargo clippy -p haloumi-core --all-targets --all-features -- -Dwarnings
+        run: cargo clippy -p haloumi-core --all-targets --all-features -- -Dwarnings --no-deps
 
       - name: Run Clippy on `haloumi-lowering`
         if: always()
-        run: cargo clippy -p haloumi-lowering --all-targets --all-features -- -Dwarnings
+        run: cargo clippy -p haloumi-lowering --all-targets --all-features -- -Dwarnings --no-deps
 
       - name: Run Clippy on `haloumi-ir`
         if: always()
-        run: cargo clippy -p haloumi-ir --all-targets --all-features -- -Dwarnings
+        run: cargo clippy -p haloumi-ir --all-targets --all-features -- -Dwarnings --no-deps
 
       - name: Run Clippy on `haloumi-synthesis`
         if: always()
-        run: cargo clippy -p haloumi-synthesis --all-targets --all-features -- -Dwarnings
+        run: cargo clippy -p haloumi-synthesis --all-targets --all-features -- -Dwarnings --no-deps
 
       - name: Run Clippy on `haloumi-ir-gen`
         if: always()
-        run: cargo clippy -p haloumi-ir-gen --all-targets --all-features -- -Dwarnings
+        run: cargo clippy -p haloumi-ir-gen --all-targets --all-features -- -Dwarnings --no-deps
 
       - name: Run Clippy on `haloumi-backend`
         if: always()
-        run: cargo clippy -p haloumi-backend --all-targets --all-features -- -Dwarnings
+        run: cargo clippy -p haloumi-backend --all-targets --all-features -- -Dwarnings --no-deps
 
       # TODO: Fix the warnings in this crate before enabling this step.
       # - name: Run Clippy on `haloumi-picus`
       #   if: always()
-      #   run: cargo clippy -p haloumi-picus --all-targets --all-features -- -Dwarnings
+      #   run: cargo clippy -p haloumi-picus --all-targets --all-features -- -Dwarnings --no-deps
 
       - name: Run Clippy on `haloumi-llzk`
         if: always()
-        run: cargo clippy -p haloumi-llzk --all-targets --all-features -- -Dwarnings
+        run: cargo clippy -p haloumi-llzk --all-targets --all-features -- -Dwarnings --no-deps
 
       - name: Run Clippy on `haloumi`
         if: always()
-        run: cargo clippy -p haloumi --all-targets --all-features -- -Dwarnings
+        run: cargo clippy -p haloumi --all-targets --all-features -- -Dwarnings --no-deps

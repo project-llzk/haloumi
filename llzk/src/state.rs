@@ -25,15 +25,23 @@ impl<'c> LlzkCodegenState<'c> {
     }
 
     /// Returns the prime field spec if available.
+    ///
+    /// Only returns a value if the spec was configured with a custom field. If the user configured
+    /// the field with a builtin then this method returns `None` since there's no need for setting
+    /// the `llzk.fields` attribute in the resulting module.
     pub fn spec(&self) -> Option<FieldSpecAttribute<'c>> {
-        self.params.spec().map(|(name, prime)| {
-            FieldSpecAttribute::from_biguint(self.context, name, prime.value())
-        })
+        let spec = self.params.spec()?;
+        let prime = spec.prime()?;
+        Some(FieldSpecAttribute::from_biguint(
+            self.context,
+            spec.name(),
+            prime.value(),
+        ))
     }
 
     /// Returns the field spec name, if available.
     pub fn field_name(&self) -> Option<&str> {
-        self.params.spec().map(|(name, _)| name)
+        self.params.spec().map(|spec| spec.name())
     }
 
     /// Returns the correct felt type based on the spec parameter.
@@ -42,7 +50,7 @@ impl<'c> LlzkCodegenState<'c> {
     /// returns an unspecified `!felt.type`.
     pub fn felt_type(&self) -> FeltType<'c> {
         match self.params.spec() {
-            Some((name, _)) => FeltType::with_field(self.context, name),
+            Some(spec) => FeltType::with_field(self.context, spec.name()),
             None => FeltType::new(self.context),
         }
     }

@@ -171,7 +171,7 @@ macro_rules! synthesis_impl {
 pub(crate) use synthesis_impl;
 
 macro_rules! basic_test {
-    ($name:ident, $circuit:expr, $expected:expr, $expected_opt:expr, $field:ty, $ir_params:expr $(,)?) => {
+    ($name:ident, $circuit:expr, $expected:expr, $expected_opt:expr, $ir_params:expr $(,)?) => {
         $crate::mdnt_common::picus::basic_picus_test! {
             $name,
             $circuit,
@@ -184,17 +184,15 @@ macro_rules! basic_test {
             $circuit,
             include_str!(concat!("expected/llzk/", $expected, ".mlir")),
             include_str!(concat!("expected/llzk/", $expected_opt, ".mlir")),
-            $field,
             $ir_params
         }
     };
-    ($name:ident, $circuit:expr, $expected:expr, $expected_opt:expr, $field:ty $(,)?) => {
+    ($name:ident, $circuit:expr, $expected:expr, $expected_opt:expr $(,)?) => {
         $crate::mdnt_common::basic_test! {
             $name,
             $circuit,
             $expected,
             $expected_opt,
-            $field,
             haloumi::ir::r#gen::IRGenParams::new()
         }
     };

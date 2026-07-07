@@ -18,8 +18,7 @@ basic_llzk_test! {
     mul_circuit,
     MulCircuitSynthesis::default(),
     include_str!("expected/llzk/mul_circuit.mlir"),
-    include_str!("expected/llzk/mul_circuit_opt.mlir"),
-    Fr
+    include_str!("expected/llzk/mul_circuit_opt.mlir")
 }
 
 basic_picus_test! {

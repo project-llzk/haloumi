@@ -2,6 +2,27 @@ use haloumi_ir::Prime;
 use llzk::prelude::*;
 use melior::Context;
 
+/// Stores the parameters for configuring the field
+/// used for the Felt types.
+///
+/// Stores the name of the spec, and, if its not a
+/// builtin, the prime value for defining the spec.
+#[derive(Debug, Clone)]
+pub struct FieldSpecParam {
+    name: String,
+    prime: Option<Prime>,
+}
+
+impl FieldSpecParam {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn prime(&self) -> Option<Prime> {
+        self.prime
+    }
+}
+
 /// Configuration for the LLZK backend.
 #[derive(Clone, Debug)]
 pub struct LlzkParams<'c> {
@@ -9,7 +30,7 @@ pub struct LlzkParams<'c> {
     top_level: Option<String>,
     inline: bool,
     optimize: bool,
-    spec: Option<(String, Prime)>,
+    spec: Option<FieldSpecParam>,
 }
 
 impl<'c> LlzkParams<'c> {
@@ -45,8 +66,8 @@ impl<'c> LlzkParams<'c> {
     }
 
     /// Returns the prime field spec, if available.
-    pub fn spec(&self) -> Option<(&str, Prime)> {
-        self.spec.as_ref().map(|(s, p)| (s.as_str(), *p))
+    pub fn spec(&self) -> Option<&FieldSpecParam> {
+        self.spec.as_ref()
     }
 
     // Builder methods
@@ -89,7 +110,19 @@ impl<'c> LlzkParams<'c> {
 
     /// Sets the prime field spec.
     pub fn with_prime_field(mut self, name: &str, prime: Prime) -> Self {
-        self.spec = Some((name.to_owned(), prime));
+        self.spec = Some(FieldSpecParam {
+            name: name.to_owned(),
+            prime: Some(prime),
+        });
+        self
+    }
+
+    /// Sets the prime field from a builtin spec.
+    pub fn with_builtin_field(mut self, name: &str) -> Self {
+        self.spec = Some(FieldSpecParam {
+            name: name.to_owned(),
+            prime: None,
+        });
         self
     }
 

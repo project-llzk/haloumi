@@ -1,41 +1,41 @@
-module attributes {llzk.fields = [#felt.field<"f", 21888242871839275222246405745257275088548364400416034343698204186575808495617>],llzk.lang = "haloumi"} {
+module attributes { llzk.lang = "halo2"} {
   struct.def @Main {
-    struct.member @out_0 : !felt.type<"f"> {llzk.pub}
-    function.def @compute(%arg0: !felt.type<"f"> {llzk.pub = #llzk.pub}) -> !struct.type<@Main<[]>> attributes {function.allow_non_native_field_ops, function.allow_witness} {
+    struct.member @out_0 : !felt.type<"bn254"> {llzk.pub}
+    function.def @compute(%arg0: !felt.type<"bn254"> {llzk.pub = #llzk.pub}) -> !struct.type<@Main<[]>> attributes {function.allow_non_native_field_ops, function.allow_witness} {
       %self = struct.new : <@Main<[]>>
       function.return %self : !struct.type<@Main<[]>>
     }
-    function.def @constrain(%arg0: !struct.type<@Main<[]>>, %arg1: !felt.type<"f"> {llzk.pub = #llzk.pub}) attributes {function.allow_constraint, function.allow_non_native_field_ops} {
-      %felt_1 = felt.const  1 <"f">
-      %felt_minus_1 = felt.const  21888242871839275222246405745257275088548364400416034343698204186575808495616 <"f">
-      %0 = struct.readm %arg0[@adv_0_0] : <@Main<[]>>, !felt.type<"f">
-      %1 = felt.mul %felt_minus_1, %0 : !felt.type<"f">, !felt.type<"f">
-      %2 = struct.readm %arg0[@adv_1_0] : <@Main<[]>>, !felt.type<"f"> 
-      %3 = felt.neg %2 : !felt.type<"f"> 
-      %4 = felt.add %1, %3 : !felt.type<"f">, !felt.type<"f"> 
-      %5 = felt.mul %felt_1, %4 : !felt.type<"f">, !felt.type<"f">
-      %felt_0 = felt.const  0 <"f">
-      constrain.eq %5, %felt_0 : !felt.type<"f">, !felt.type<"f"> 
-      %felt_1_0 = felt.const  1 <"f">
-      %6 = struct.readm %arg0[@adv_0_0] : <@Main<[]>>, !felt.type<"f"> 
-      %7 = struct.readm %arg0[@adv_1_0] : <@Main<[]>>, !felt.type<"f"> 
-      %8 = felt.mul %6, %7 : !felt.type<"f">, !felt.type<"f"> 
-      %9 = struct.readm %arg0[@adv_2_0] : <@Main<[]>>, !felt.type<"f"> 
-      %10 = felt.neg %9 : !felt.type<"f"> 
-      %11 = felt.add %8, %10 : !felt.type<"f">, !felt.type<"f"> 
-      %12 = felt.mul %felt_1_0, %11 : !felt.type<"f">, !felt.type<"f"> 
-      %felt_0_1 = felt.const  0 <"f">
-      constrain.eq %12, %felt_0_1 : !felt.type<"f">, !felt.type<"f">
-      %13 = struct.readm %arg0[@adv_0_0] : <@Main<[]>>, !felt.type<"f"> 
-      constrain.eq %13, %arg1 : !felt.type<"f">, !felt.type<"f"> 
-      %15 = struct.readm %arg0[@adv_2_0] : <@Main<[]>>, !felt.type<"f"> 
-      %16 = struct.readm %arg0[@out_0] : <@Main<[]>>, !felt.type<"f"> 
-      constrain.eq %15, %16 : !felt.type<"f">, !felt.type<"f"> 
+    function.def @constrain(%arg0: !struct.type<@Main<[]>>, %arg1: !felt.type<"bn254"> {llzk.pub = #llzk.pub}) attributes {function.allow_constraint, function.allow_non_native_field_ops} {
+      %felt_1 = felt.const  1 <"bn254">
+      %felt_minus_1 = felt.const  21888242871839275222246405745257275088548364400416034343698204186575808495616 <"bn254">
+      %0 = struct.readm %arg0[@adv_0_0] : <@Main<[]>>, !felt.type<"bn254">
+      %1 = felt.mul %felt_minus_1, %0 : !felt.type<"bn254">, !felt.type<"bn254">
+      %2 = struct.readm %arg0[@adv_1_0] : <@Main<[]>>, !felt.type<"bn254"> 
+      %3 = felt.neg %2 : !felt.type<"bn254"> 
+      %4 = felt.add %1, %3 : !felt.type<"bn254">, !felt.type<"bn254"> 
+      %5 = felt.mul %felt_1, %4 : !felt.type<"bn254">, !felt.type<"bn254">
+      %felt_0 = felt.const  0 <"bn254">
+      constrain.eq %5, %felt_0 : !felt.type<"bn254">, !felt.type<"bn254"> 
+      %felt_1_0 = felt.const  1 <"bn254">
+      %6 = struct.readm %arg0[@adv_0_0] : <@Main<[]>>, !felt.type<"bn254"> 
+      %7 = struct.readm %arg0[@adv_1_0] : <@Main<[]>>, !felt.type<"bn254"> 
+      %8 = felt.mul %6, %7 : !felt.type<"bn254">, !felt.type<"bn254"> 
+      %9 = struct.readm %arg0[@adv_2_0] : <@Main<[]>>, !felt.type<"bn254"> 
+      %10 = felt.neg %9 : !felt.type<"bn254"> 
+      %11 = felt.add %8, %10 : !felt.type<"bn254">, !felt.type<"bn254"> 
+      %12 = felt.mul %felt_1_0, %11 : !felt.type<"bn254">, !felt.type<"bn254"> 
+      %felt_0_1 = felt.const  0 <"bn254">
+      constrain.eq %12, %felt_0_1 : !felt.type<"bn254">, !felt.type<"bn254">
+      %13 = struct.readm %arg0[@adv_0_0] : <@Main<[]>>, !felt.type<"bn254"> 
+      constrain.eq %13, %arg1 : !felt.type<"bn254">, !felt.type<"bn254"> 
+      %15 = struct.readm %arg0[@adv_2_0] : <@Main<[]>>, !felt.type<"bn254"> 
+      %16 = struct.readm %arg0[@out_0] : <@Main<[]>>, !felt.type<"bn254"> 
+      constrain.eq %15, %16 : !felt.type<"bn254">, !felt.type<"bn254"> 
       function.return
     }
-    struct.member @adv_0_0 : !felt.type<"f"> 
-    struct.member @adv_1_0 : !felt.type<"f"> 
-    struct.member @adv_2_0 : !felt.type<"f"> 
+    struct.member @adv_0_0 : !felt.type<"bn254"> 
+    struct.member @adv_1_0 : !felt.type<"bn254"> 
+    struct.member @adv_2_0 : !felt.type<"bn254"> 
   }
 }
 

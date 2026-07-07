@@ -50,7 +50,7 @@ impl<'c: 's, 's> Codegen<'c, 's> for LlzkCodegen<'c, 's> {
     type Error = Error;
 
     fn initialize(state: &'s Self::State) -> Self {
-        let mut module = llzk_module(Location::unknown(state.context()), Some("haloumi"));
+        let mut module = llzk_module(Location::unknown(state.context()), Some("halo2"));
         if let Some(spec) = state.spec() {
             module.add_field_spec(spec);
         }

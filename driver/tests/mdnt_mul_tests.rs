@@ -10,28 +10,28 @@ basic_test! {
     mul_circuit,
     MulCircuitSynthesis::default(),
     "mul_circuit",
-    "mul_circuit_opt", Fr
+    "mul_circuit_opt"
 }
 
 basic_test! {
     mul_flipped,
     MulFlippedCircuitSynthesis::default(),
     "mul_flipped_constraint",
-    "mul_flipped_constraint_opt", Fr
+    "mul_flipped_constraint_opt"
 }
 
 basic_test! {
     mul_fixed,
     MulFixedConstraintCircuitSynthesis::default(),
     "mul_with_fixed_constraint",
-    "mul_with_fixed_constraint_opt", Fr
+    "mul_with_fixed_constraint_opt"
 }
 
 basic_test! {
     recursive_groups,
     RecursiveMulCircuitSynthesis::default(),
     "recursive_groups",
-    "recursive_groups_opt", Fr
+    "recursive_groups_opt"
 }
 
 // This test makes sure that the order in which input and output variables are printed is
@@ -40,42 +40,42 @@ basic_test! {
     ten_plus_io,
     TenPlusIOCircuitSynthesis::default(),
     "ten_plus_io",
-    "ten_plus_io_opt", Fr
+    "ten_plus_io_opt"
 }
 
 basic_test! {
     grouped,
     GroupedMulsCircuitSynthesis::default(),
     "grouped_muls",
-    "grouped_muls_opt", Fr
+    "grouped_muls_opt"
 }
 
 basic_test! {
     different_bodies,
     DifferentBodiesCircuitSynthesis::default(),
     "different_bodies",
-    "different_bodies_opt", Fr
+    "different_bodies_opt"
 }
 
 basic_test! {
     same_body,
     SameBodyCircuitSynthesis::default(),
     "same_body",
-    "same_body_opt", Fr
+    "same_body_opt"
 }
 
 basic_test! {
     deep_callstack,
     DeepCallstackCircuitSynthesis::default(),
     "deep_callstack",
-    "deep_callstack_opt", Fr
+    "deep_callstack_opt"
 }
 
 basic_test! {
     mul_rewriter,
     MulCircuitSynthesis::default(),
     "mul_with_rewriter",
-    "mul_with_rewriter_opt", Fr,
+    "mul_with_rewriter_opt",
     IRGenParams::new().gate_callbacks(&mdnt_common::GC)
 }
 
@@ -187,7 +187,7 @@ mod mul_inject {
         mdnt_common::llzk::check_llzk(
             &driver,
             &resolved,
-            mdnt_common::llzk::llzk_params::<Fr>(&ctx),
+            mdnt_common::llzk::llzk_params(&ctx),
             EXPECTED_LLZK,
         );
     }
@@ -208,7 +208,7 @@ mod mul_inject {
         mdnt_common::llzk::check_llzk(
             &driver,
             &resolved,
-            mdnt_common::llzk::opt_llzk_params::<Fr>(&ctx),
+            mdnt_common::llzk::opt_llzk_params(&ctx),
             EXPECTED_OPT_LLZK,
         );
     }

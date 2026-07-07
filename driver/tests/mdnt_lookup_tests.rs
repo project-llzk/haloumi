@@ -21,7 +21,7 @@ basic_test! {
     lookup_circuit,
     LookupCircuitSynthesis::default(),
     "lookup",
-    "lookup_opt", Fr,
+    "lookup_opt",
     IRGenParams::new()
                         .lookup_callbacks(&LookupCallbackHandler)
 }
@@ -30,7 +30,7 @@ basic_test! {
     lookup_2x3_circuit,
     Lookup2x3CircuitSynthesis::default(),
     "lookup_2x3",
-    "lookup_2x3_opt", Fr,
+    "lookup_2x3_opt",
     IRGenParams::new()
                         .lookup_callbacks(&LookupCallbackHandler)
 }
@@ -39,7 +39,7 @@ basic_test! {
     lookup_2x3_fixed_circuit,
     Lookup2x3FixedCircuitSynthesis::default(),
     "lookup_2x3",
-    "lookup_2x3_opt", Fr,
+    "lookup_2x3_opt",
     IRGenParams::new()
                         .lookup_callbacks(&LookupCallbackHandler)
 }
@@ -48,7 +48,7 @@ basic_test! {
     lookup_2x3_zerosel_circuit,
     Lookup2x3ZeroSelCircuitSynthesis::default(),
     "lookup_2x3",
-    "lookup_2x3_opt", Fr,
+    "lookup_2x3_opt",
     IRGenParams::new()
                         .lookup_callbacks(&LookupCallbackHandler)
 }

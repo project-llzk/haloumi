@@ -101,10 +101,12 @@ mod mul_inject {
     const EXPECTED_LLZK: &str = include_str!("expected/llzk/mul_inject.mlir");
     const EXPECTED_OPT_LLZK: &str = include_str!("expected/llzk/mul_inject_opt.mlir");
 
-    fn ir_to_inject<'e>() -> Vec<(
+    type InjectedIR<'e> = (
         RegionIndex,
         IRStmt<ExpressionInRow<'e, _Expression<Fr>, Fr>>,
-    )> {
+    );
+
+    fn ir_to_inject<'e>() -> Vec<InjectedIR<'e>> {
         let mut cs = ConstraintSystem::<Fr>::default();
         let config = MulInjectCircuitSynthesis::configure(&mut cs);
         let a = config.col_a.cur();

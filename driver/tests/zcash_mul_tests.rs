@@ -107,7 +107,9 @@ mod mul_inject {
     const EXPECTED_PICUS: &str = include_str!("expected/picus/mul_inject.picus");
     const EXPECTED_OPT_PICUS: &str = include_str!("expected/picus/mul_inject_opt.picus");
 
-    fn ir_to_inject<'e>() -> Vec<(RegionIndex, IRStmt<ExpressionInRow<'e, Expression<Fr>, Fr>>)> {
+    type InjectedIR<'e> = (RegionIndex, IRStmt<ExpressionInRow<'e, Expression<Fr>, Fr>>);
+
+    fn ir_to_inject<'e>() -> Vec<InjectedIR<'e>> {
         let mut cs = ConstraintSystem::<Fr>::default();
         let config = MulInjectCircuitSynthesis::configure(&mut cs);
         let a = AdviceQuery::query_expr(Col::<Adv>::from(config.col_a).index(), 0);

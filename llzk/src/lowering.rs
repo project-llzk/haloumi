@@ -192,7 +192,7 @@ impl<'c, 's> LlzkStructLowering<'c, 's> {
     /// Returns the (n+1)-th argument of the constrain function. The index is offset by one because
     /// in the constrain function the first argument is always an instance of the struct.
     fn get_arg(&self, arg_no: ArgNo) -> Result<Value<'c, '_>, Error> {
-        Ok(self.get_arg_impl(*arg_no + 1)?)
+        self.get_arg_impl(*arg_no + 1)
     }
 
     fn get_component(&self) -> Result<Value<'c, '_>, Error> {
@@ -470,7 +470,7 @@ impl ExprLowering for LlzkStructLowering<'_, '_> {
                     .get(&callee)
                     .ok_or(Error::MissingCalleeMember(callee))?;
                 let member = self.get_cell_member(MemberKind::Callee {
-                    name: &member_name,
+                    name: member_name,
                     id: callee,
                 })?;
                 let member_type =

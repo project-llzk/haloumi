@@ -1,4 +1,4 @@
-module attributes { llzk.lang = "halo2"} {
+module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>> } {
   struct.def @mul_many {
     struct.member @out_0 : !felt.type<"bn254"> {llzk.pub}
     function.def @compute(%arg0: !felt.type<"bn254">, %arg1: !felt.type<"bn254">) -> !struct.type<@mul_many<[]>> attributes {function.allow_non_native_field_ops, function.allow_witness} {

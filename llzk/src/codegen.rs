@@ -41,6 +41,15 @@ impl<'c, 's> LlzkCodegen<'c, 's> {
     fn context(&self) -> &'c Context {
         self.state.context()
     }
+
+    fn set_main_struct(&self, name: &str) {
+        // Because we need a mutable reference but we only have `&self`.
+        let mut op = unsafe { OperationRefMut::from_raw(self.module.as_operation().to_raw()) };
+        op.set_attribute(
+            *llzk::prelude::MAIN_ATTR_NAME,
+            TypeAttribute::new(StructType::from_str(self.context(), name).into()).into(),
+        );
+    }
 }
 
 impl<'c: 's, 's> Codegen<'c, 's> for LlzkCodegen<'c, 's> {
@@ -68,6 +77,7 @@ impl<'c: 's, 's> Codegen<'c, 's> for LlzkCodegen<'c, 's> {
     ) -> Result<Self::FuncOutput, Self::Error> {
         let name = self.state.params().top_level().unwrap_or("Main");
         log::debug!("Creating Main struct with name '{name}'");
+        self.set_main_struct(name);
         self.create_lowering_scope(name, StructIO::from_io(advice_io, instance_io))
     }
 

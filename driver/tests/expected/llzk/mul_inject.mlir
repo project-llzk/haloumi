@@ -1,4 +1,4 @@
-module attributes { llzk.lang = "halo2"} {
+module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>> } {
   struct.def @Main {
     struct.member @out_0 : !felt.type<"bn254"> {llzk.pub}
     struct.member @out_1 : !felt.type<"bn254"> {llzk.pub}

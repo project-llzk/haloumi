@@ -1,10 +1,9 @@
-use ff::Field;
+use ff::{Field, PrimeField};
 use halo2_proofs::circuit::{AssignedCell, Layouter, SimpleFloorPlanner, Value};
 use halo2_proofs::plonk::{
     Advice, Circuit, Column, ConstraintSystem, Error, Fixed, Instance, Selector, TableColumn,
 };
 use halo2_proofs::poly::Rotation;
-use std::iter;
 use std::marker::PhantomData;
 
 #[derive(Debug, Clone)]
@@ -26,7 +25,7 @@ struct Lookup2x3Chip<F: Field> {
     _marker: PhantomData<F>,
 }
 
-impl<F: Field> Lookup2x3Chip<F> {
+impl<F: PrimeField> Lookup2x3Chip<F> {
     pub fn construct(config: Lookup2x3Config) -> Self {
         Self {
             config,
@@ -72,10 +71,8 @@ impl<F: Field> Lookup2x3Chip<F> {
         }
     }
 
-    // Utility function for creating a field element from a native value. Complexity is O(n) where
-    // n is the value of the number so don't use very large numbers with this.
     fn f(&self, n: usize) -> Value<F> {
-        Value::known(iter::repeat(F::ONE).take(n).sum())
+        Value::known(F::from_u128(n as u128))
     }
 
     #[allow(clippy::type_complexity)]
@@ -161,7 +158,7 @@ impl<F: Field> Lookup2x3Chip<F> {
 #[derive(Default)]
 pub struct Lookup2x3Circuit<F>(pub PhantomData<F>);
 
-impl<F: Field> Circuit<F> for Lookup2x3Circuit<F> {
+impl<F: PrimeField> Circuit<F> for Lookup2x3Circuit<F> {
     type Config = Lookup2x3Config;
     type FloorPlanner = SimpleFloorPlanner;
 

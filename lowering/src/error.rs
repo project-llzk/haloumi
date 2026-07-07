@@ -14,13 +14,13 @@ pub enum Error {
     /// Error emitted by implementations of [`LowerableStmt`](crate::lowerable::LowerableStmt) or
     /// [`LowerableExpr`](crate::lowerable::LowerableExpr).
     ///
-    /// Use [`lowering_err!`] to easily create this kind of error.
+    /// Use [`lowering_err!`](crate::lowering_err) to easily create this kind of error.
     #[error("Lowering error")]
     Lowering(Arc<dyn std::error::Error>),
     /// Error emitted by implementations of [`Lowering`](crate::Lowering) or
     /// [`ExprLowering`](crate::ExprLowering).
     ///
-    /// Use [`backend_err!`] to easily create this kind of error.
+    /// Use [`backend_err!`](crate::backend_err) to easily create this kind of error.
     #[error("Backend error")]
     Backend(Arc<dyn std::error::Error>),
 }

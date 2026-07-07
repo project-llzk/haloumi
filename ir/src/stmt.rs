@@ -103,8 +103,10 @@ impl<T: PartialEq> PartialEq for IRStmt<T> {
     /// inside.
     ///
     /// For example:
+    /// ```text
     ///     Seq([a, Seq([b, c])]) == Seq([a, b, c])
     ///     a == Seq([a])
+    /// ```
     fn eq(&self, other: &Self) -> bool {
         std::iter::zip(self.iter(), other.iter()).all(|(lhs, rhs)| match (&lhs.0, &rhs.0) {
             (IRStmtImpl::ConstraintCall(lhs), IRStmtImpl::ConstraintCall(rhs)) => lhs.eq(rhs),

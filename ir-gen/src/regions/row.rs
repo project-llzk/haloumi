@@ -91,7 +91,7 @@ impl<'io, 'fq, F: Field> Row<'io, 'fq, F> {
 
     /// Resolves the query of the given column type.
     ///
-    /// If the cell was detected as part of the IO returns [`FuncIO::Arg`] or [`FuncIO::Field`].
+    /// If the cell was detected as part of the IO returns [`FuncIO::Arg`] or [`FuncIO::Output`].
     /// Otherwise returns the fallback value if given. Otherwise fails.
     fn resolve<C: ColumnType>(
         &self,

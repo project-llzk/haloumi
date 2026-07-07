@@ -81,7 +81,7 @@ impl<'e, E: Clone, F> ExpressionInRow<'e, E, F> {
     }
 
     /// Creates a [`ScopedExpression`] scoped by a
-    /// [`RegionRow`](crate::regions::region_row::RegionRow).
+    /// [`RegionRow`].
     pub(crate) fn scoped_in_region_row<'r>(
         self,
         region: RegionData<'r>,

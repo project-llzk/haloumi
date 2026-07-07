@@ -18,7 +18,7 @@ use midnight_proofs::{
 use crate::circuit::groups::_RegionsGroup;
 use crate::plonk::{_Advice, _Any, _Column, _Fixed, _Selector, ConstraintSystem};
 
-/// Implementation of [`Assignment`] compatible with [`Synthesizer`].
+/// Implementation of [`Assignment`] compatible with [`SynthesizerLike`].
 #[derive(Debug)]
 pub struct SynthesizerAssignment<'a, F: Field, S: SynthesizerLike<F>> {
     synthetizer: &'a mut S,

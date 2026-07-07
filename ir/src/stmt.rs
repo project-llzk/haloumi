@@ -229,7 +229,7 @@ impl<T> IRStmt<T> {
 
     /// Prepends a comment to the statement.
     pub fn with_comment(self, comment: String) -> Self {
-        let meta = self.1.clone();
+        let meta = self.1;
         Self(
             IRStmtImpl::BlockComment(BlockComment::new(Some(comment), self)),
             meta,

@@ -1064,7 +1064,7 @@ mod tests {
 
     fn expected_fragment(cfg: &FragmentCfg, frag: &str) -> String {
         format!(
-            r#"module attributes {{llzk.lang = "haloumi"}} {{
+            r#"module attributes {{llzk.lang = "halo2", llzk.main = !struct.type<@{name}<[]>>}} {{
   struct.def @{name} {{
     {fields}
     function.def @compute({inputs}) -> !struct.type<@{name}<[]>> attributes {{function.allow_non_native_field_ops, function.allow_witness}} {{

@@ -23,6 +23,8 @@ thiserror.workspace = true
 
 [dev-dependencies]
 simplelog = {version = "0.12", features = ["test"] }
+# Set to 0.3.45 since that's the last version compatible with Rust 1.85 
+time = "0.3.45"
 quickcheck = "1"
 quickcheck_macros = "1"
 rstest = "0.26"

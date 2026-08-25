@@ -39,16 +39,6 @@ similar-asserts.workspace = true
 mlir-testutils.workspace = true
 llzk.workspace = true
 
-[dev-dependencies.zcash-halo2_proofs]
-git = "https://github.com/project-llzk/halo2.git"
-branch = "haloumi-integration"
-default-features = false
-features = [
-    "region-groups",
-    "haloumi"
-]
-package = "halo2_proofs"
-
 [features]
 default = ["llzk-backend", "picus-backend"]
 llzk-backend = ["dep:haloumi-llzk"]

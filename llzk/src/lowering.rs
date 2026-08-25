@@ -1,6 +1,7 @@
 use crate::error::{Error, UnexpectedTypeError};
-use crate::factory::filename;
+use crate::factory::{MemberKind, StructIO, filename};
 use crate::state::LlzkCodegenState;
+use haloumi_backend::lowering::CallTracker;
 //use backend_err::{Result, backend_err};
 use haloumi_lowering::{ExprLowering, Lowering, Result as LoweringResult, bail_backend};
 use llzk::builder::OpBuilder;
@@ -15,8 +16,7 @@ use melior::{
     ir::{Location, Operation, OperationRef, Type, Value},
 };
 use mlir_sys::MlirValue;
-use std::cell::RefCell;
-use std::collections::HashMap;
+use num_bigint::BigUint;
 use std::rc::Rc;
 
 use super::counter::Counter;
@@ -24,53 +24,8 @@ use super::extras::{block_list, operations_list};
 use haloumi_core::{
     cmp::CmpOp,
     felt::Felt,
-    slot::{Slot as FuncIO, arg::ArgNo, output::OutputId as FieldId},
+    slot::{Slot, arg::ArgNo, output::OutputId as FieldId},
 };
-
-/// Types of members the circuit could have.
-enum MemberKind<'s> {
-    /// Advice cells.
-    Advice { col: usize, row: usize },
-    /// Fixed cells.
-    Fixed { col: usize, row: usize },
-    /// Subcomponents called by the circuit.
-    Callee { name: &'s str, id: usize },
-}
-
-impl MemberKind<'_> {
-    /// String representation of the member's name.
-    fn member_name(&self) -> String {
-        match self {
-            MemberKind::Advice { col, row } => format!("adv_{col}_{row}"),
-            MemberKind::Fixed { col, row } => format!("fix_{col}_{row}"),
-            MemberKind::Callee { name, id } => format!("{name}_{id}"),
-        }
-    }
-
-    fn location<'c>(&self, context: &'c Context, struct_name: &str) -> Location<'c> {
-        match self {
-            MemberKind::Advice { col, row } => {
-                let filename = filename(struct_name, Some("advice cell"));
-                Location::new(context, &filename, *col, *row)
-            }
-            MemberKind::Fixed { col, row } => {
-                let filename = filename(struct_name, Some("fixed cell"));
-                Location::new(context, &filename, *col, *row)
-            }
-            MemberKind::Callee { name, id } => {
-                let filename = filename(struct_name, Some(&format!("subgroup '{name}'")));
-                Location::new(context, &filename, *id, 0)
-            }
-        }
-    }
-
-    fn member_type<'c>(&self, state: &LlzkCodegenState<'c>) -> Type<'c> {
-        match self {
-            MemberKind::Advice { .. } | MemberKind::Fixed { .. } => state.felt_type().into(),
-            MemberKind::Callee { name, .. } => StructType::from_str(state.context(), name).into(),
-        }
-    }
-}
 
 #[derive(Debug)]
 pub struct LlzkStructLowering<'c, 's> {
@@ -78,14 +33,15 @@ pub struct LlzkStructLowering<'c, 's> {
     builder: OpBuilder<'c, 'c>,
     struct_op: StructDefOpRefMut<'c, 's>,
     constraints_counter: Rc<Counter>,
-    callees_counter: Rc<Counter>,
-    callee_names: Rc<RefCell<HashMap<usize, String>>>,
+    callees_counter: CallTracker,
+    io: StructIO,
 }
 
 impl<'c, 's> LlzkStructLowering<'c, 's> {
     pub fn new(
         state: &'s LlzkCodegenState<'c>,
         struct_op: StructDefOpRefMut<'c, 's>,
+        io: StructIO,
     ) -> Result<Self, Error> {
         let builder = OpBuilder::at_block_end(
             state.context(),
@@ -101,8 +57,8 @@ impl<'c, 's> LlzkStructLowering<'c, 's> {
             struct_op,
             builder,
             constraints_counter: Rc::new(Default::default()),
-            callees_counter: Rc::new(Default::default()),
-            callee_names: Rc::new(Default::default()),
+            callees_counter: Default::default(),
+            io,
         })
     }
 
@@ -122,13 +78,7 @@ impl<'c, 's> LlzkStructLowering<'c, 's> {
         let name = kind.member_name();
         Ok(self.struct_op.find_or_create_member_def(&name, || {
             log::debug!("Creating member named '@{name}'");
-            dialect::r#struct::member(
-                kind.location(self.context(), self.struct_name()),
-                &name,
-                kind.member_type(self.state),
-                false,
-                false,
-            )
+            kind.create_member_op(self.state, self.struct_name())
         })?)
     }
 
@@ -223,21 +173,38 @@ impl<'c, 's> LlzkStructLowering<'c, 's> {
         )?)
     }
 
-    fn lower_constant_impl(&self, f: Felt) -> Result<Value<'c, '_>, Error> {
+    fn lower_constant_impl(&self, f: &BigUint) -> Result<Value<'c, '_>, Error> {
         let const_attr =
-            FeltConstAttribute::from_biguint(self.context(), f.as_ref(), self.state.field_name());
+            FeltConstAttribute::from_biguint(self.context(), f, self.state.field_name());
         self.append_expr(dialect::felt::constant(
             Location::unknown(self.context()),
             const_attr,
         )?)
     }
 
-    fn create_assert_op(&self, expr: Value<'c, '_>) -> Result<Operation<'c>, Error> {
-        Ok(dialect::bool::assert(
-            Location::unknown(self.context()),
-            expr,
-            None,
-        )?)
+    /// Generate an assertion as a constraint to 0.
+    ///
+    /// The type of `expr` must be `i1`. That expression is then
+    /// negated and converted into a felt. Then emit a constraint that
+    /// that felt is equal to 0.
+    fn create_assert_op(&self, expr: Value<'c, '_>) -> LoweringResult<Operation<'c>> {
+        let location = Location::unknown(self.context());
+        let i1 = Type::from(IntegerType::new(self.context(), 1));
+        if expr.r#type() != i1 {
+            bail_backend!(
+                UnexpectedTypeError::new(i1, expr.r#type())
+                    .with_context("Failed to assert expression")
+            );
+        }
+        let not_expr =
+            self.append_expr(dialect::bool::not(location, expr).map_err(Error::Llzk)?)?;
+        let as_felt = self.append_expr(dialect::cast::tofelt(
+            location,
+            not_expr,
+            Some(self.state.felt_type()),
+        ))?;
+        let zero = self.lower_constant_impl(&BigUint::ZERO)?;
+        Ok(dialect::constrain::eq(location, as_felt, zero))
     }
 
     fn create_bin_op<E>(
@@ -323,7 +290,7 @@ impl Lowering for LlzkStructLowering<'_, '_> {
                         o.name()
                             .as_string_ref()
                             .as_str()
-                            .map(|op_name| matches!(op_name, "constrain.eq" | "bool.assert"))
+                            .map(|op_name| matches!(op_name, "constrain.eq"))
                             .unwrap_or_default()
                     })
                     .count()
@@ -341,12 +308,12 @@ impl Lowering for LlzkStructLowering<'_, '_> {
         &self,
         name: &str,
         inputs: &[Self::CellOutput],
-        _outputs: &[FuncIO],
-    ) -> LoweringResult<()> {
+        output_count: usize,
+    ) -> LoweringResult<Vec<Slot>> {
         let id = self.callees_counter.next();
         let kind = MemberKind::Callee { name, id };
-        self.callee_names.borrow_mut().insert(id, name.to_owned());
-        let args = std::iter::once(self.read_field(self.get_cell_member(kind)?)?)
+        let subcmp = self.read_field(self.get_cell_member(kind)?)?;
+        let args = std::iter::once(subcmp)
             .chain(inputs.iter().map(|i| i.into()))
             .collect::<Vec<_>>();
         let ret: [Type; 0] = [];
@@ -361,10 +328,11 @@ impl Lowering for LlzkStructLowering<'_, '_> {
             )
             .map_err(Error::Llzk)?,
         )?;
-        Ok(())
+
+        Ok(Slot::call_outputs(id, output_count))
     }
 
-    fn generate_assume_deterministic(&self, _func_io: FuncIO) -> LoweringResult<()> {
+    fn generate_assume_deterministic(&self, _func_io: Slot) -> LoweringResult<()> {
         // If the final target is picus generate a 'picus.assume_deterministic' op. Otherwise do nothing.
         todo!(
             "There isn't yet a construct in LLZK that supports the 'assume_deterministic' statement"
@@ -415,7 +383,7 @@ impl ExprLowering for LlzkStructLowering<'_, '_> {
     }
 
     fn lower_constant(&self, f: Felt) -> LoweringResult<Self::CellOutput> {
-        wrap! {self.lower_constant_impl(f)}
+        wrap! {self.lower_constant_impl(&f)}
     }
 
     fn lower_eq(
@@ -442,37 +410,30 @@ impl ExprLowering for LlzkStructLowering<'_, '_> {
         wrap!(self.append_expr(self.create_bin_op(dialect::bool::or, lhs.into(), rhs.into())?))
     }
 
-    fn lower_function_input(&self, i: usize) -> FuncIO {
+    fn lower_function_input(&self, i: usize) -> Slot {
         ArgNo::from(i).into()
     }
 
-    fn lower_function_output(&self, o: usize) -> FuncIO {
+    fn lower_function_output(&self, o: usize) -> Slot {
         FieldId::from(o).into()
     }
 
     fn lower_funcio<IO>(&self, io: IO) -> LoweringResult<Self::CellOutput>
     where
-        IO: Into<FuncIO>,
+        IO: Into<Slot>,
     {
         match io.into() {
-            FuncIO::Arg(arg_no) => wrap!(self.get_arg(arg_no)),
-            FuncIO::Output(field_id) => wrap!(self.read_field(self.get_output(field_id)?)),
-            FuncIO::Advice(cell) => {
+            Slot::Arg(arg_no) => wrap!(self.get_arg(arg_no)),
+            Slot::Output(field_id) => wrap!(self.read_field(self.get_output(field_id)?)),
+            Slot::Advice(cell) => {
                 wrap!(self.read_field(self.get_adv_cell(cell.col(), cell.row())?))
             }
-            FuncIO::Fixed(cell) => {
+            Slot::Fixed(cell) => {
                 wrap!(self.read_field(self.get_fix_cell(cell.col(), cell.row())?))
             }
-            FuncIO::TableLookup(_, _, _, _, _) => todo!(),
-            FuncIO::CallOutput(callee, output_idx) => {
-                let names = self.callee_names.borrow();
-                let member_name = names
-                    .get(&callee)
-                    .ok_or(Error::MissingCalleeMember(callee))?;
-                let member = self.get_cell_member(MemberKind::Callee {
-                    name: member_name,
-                    id: callee,
-                })?;
+            Slot::TableLookup(_, _, _, _, _) => todo!(),
+            Slot::CallOutput(callee, output_idx) => {
+                let member = self.get_cell_member(self.io.callee(callee)?)?;
                 let member_type =
                     StructType::try_from(member.member_type()).map_err(Error::Mlir)?;
                 let parent = self.struct_op.parent_operation().ok_or_else(|| {
@@ -494,8 +455,8 @@ impl ExprLowering for LlzkStructLowering<'_, '_> {
                 let member_value = self.read_field(member)?;
                 wrap!(self.read_callee_output(member_output, member_value))
             }
-            FuncIO::Temp(_) => todo!(),
-            FuncIO::Challenge(_, _, _) => todo!(),
+            Slot::Temp(_) => todo!(),
+            Slot::Challenge(_, _, _) => todo!(),
         }
     }
 
@@ -674,8 +635,8 @@ mod tests {
             r"%0 = struct.readm %self[@adv_1_5] : <@Main<[]>>, !felt.type
               %1 = struct.readm %self[@fix_2_3] : <@Main<[]>>, !felt.type",
             |l| {
-                l.lower_funcio(FuncIO::advice_abs(1, 5))?;
-                l.lower_funcio(FuncIO::fixed_abs(2, 3))?;
+                l.lower_funcio(Slot::advice_abs(1, 5))?;
+                l.lower_funcio(Slot::fixed_abs(2, 3))?;
                 Ok(())
             },
         )
@@ -961,11 +922,11 @@ mod tests {
         let advice_io = cfg.advice_io();
         let instance_io = cfg.instance_io();
         let s = if cfg.is_main {
-            codegen.define_main_function(&advice_io, &instance_io)
+            codegen.define_main_function(&advice_io, &instance_io, [])
         } else {
             assert_eq!(cfg.n_public_inputs, 0);
             assert_eq!(cfg.n_public_outputs, 0);
-            codegen.define_function(cfg.struct_name, cfg.n_inputs, cfg.n_outputs)
+            codegen.define_function(cfg.struct_name, cfg.n_inputs, cfg.n_outputs, [])
         }
         .unwrap();
         test(&s).unwrap();

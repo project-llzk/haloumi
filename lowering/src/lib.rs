@@ -48,12 +48,14 @@ pub trait Lowering: ExprLowering {
     fn generate_assume_deterministic(&self, slot: Slot) -> Result<()>;
 
     /// Generates a call to another group.
+    ///
+    /// Returns a list of slots referencing the output result of calling the group.
     fn generate_call(
         &self,
         name: &str,
         selectors: &[Self::CellOutput],
-        outputs: &[Slot],
-    ) -> Result<()>;
+        output_count: usize,
+    ) -> Result<Vec<Slot>>;
 
     /// Generates an assertion using the given expression.
     ///

@@ -1,6 +1,6 @@
 use crate::traits::{Canonicalize, ConstantFolding};
 use eqv::{EqvRelation, equiv};
-use haloumi_core::{eqv::SymbolicEqv, slot::Slot};
+use haloumi_core::{cmp::CmpOp, eqv::SymbolicEqv, slot::Slot};
 use haloumi_lowering::{
     Lowering,
     lowerable::{LowerableExpr, LowerableStmt},
@@ -18,10 +18,12 @@ impl<T> Call<T> {
         inputs: impl IntoIterator<Item = T>,
         outputs: impl IntoIterator<Item = Slot>,
     ) -> Self {
+        let outputs = outputs.into_iter().collect::<Vec<_>>();
+        assert!(outputs.iter().all(|f| matches!(f, Slot::Temp(_))));
         Self {
             callee: callee.as_ref().to_owned(),
             inputs: inputs.into_iter().collect(),
-            outputs: outputs.into_iter().collect(),
+            outputs,
         }
     }
 
@@ -116,7 +118,13 @@ impl<I: LowerableExpr> LowerableStmt for Call<I> {
             .into_iter()
             .map(|i| i.lower(l))
             .collect::<Result<Vec<_>, _>>()?;
-        l.generate_call(self.callee.as_str(), &inputs, &self.outputs)
+        let slots = l.generate_call(self.callee.as_str(), &inputs, self.outputs.len())?;
+        for (output, slot) in std::iter::zip(self.outputs, slots) {
+            let output = l.lower_funcio(output)?;
+            let slot = l.lower_funcio(slot)?;
+            l.generate_constraint(CmpOp::Eq, &output, &slot)?;
+        }
+        Ok(())
     }
 }
 

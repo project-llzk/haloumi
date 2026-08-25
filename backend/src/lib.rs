@@ -5,5 +5,6 @@
 
 mod backend;
 pub mod codegen;
+pub mod lowering;
 
 pub use backend::Backend;

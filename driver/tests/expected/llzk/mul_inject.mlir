@@ -86,27 +86,55 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>> } {
       %48 = struct.readm %arg0[@adv_0_0] : <@Main<[]>>, !felt.type<"bn254">
       %felt_const_1000 = felt.const  1000 <"bn254">
       %49 = bool.cmp lt(%48, %felt_const_1000) : !felt.type<"bn254">, !felt.type<"bn254">
-      bool.assert %49
+      %t49_0 = bool.not %49 : i1
+      %t49_1 = cast.tofelt %t49_0 : i1, !felt.type<"bn254">
+      %felt_const_0_12 = felt.const  0 : <"bn254">
+      constrain.eq %t49_1, %felt_const_0_12 : !felt.type<"bn254">, !felt.type<"bn254">
       %50 = struct.readm %arg0[@adv_0_1] : <@Main<[]>>, !felt.type<"bn254">
       %felt_const_1000_12 = felt.const  1000 <"bn254">
       %51 = bool.cmp ge(%50, %felt_const_1000_12) : !felt.type<"bn254">, !felt.type<"bn254">
-      bool.assert %51
+      
+      %t51_0 = bool.not %51 : i1
+      %t51_1 = cast.tofelt %t51_0 : i1, !felt.type<"bn254">
+      %felt_const_0_51 = felt.const  0 : <"bn254">
+      constrain.eq %t51_1, %felt_const_0_51 : !felt.type<"bn254">, !felt.type<"bn254">
+
       %52 = struct.readm %arg0[@adv_0_2] : <@Main<[]>>, !felt.type<"bn254">
       %felt_const_1000_13 = felt.const  1000 <"bn254">
       %53 = bool.cmp lt(%52, %felt_const_1000_13) : !felt.type<"bn254">, !felt.type<"bn254">
-      bool.assert %53
+      
+      %t53_0 = bool.not %53 : i1
+      %t53_1 = cast.tofelt %t53_0 : i1, !felt.type<"bn254">
+      %felt_const_0_53 = felt.const  0 : <"bn254">
+      constrain.eq %t53_1, %felt_const_0_53 : !felt.type<"bn254">, !felt.type<"bn254">
+
       %54 = struct.readm %arg0[@adv_0_3] : <@Main<[]>>, !felt.type<"bn254">
       %felt_const_1000_14 = felt.const  1000 <"bn254">
       %55 = bool.cmp ge(%54, %felt_const_1000_14) : !felt.type<"bn254">, !felt.type<"bn254">
-      bool.assert %55
+      
+      %t55_0 = bool.not %55 : i1
+      %t55_1 = cast.tofelt %t55_0 : i1, !felt.type<"bn254">
+      %felt_const_0_55 = felt.const  0 : <"bn254">
+      constrain.eq %t55_1, %felt_const_0_55 : !felt.type<"bn254">, !felt.type<"bn254">
+
       %56 = struct.readm %arg0[@adv_0_4] : <@Main<[]>>, !felt.type<"bn254">
       %felt_const_1000_15 = felt.const  1000 <"bn254">
       %57 = bool.cmp lt(%56, %felt_const_1000_15) : !felt.type<"bn254">, !felt.type<"bn254">
-      bool.assert %57
+      
+      %t57_0 = bool.not %57 : i1
+      %t57_1 = cast.tofelt %t57_0 : i1, !felt.type<"bn254">
+      %felt_const_0_57 = felt.const  0 : <"bn254">
+      constrain.eq %t57_1, %felt_const_0_57 : !felt.type<"bn254">, !felt.type<"bn254">
+
       %58 = struct.readm %arg0[@adv_0_5] : <@Main<[]>>, !felt.type<"bn254">
       %felt_const_1000_16 = felt.const  1000 <"bn254">
       %59 = bool.cmp ge(%58, %felt_const_1000_16) : !felt.type<"bn254">, !felt.type<"bn254">
-      bool.assert %59
+      
+      %t59_0 = bool.not %59 : i1
+      %t59_1 = cast.tofelt %t59_0 : i1, !felt.type<"bn254">
+      %felt_const_0_59 = felt.const  0 : <"bn254">
+      constrain.eq %t59_1, %felt_const_0_59 : !felt.type<"bn254">, !felt.type<"bn254">
+
       function.return
     }
     struct.member @adv_0_0 : !felt.type<"bn254">

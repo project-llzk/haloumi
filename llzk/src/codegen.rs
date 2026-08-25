@@ -34,8 +34,8 @@ impl<'c, 's> LlzkCodegen<'c, 's> {
         name: &str,
         io: StructIO,
     ) -> Result<LlzkStructLowering<'c, 's>, Error> {
-        let s = factory::create_struct(self.state, name, self.struct_count.next(), io)?;
-        LlzkStructLowering::new(self.state, self.add_struct(s)?)
+        let s = factory::create_struct(self.state, name, self.struct_count.next(), &io)?;
+        LlzkStructLowering::new(self.state, self.add_struct(s)?, io)
     }
 
     fn context(&self) -> &'c Context {
@@ -74,11 +74,12 @@ impl<'c: 's, 's> Codegen<'c, 's> for LlzkCodegen<'c, 's> {
         &self,
         advice_io: &AdviceIO,
         instance_io: &InstanceIO,
+        callees: impl IntoIterator<Item = String>,
     ) -> Result<Self::FuncOutput, Self::Error> {
         let name = self.state.params().top_level().unwrap_or("Main");
         log::debug!("Creating Main struct with name '{name}'");
         self.set_main_struct(name);
-        self.create_lowering_scope(name, StructIO::from_io(advice_io, instance_io))
+        self.create_lowering_scope(name, StructIO::from_io(advice_io, instance_io, callees))
     }
 
     fn define_function(
@@ -86,8 +87,9 @@ impl<'c: 's, 's> Codegen<'c, 's> for LlzkCodegen<'c, 's> {
         name: &str,
         inputs: usize,
         outputs: usize,
+        callees: impl IntoIterator<Item = String>,
     ) -> Result<Self::FuncOutput, Self::Error> {
-        self.create_lowering_scope(name, StructIO::from_io_count(inputs, outputs))
+        self.create_lowering_scope(name, StructIO::from_io_count(inputs, outputs, callees))
     }
 
     fn on_scope_end(&self, _: Self::FuncOutput) -> Result<(), Self::Error> {
@@ -164,7 +166,7 @@ mod tests {
                 let codegen = LlzkCodegen::initialize(&state);
                 let (advice_io, instance_io) = $io;
                 let main = codegen
-                    .define_main_function(&advice_io, &instance_io)
+                    .define_main_function(&advice_io, &instance_io, [])
                     .unwrap();
                 codegen.on_scope_end(main).unwrap();
 

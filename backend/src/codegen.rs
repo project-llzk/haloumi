@@ -41,6 +41,7 @@ pub trait Codegen<'c: 's, 's>: Sized + 's {
         name: &str,
         inputs: usize,
         outputs: usize,
+        callees: impl IntoIterator<Item = String>,
     ) -> Result<Self::FuncOutput, Self::Error>;
 
     /// Defines a function filled with the given body.
@@ -49,6 +50,7 @@ pub trait Codegen<'c: 's, 's>: Sized + 's {
         name: &str,
         inputs: usize,
         outputs: usize,
+        callees: impl IntoIterator<Item = String>,
         f: FN,
     ) -> Result<(), Self::Error>
     where
@@ -56,7 +58,7 @@ pub trait Codegen<'c: 's, 's>: Sized + 's {
         I: IntoIterator<Item = L>,
         L: LowerableStmt,
     {
-        let func = self.define_function(name, inputs, outputs)?;
+        let func = self.define_function(name, inputs, outputs, callees)?;
         let inputs = func.lower_function_inputs(0..inputs);
         let outputs = func.lower_function_outputs(0..outputs);
         let stmts = f(&func, &inputs, &outputs)?;
@@ -71,6 +73,7 @@ pub trait Codegen<'c: 's, 's>: Sized + 's {
         &self,
         advice_io: &AdviceIO,
         instance_io: &InstanceIO,
+        callees: impl IntoIterator<Item = String>,
     ) -> Result<Self::FuncOutput, Self::Error>;
 
     /// Defines the entrypoint function of the circuit and fills it with the given body.
@@ -78,12 +81,13 @@ pub trait Codegen<'c: 's, 's>: Sized + 's {
         &self,
         advice_io: &AdviceIO,
         instance_io: &InstanceIO,
+        callees: impl IntoIterator<Item = String>,
         stmts: impl IntoIterator<Item = L>,
     ) -> Result<(), Self::Error>
     where
         L: LowerableStmt + std::fmt::Debug,
     {
-        let main = self.define_main_function(advice_io, instance_io)?;
+        let main = self.define_main_function(advice_io, instance_io, callees)?;
         log::debug!("Defined main function");
         for stmt in stmts {
             log::debug!("Lowering statement {stmt:?}");

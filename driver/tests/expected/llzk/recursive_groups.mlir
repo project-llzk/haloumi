@@ -27,6 +27,7 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>> } {
   }
   struct.def @mul_many1 {
     struct.member @out_0 : !felt.type<"bn254"> {llzk.pub}
+    struct.member @mul_many_0 : !struct.type<@mul_many<[]>>
     function.def @compute(%arg0: !felt.type<"bn254">, %arg1: !felt.type<"bn254">, %arg2: !felt.type<"bn254">) -> !struct.type<@mul_many1<[]>> attributes {function.allow_non_native_field_ops, function.allow_witness} {
       %self = struct.new : <@mul_many1<[]>>
       function.return %self : !struct.type<@mul_many1<[]>>
@@ -55,13 +56,13 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>> } {
       constrain.eq %12, %13 : !felt.type<"bn254">, !felt.type<"bn254">
       function.return
     }
-    struct.member @mul_many_0 : !struct.type<@mul_many<[]>>
     struct.member @adv_2_4 : !felt.type<"bn254">
     struct.member @adv_0_5 : !felt.type<"bn254">
     struct.member @adv_1_5 : !felt.type<"bn254">
   }
   struct.def @mul_many2 {
     struct.member @out_0 : !felt.type<"bn254"> {llzk.pub}
+    struct.member @mul_many1_0 : !struct.type<@mul_many1<[]>>
     function.def @compute(%arg0: !felt.type<"bn254">, %arg1: !felt.type<"bn254">, %arg2: !felt.type<"bn254">, %arg3: !felt.type<"bn254">) -> !struct.type<@mul_many2<[]>> attributes {function.allow_non_native_field_ops, function.allow_witness} {
       %self = struct.new : <@mul_many2<[]>>
       function.return %self : !struct.type<@mul_many2<[]>>
@@ -90,13 +91,13 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>> } {
       constrain.eq %12, %13 : !felt.type<"bn254">, !felt.type<"bn254">
       function.return
     }
-    struct.member @mul_many1_0 : !struct.type<@mul_many1<[]>>
     struct.member @adv_2_5 : !felt.type<"bn254">
     struct.member @adv_0_6 : !felt.type<"bn254">
     struct.member @adv_1_6 : !felt.type<"bn254">
   }
   struct.def @Main {
     struct.member @out_0 : !felt.type<"bn254"> {llzk.pub}
+    struct.member @mul_many2_0 : !struct.type<@mul_many2<[]>>
     function.def @compute(%arg0: !felt.type<"bn254"> {llzk.pub = #llzk.pub}, %arg1: !felt.type<"bn254"> {llzk.pub = #llzk.pub}, %arg2: !felt.type<"bn254"> {llzk.pub = #llzk.pub}, %arg3: !felt.type<"bn254"> {llzk.pub = #llzk.pub}) -> !struct.type<@Main<[]>> attributes {function.allow_non_native_field_ops, function.allow_witness} {
       %self = struct.new : <@Main<[]>>
       function.return %self : !struct.type<@Main<[]>>
@@ -129,7 +130,6 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>> } {
     struct.member @adv_0_1 : !felt.type<"bn254">
     struct.member @adv_0_2 : !felt.type<"bn254">
     struct.member @adv_0_3 : !felt.type<"bn254">
-    struct.member @mul_many2_0 : !struct.type<@mul_many2<[]>>
     struct.member @adv_2_6 : !felt.type<"bn254">
   }
 }

@@ -11,7 +11,6 @@ use haloumi_ir::stmt::IRStmt;
 use haloumi_ir_gen::lookups::callbacks::LookupError;
 use haloumi_zcash_test_circuits::lookup;
 use std::borrow::Cow;
-#[cfg(feature = "picus-backend")]
 use zcash_common::picus::basic_picus_test;
 use zcash_common::synthesis_impl;
 use zcash_halo2_proofs::plonk::Expression;

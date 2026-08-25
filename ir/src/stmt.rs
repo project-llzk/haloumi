@@ -145,6 +145,14 @@ impl<T: std::fmt::Debug> std::fmt::Debug for IRStmt<T> {
 
 impl<T> IRStmt<T> {
     /// Creates a call to another module.
+    ///
+    /// These statements are not meant for defining calls to another group since that's
+    /// handled automatically by the framework. The intended use case for these is to call
+    /// modules defined on the fly (i.e. for calling to an opaque lookup).
+    ///
+    /// # Panics
+    ///
+    /// If the output slots are not temporaries.
     pub fn call(
         callee: impl AsRef<str>,
         inputs: impl IntoIterator<Item = T>,
@@ -413,6 +421,14 @@ impl<T> IRStmt<T> {
             for stmt in s.iter_mut() {
                 stmt.meta_mut().complete_with(self.1);
             }
+        }
+    }
+
+    /// If the statement is a call, return the name of the callee.
+    pub fn callee_name(&self) -> Option<&str> {
+        match &self.0 {
+            IRStmtImpl::ConstraintCall(call) => Some(call.callee()),
+            _ => None,
         }
     }
 }

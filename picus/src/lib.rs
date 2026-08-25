@@ -129,6 +129,7 @@ impl<'c: 's, 's> Codegen<'c, 's> for PicusCodegen {
         &self,
         advice_io: &AdviceIO,
         instance_io: &InstanceIO,
+        _: impl IntoIterator<Item = String>,
     ) -> Result<Self::FuncOutput, PicusCodegenError> {
         let ep = self.inner.borrow().entrypoint();
         let nc = self.naming_convention();
@@ -164,11 +165,12 @@ impl<'c: 's, 's> Codegen<'c, 's> for PicusCodegen {
         Ok(output)
     }
 
-    fn define_function(
+    fn define_function<'a>(
         &self,
         name: &str,
         inputs: usize,
         outputs: usize,
+        _: impl IntoIterator<Item = String>,
     ) -> Result<Self::FuncOutput, PicusCodegenError> {
         let nc = self.naming_convention();
         self.inner.borrow_mut().add_module(

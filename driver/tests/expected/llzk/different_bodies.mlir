@@ -59,6 +59,9 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>> } {
   }
   struct.def @Main {
     struct.member @out_0 : !felt.type<"bn254"> {llzk.pub}
+    struct.member @"test group_0" : !struct.type<@"test group"<[]>>
+    struct.member @"test group_1" : !struct.type<@"test group"<[]>>
+    struct.member @"test group1_2" : !struct.type<@"test group1"<[]>>
     function.def @compute(%arg0: !felt.type<"bn254"> {llzk.pub = #llzk.pub}) -> !struct.type<@Main<[]>> attributes {function.allow_non_native_field_ops, function.allow_witness} {
       %self = struct.new : <@Main<[]>>
       function.return %self : !struct.type<@Main<[]>>
@@ -96,11 +99,8 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>> } {
       function.return
     }
     struct.member @adv_0_0 : !felt.type<"bn254">
-    struct.member @"test group_0" : !struct.type<@"test group"<[]>>
     struct.member @adv_2_1 : !felt.type<"bn254">
-    struct.member @"test group_1" : !struct.type<@"test group"<[]>>
     struct.member @adv_2_2 : !felt.type<"bn254">
-    struct.member @"test group1_2" : !struct.type<@"test group1"<[]>>
     struct.member @adv_2_3 : !felt.type<"bn254">
     struct.member @adv_2_4 : !felt.type<"bn254">
   }

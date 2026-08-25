@@ -20,6 +20,7 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>> } {
   }
   struct.def @Main {
     struct.member @out_0 : !felt.type<"bn254"> {llzk.pub}
+    struct.member @"test group_0" : !struct.type<@"test group"<[]>>
     function.def @compute(%arg0: !felt.type<"bn254"> {llzk.pub = #llzk.pub}) -> !struct.type<@Main<[]>> attributes {function.allow_non_native_field_ops, function.allow_witness} {
       %self = struct.new : <@Main<[]>>
       function.return %self : !struct.type<@Main<[]>>
@@ -34,7 +35,6 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>> } {
       constrain.eq %1, %3 : !felt.type<"bn254">, !felt.type<"bn254">
       function.return
     }
-    struct.member @"test group_0" : !struct.type<@"test group"<[]>>
     struct.member @adv_2_0 : !felt.type<"bn254">
   }
 }

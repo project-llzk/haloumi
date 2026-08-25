@@ -24,6 +24,13 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>> } {
   struct.def @Main {
     struct.member @out_0 : !felt.type<"bn254"> {llzk.pub}
     struct.member @out_1 : !felt.type<"bn254"> {llzk.pub}
+    struct.member @fib_0 : !struct.type<@fib<[]>>
+    struct.member @fib_1 : !struct.type<@fib<[]>>
+    struct.member @fib_2 : !struct.type<@fib<[]>>
+    struct.member @fib_3 : !struct.type<@fib<[]>>
+    struct.member @fib_4 : !struct.type<@fib<[]>>
+    struct.member @fib_5 : !struct.type<@fib<[]>>
+    struct.member @fib_6 : !struct.type<@fib<[]>>
     function.def @compute(%arg0: !felt.type<"bn254"> {llzk.pub = #llzk.pub}, %arg1: !felt.type<"bn254"> {llzk.pub = #llzk.pub}) -> !struct.type<@Main<[]>> attributes {function.allow_non_native_field_ops, function.allow_witness} {
       %self = struct.new : <@Main<[]>>
       function.return %self : !struct.type<@Main<[]>>
@@ -93,19 +100,12 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>> } {
     }
     struct.member @adv_0_0 : !felt.type<"bn254"> 
     struct.member @adv_1_0 : !felt.type<"bn254"> 
-    struct.member @fib_0 : !struct.type<@fib<[]>>
     struct.member @adv_2_1 : !felt.type<"bn254">
-    struct.member @fib_1 : !struct.type<@fib<[]>>
     struct.member @adv_2_2 : !felt.type<"bn254">
-    struct.member @fib_2 : !struct.type<@fib<[]>>
     struct.member @adv_2_3 : !felt.type<"bn254">
-    struct.member @fib_3 : !struct.type<@fib<[]>>
     struct.member @adv_2_4 : !felt.type<"bn254">
-    struct.member @fib_4 : !struct.type<@fib<[]>>
     struct.member @adv_2_5 : !felt.type<"bn254">
-    struct.member @fib_5 : !struct.type<@fib<[]>>
     struct.member @adv_2_6 : !felt.type<"bn254">
-    struct.member @fib_6 : !struct.type<@fib<[]>>
     struct.member @adv_2_7 : !felt.type<"bn254">
     struct.member @adv_2_0 : !felt.type<"bn254"> 
   }

@@ -96,19 +96,13 @@ where
 
     let inputs = cells_to_exprs(callee.inputs(), ctx, advice_io, instance_io)?;
     let outputs = cells_to_exprs(callee.outputs(), ctx, advice_io, instance_io)?;
-    let output_vars: Vec<_> = callee
-        .outputs()
-        .iter()
-        .enumerate()
-        .map(|(n, _)| Slot::CallOutput(call_no, n))
-        .collect();
 
     Ok(CallSite::new(
+        call_no,
         callee.name().to_owned(),
         callee_key,
         callee_id,
         inputs,
-        output_vars,
         outputs,
     ))
 }

@@ -168,6 +168,16 @@ impl<E> IRGroup<E> {
         &self.callsites
     }
 
+    /// Returns a list with the callee's names.
+    pub fn callees(&self) -> Vec<String> {
+        self.callsites()
+            .iter()
+            .map(CallSite::name)
+            .chain(self.statements().filter_map(|s| s.callee_name()))
+            .map(ToOwned::to_owned)
+            .collect()
+    }
+
     /// Returns a mutable referece to the callsites.
     pub fn callsites_mut(&mut self) -> &mut Vec<CallSite<E>> {
         &mut self.callsites
@@ -527,7 +537,7 @@ impl<E: IRPrintable> IRPrintable for IRGroup<E> {
                 ctx.fmt_call(
                     callsite.name(),
                     callsite.inputs(),
-                    callsite.output_vars(),
+                    callsite.outputs(),
                     Some(callsite.callee_id()),
                 )?;
                 ctx.nl()?;

@@ -63,6 +63,14 @@ impl Slot {
     pub fn fixed_rel(col: usize, base: usize, offset: usize) -> Self {
         Self::Fixed(CellRef::relative(col, base, offset))
     }
+
+    /// Creates a list of [`Slot::CallOutput`].
+    pub fn call_outputs(call_no: usize, output_count: usize) -> Vec<Self> {
+        log::debug!("Creating {output_count} output slots for call number {call_no}");
+        (0..output_count)
+            .map(|output_no| Self::CallOutput(call_no, output_no))
+            .collect()
+    }
 }
 
 impl EqvRelation<Slot> for SymbolicEqv {

@@ -83,6 +83,7 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>>    
   }
   struct.def @"outer group" {
     struct.member @out_0 : !felt.type<"bn254"> {llzk.pub}
+    struct.member @"inner group_0" : !struct.type<@"inner group"<[]>>
     function.def @compute(%arg0: !felt.type<"bn254">) -> !struct.type<@"outer group"<[]>> attributes {function.allow_non_native_field_ops, function.allow_witness} {
       %self = struct.new : <@"outer group"<[]>>
       function.return %self : !struct.type<@"outer group"<[]>>
@@ -119,13 +120,16 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>>    
       constrain.eq %17, %18 : !felt.type<"bn254">, !felt.type<"bn254">
       function.return
     }
-    struct.member @"inner group_0" : !struct.type<@"inner group"<[]>>
     struct.member @adv_2_4 : !felt.type<"bn254">
     struct.member @adv_0_5 : !felt.type<"bn254">
     struct.member @adv_1_5 : !felt.type<"bn254">
   }
   struct.def @Main {
     struct.member @out_0 : !felt.type<"bn254"> {llzk.pub}
+    struct.member @"test group_0" : !struct.type<@"test group"<[]>>
+    struct.member @"test group_1" : !struct.type<@"test group"<[]>>
+    struct.member @"test group1_2" : !struct.type<@"test group1"<[]>>
+    struct.member @"outer group_3" : !struct.type<@"outer group"<[]>>
     function.def @compute(%arg0: !felt.type<"bn254"> {llzk.pub = #llzk.pub}) -> !struct.type<@Main<[]>> attributes {function.allow_non_native_field_ops, function.allow_witness} {
       %self = struct.new : <@Main<[]>>
       function.return %self : !struct.type<@Main<[]>>
@@ -170,13 +174,9 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>>    
       function.return
     }
     struct.member @adv_0_0 : !felt.type<"bn254">
-    struct.member @"test group_0" : !struct.type<@"test group"<[]>>
     struct.member @adv_2_1 : !felt.type<"bn254">
-    struct.member @"test group_1" : !struct.type<@"test group"<[]>>
     struct.member @adv_2_2 : !felt.type<"bn254">
-    struct.member @"test group1_2" : !struct.type<@"test group1"<[]>>
     struct.member @adv_2_3 : !felt.type<"bn254">
-    struct.member @"outer group_3" : !struct.type<@"outer group"<[]>>
     struct.member @adv_2_5 : !felt.type<"bn254">
     struct.member @adv_2_6 : !felt.type<"bn254">
   }

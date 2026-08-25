@@ -455,7 +455,9 @@ impl ExprLowering for LlzkStructLowering<'_, '_> {
                 let member_value = self.read_field(member)?;
                 wrap!(self.read_callee_output(member_output, member_value))
             }
-            Slot::Temp(_) => todo!(),
+            Slot::Temp(id) => {
+                wrap!(self.read_field(self.get_cell_member(MemberKind::Temp { id })?))
+            }
             Slot::Challenge(_, _, _) => todo!(),
         }
     }

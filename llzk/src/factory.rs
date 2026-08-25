@@ -40,6 +40,8 @@ pub enum MemberKind<'s> {
     Callee { name: &'s str, id: usize },
     /// Output of the circuit
     Output { id: usize, public: bool },
+    /// A temporary
+    Temp { id: usize },
 }
 
 impl MemberKind<'_> {
@@ -48,8 +50,9 @@ impl MemberKind<'_> {
         match self {
             MemberKind::Advice { col, row } => format!("adv_{col}_{row}"),
             MemberKind::Fixed { col, row } => format!("fix_{col}_{row}"),
-            MemberKind::Callee { name, id } => format!("{name}_{id}"),
+            MemberKind::Callee { name, id } => format!("subgrp_{name}_{id}"),
             MemberKind::Output { id, .. } => format!("out_{id}"),
+            MemberKind::Temp { id } => format!("temp_{id}"),
         }
     }
 
@@ -76,23 +79,29 @@ impl MemberKind<'_> {
                 let filename = filename(struct_name, Some(section));
                 Location::new(context, &filename, *id, 0)
             }
+            MemberKind::Temp { id } => {
+                let filename = filename(struct_name, Some("Temporaries"));
+                Location::new(context, &filename, *id, 0)
+            }
         }
     }
 
     pub fn member_type<'c>(&self, state: &LlzkCodegenState<'c>) -> Type<'c> {
         match self {
-            MemberKind::Advice { .. } | MemberKind::Fixed { .. } | MemberKind::Output { .. } => {
-                state.felt_type().into()
-            }
+            MemberKind::Advice { .. }
+            | MemberKind::Fixed { .. }
+            | MemberKind::Output { .. }
+            | MemberKind::Temp { .. } => state.felt_type().into(),
             MemberKind::Callee { name, .. } => StructType::from_str(state.context(), name).into(),
         }
     }
 
     pub fn is_public(&self) -> bool {
         match self {
-            MemberKind::Advice { .. } | MemberKind::Fixed { .. } | MemberKind::Callee { .. } => {
-                false
-            }
+            MemberKind::Advice { .. }
+            | MemberKind::Fixed { .. }
+            | MemberKind::Callee { .. }
+            | MemberKind::Temp { .. } => false,
             MemberKind::Output { public, .. } => *public,
         }
     }

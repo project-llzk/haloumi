@@ -59,33 +59,33 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>> } {
   }
   struct.def @Main {
     struct.member @out_0 : !felt.type<"bn254"> {llzk.pub}
-    struct.member @"test group_0" : !struct.type<@"test group"<[]>>
-    struct.member @"test group_1" : !struct.type<@"test group"<[]>>
-    struct.member @"test group1_2" : !struct.type<@"test group1"<[]>>
+    struct.member @"subgrp_test group_0" : !struct.type<@"test group"<[]>>
+    struct.member @"subgrp_test group_1" : !struct.type<@"test group"<[]>>
+    struct.member @"subgrp_test group1_2" : !struct.type<@"test group1"<[]>>
     function.def @compute(%arg0: !felt.type<"bn254"> {llzk.pub = #llzk.pub}) -> !struct.type<@Main<[]>> attributes {function.allow_non_native_field_ops, function.allow_witness} {
       %self = struct.new : <@Main<[]>>
       function.return %self : !struct.type<@Main<[]>>
     }
     function.def @constrain(%arg0: !struct.type<@Main<[]>>, %arg1: !felt.type<"bn254"> {llzk.pub = #llzk.pub}) attributes {function.allow_constraint, function.allow_non_native_field_ops} {
       %0 = struct.readm %arg0[@adv_0_0] : <@Main<[]>>, !felt.type<"bn254">
-      %1 = struct.readm %arg0[@"test group_0"] : <@Main<[]>>, !struct.type<@"test group"<[]>>
+      %1 = struct.readm %arg0[@"subgrp_test group_0"] : <@Main<[]>>, !struct.type<@"test group"<[]>>
       function.call @"test group"::@constrain(%1, %0) : (!struct.type<@"test group"<[]>>, !felt.type<"bn254">) -> ()
       %2 = struct.readm %arg0[@adv_2_1] : <@Main<[]>>, !felt.type<"bn254">
-      %3 = struct.readm %arg0[@"test group_0"] : <@Main<[]>>, !struct.type<@"test group"<[]>>
+      %3 = struct.readm %arg0[@"subgrp_test group_0"] : <@Main<[]>>, !struct.type<@"test group"<[]>>
       %4 = struct.readm %3[@out_0] : <@"test group"<[]>>, !felt.type<"bn254">
       constrain.eq %2, %4 : !felt.type<"bn254">, !felt.type<"bn254">
       %5 = struct.readm %arg0[@adv_2_1] : <@Main<[]>>, !felt.type<"bn254">
-      %6 = struct.readm %arg0[@"test group_1"] : <@Main<[]>>, !struct.type<@"test group"<[]>>
+      %6 = struct.readm %arg0[@"subgrp_test group_1"] : <@Main<[]>>, !struct.type<@"test group"<[]>>
       function.call @"test group"::@constrain(%6, %5) : (!struct.type<@"test group"<[]>>, !felt.type<"bn254">) -> ()
       %7 = struct.readm %arg0[@adv_2_2] : <@Main<[]>>, !felt.type<"bn254">
-      %8 = struct.readm %arg0[@"test group_1"] : <@Main<[]>>, !struct.type<@"test group"<[]>>
+      %8 = struct.readm %arg0[@"subgrp_test group_1"] : <@Main<[]>>, !struct.type<@"test group"<[]>>
       %9 = struct.readm %8[@out_0] : <@"test group"<[]>>, !felt.type<"bn254">
       constrain.eq %7, %9 : !felt.type<"bn254">, !felt.type<"bn254">
       %10 = struct.readm %arg0[@adv_2_2] : <@Main<[]>>, !felt.type<"bn254">
-      %11 = struct.readm %arg0[@"test group1_2"] : <@Main<[]>>, !struct.type<@"test group1"<[]>>
+      %11 = struct.readm %arg0[@"subgrp_test group1_2"] : <@Main<[]>>, !struct.type<@"test group1"<[]>>
       function.call @"test group1"::@constrain(%11, %10) : (!struct.type<@"test group1"<[]>>, !felt.type<"bn254">) -> ()
       %12 = struct.readm %arg0[@adv_2_3] : <@Main<[]>>, !felt.type<"bn254">
-      %13 = struct.readm %arg0[@"test group1_2"] : <@Main<[]>>, !struct.type<@"test group1"<[]>>
+      %13 = struct.readm %arg0[@"subgrp_test group1_2"] : <@Main<[]>>, !struct.type<@"test group1"<[]>>
       %14 = struct.readm %13[@out_0] : <@"test group1"<[]>>, !felt.type<"bn254">
       constrain.eq %12, %14 : !felt.type<"bn254">, !felt.type<"bn254">
       %15 = struct.readm %arg0[@adv_0_0] : <@Main<[]>>, !felt.type<"bn254">

@@ -4,7 +4,7 @@ use crate::regions::{region_row::RegionRow, row::Row};
 use crate::{expressions::ScopedExpression, temps::ExprOrTemp};
 use ff::Field;
 use haloumi_core::expressions::ExprBuilder;
-use haloumi_ir::{Slot, groups::callsite::CallSite};
+use haloumi_ir::groups::callsite::CallSite;
 use haloumi_synthesis::io::{AdviceIO, InstanceIO};
 use haloumi_synthesis::{
     groups::{Group, GroupCell},

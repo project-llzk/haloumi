@@ -16,7 +16,7 @@ impl CallTracker {
         }
     }
 
-    /// Advances the counter and returns the next call number.
+    /// Returns the current call number and advances the counter.
     pub fn next(&self) -> usize {
         let c = *self.count.borrow();
         *self.count.borrow_mut() = c + 1;

@@ -1,7 +1,6 @@
 use super::lowering::LlzkStructLowering;
 use super::state::LlzkCodegenState;
 use super::{LlzkOutput, counter::Counter};
-//use anyhow::{Context as _, Result};
 
 use haloumi_backend::codegen::Codegen;
 use llzk::prelude::*;

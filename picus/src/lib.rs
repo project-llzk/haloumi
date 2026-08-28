@@ -13,8 +13,6 @@ use haloumi_backend::{Backend, codegen::Codegen};
 use haloumi_core::{felt::Prime, slot::Slot as FuncIO};
 use haloumi_synthesis::io::{AdviceIO, InstanceIO};
 
-//use anyhow::Result;
-
 use inner::PicusCodegenInner;
 use lowering::PicusModuleLowering;
 pub use params::{PicusParams, PicusParamsBuilder};
@@ -165,7 +163,7 @@ impl<'c: 's, 's> Codegen<'c, 's> for PicusCodegen {
         Ok(output)
     }
 
-    fn define_function<'a>(
+    fn define_function(
         &self,
         name: &str,
         inputs: usize,

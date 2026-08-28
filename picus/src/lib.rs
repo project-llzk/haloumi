@@ -13,8 +13,6 @@ use haloumi_backend::{Backend, codegen::Codegen};
 use haloumi_core::{felt::Prime, slot::Slot as FuncIO};
 use haloumi_synthesis::io::{AdviceIO, InstanceIO};
 
-//use anyhow::Result;
-
 use inner::PicusCodegenInner;
 use lowering::PicusModuleLowering;
 pub use params::{PicusParams, PicusParamsBuilder};
@@ -129,6 +127,7 @@ impl<'c: 's, 's> Codegen<'c, 's> for PicusCodegen {
         &self,
         advice_io: &AdviceIO,
         instance_io: &InstanceIO,
+        _: impl IntoIterator<Item = String>,
     ) -> Result<Self::FuncOutput, PicusCodegenError> {
         let ep = self.inner.borrow().entrypoint();
         let nc = self.naming_convention();
@@ -169,6 +168,7 @@ impl<'c: 's, 's> Codegen<'c, 's> for PicusCodegen {
         name: &str,
         inputs: usize,
         outputs: usize,
+        _: impl IntoIterator<Item = String>,
     ) -> Result<Self::FuncOutput, PicusCodegenError> {
         let nc = self.naming_convention();
         self.inner.borrow_mut().add_module(

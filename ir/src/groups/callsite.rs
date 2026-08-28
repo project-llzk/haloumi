@@ -17,33 +17,38 @@ use super::GroupKey;
 /// Data related to a single callsite
 #[derive(Debug, Clone)]
 pub struct CallSite<E> {
+    no: usize,
     name: String,
     callee: GroupKey,
     /// The index in the original groups array to the called group.
     callee_id: usize,
     inputs: Vec<E>,
-    output_vars: Vec<Slot>,
     outputs: Vec<E>,
 }
 
 impl<E> CallSite<E> {
     /// Creates a new callsite.
     pub fn new(
+        no: usize,
         name: String,
         callee: GroupKey,
         callee_id: usize,
         inputs: Vec<E>,
-        output_vars: Vec<Slot>,
         outputs: Vec<E>,
     ) -> Self {
         Self {
+            no,
             name,
             callee,
             callee_id,
             inputs,
-            output_vars,
             outputs,
         }
+    }
+
+    /// Return the callsite number.
+    pub fn no(&self) -> usize {
+        self.no
     }
 
     /// Returns the name of the callee.
@@ -72,8 +77,10 @@ impl<E> CallSite<E> {
     }
 
     /// Returns the bindings to the call outputs.
-    pub fn output_vars(&self) -> &[Slot] {
-        &self.output_vars
+    pub(crate) fn output_vars(&self) -> Vec<Slot> {
+        (0..self.outputs.len())
+            .map(|idx| Slot::CallOutput(self.no(), idx))
+            .collect()
     }
 
     /// Returns the outputs of the call.
@@ -87,6 +94,7 @@ impl<E> CallSite<E> {
         f: &mut impl FnMut(E) -> Result<O, Err>,
     ) -> Result<CallSite<O>, Err> {
         Ok(CallSite {
+            no: self.no,
             name: self.name,
             callee: self.callee,
             callee_id: self.callee_id,
@@ -95,7 +103,6 @@ impl<E> CallSite<E> {
                 .into_iter()
                 .map(&mut *f)
                 .collect::<Result<Vec<_>, _>>()?,
-            output_vars: self.output_vars,
             outputs: self
                 .outputs
                 .into_iter()
@@ -157,11 +164,10 @@ where
             .into_iter()
             .map(|e| e.lower(l))
             .collect::<Result<_, _>>()?;
-        l.generate_call(self.name.as_str(), &inputs, &self.output_vars)?;
+        let output_vars = l.generate_call(self.name.as_str(), &inputs, self.outputs.len())?;
         // The call statement creates variables that we need to constraint against the actual
         // outputs.
-        for (lhs, rhs) in std::iter::zip(self.outputs, self.output_vars.into_iter().map(Into::into))
-        {
+        for (lhs, rhs) in std::iter::zip(self.outputs, output_vars.into_iter().map(Into::into)) {
             IRStmt::eq(lhs, rhs).lower(l)?
         }
         Ok(())

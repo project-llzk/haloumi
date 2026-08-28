@@ -1,8 +1,11 @@
 use crate::error::{Error, UnexpectedTypeError};
-use crate::factory::filename;
+use crate::factory::{MemberKind, StructIO, filename};
+use crate::state::LlzkCodegenState;
+use haloumi_backend::lowering::CallTracker;
 //use backend_err::{Result, backend_err};
 use haloumi_lowering::{ExprLowering, Lowering, Result as LoweringResult, bail_backend};
 use llzk::builder::OpBuilder;
+use llzk::dialect::function;
 use llzk::prelude::*;
 use melior::dialect::arith;
 use melior::ir::ValueLike;
@@ -13,6 +16,7 @@ use melior::{
     ir::{Location, Operation, OperationRef, Type, Value},
 };
 use mlir_sys::MlirValue;
+use num_bigint::BigUint;
 use std::rc::Rc;
 
 use super::counter::Counter;
@@ -20,70 +24,87 @@ use super::extras::{block_list, operations_list};
 use haloumi_core::{
     cmp::CmpOp,
     felt::Felt,
-    slot::{Slot as FuncIO, arg::ArgNo, output::OutputId as FieldId},
+    slot::{Slot, arg::ArgNo, output::OutputId as FieldId},
 };
 
 #[derive(Debug)]
 pub struct LlzkStructLowering<'c, 's> {
-    context: &'c Context,
+    state: &'s LlzkCodegenState<'c>,
+    builder: OpBuilder<'c, 'c>,
     struct_op: StructDefOpRefMut<'c, 's>,
     constraints_counter: Rc<Counter>,
+    callees_counter: CallTracker,
+    io: StructIO,
 }
 
 impl<'c, 's> LlzkStructLowering<'c, 's> {
-    pub fn new(context: &'c Context, struct_op: StructDefOpRefMut<'c, 's>) -> Self {
-        Self {
-            context,
+    pub fn new(
+        state: &'s LlzkCodegenState<'c>,
+        struct_op: StructDefOpRefMut<'c, 's>,
+        io: StructIO,
+    ) -> Result<Self, Error> {
+        let builder = OpBuilder::at_block_end(
+            state.context(),
+            struct_op
+                .constrain_func()
+                .ok_or(Error::MissingConstrainFunc)?
+                .region(0)?
+                .first_block()
+                .ok_or(Error::MissingBlock)?,
+        );
+        Ok(Self {
+            state,
             struct_op,
+            builder,
             constraints_counter: Rc::new(Default::default()),
-        }
+            callees_counter: Default::default(),
+            io,
+        })
     }
 
     fn context(&self) -> &'c Context {
-        self.context
+        self.state.context()
+    }
+
+    fn builder(&self) -> &OpBuilder<'c, 'c> {
+        &self.builder
     }
 
     fn struct_name(&self) -> &str {
-        StructDefOpLike::name(&self.struct_op)
+        self.struct_op.sym_name()
     }
 
-    fn get_cell_field(
-        &self,
-        kind: &str,
-        col: usize,
-        row: usize,
-    ) -> Result<FieldDefOpRef<'c, '_>, Error> {
-        let name = format!("{kind}_{col}_{row}");
-        Ok(self.struct_op.get_or_create_field_def(&name, || {
-            let filename = filename(self.struct_name(), Some("advice cell"));
-            let loc = Location::new(self.context(), &filename, col, row);
-            r#struct::field(loc, &name, FeltType::new(self.context()), false, false)
+    fn get_cell_member(&self, kind: MemberKind<'_>) -> Result<MemberDefOpRef<'c, '_>, Error> {
+        let name = kind.member_name();
+        Ok(self.struct_op.find_or_create_member_def(&name, || {
+            log::debug!("Creating member named '@{name}'");
+            kind.create_member_op(self.state, self.struct_name())
         })?)
     }
 
     /// Tries to fetch an advice cell field, if it doesn't exist creates a field that represents
     /// it.
     #[inline]
-    fn get_adv_cell(&self, col: usize, row: usize) -> Result<FieldDefOpRef<'c, '_>, Error> {
-        self.get_cell_field("adv", col, row)
+    fn get_adv_cell(&self, col: usize, row: usize) -> Result<MemberDefOpRef<'c, '_>, Error> {
+        self.get_cell_member(MemberKind::Advice { col, row })
     }
 
     /// Tries to fetch a fixed cell field, if it doesn't exist creates a field that represents
     /// it.
     #[inline]
-    fn get_fix_cell(&self, col: usize, row: usize) -> Result<FieldDefOpRef<'c, '_>, Error> {
-        self.get_cell_field("fix", col, row)
+    fn get_fix_cell(&self, col: usize, row: usize) -> Result<MemberDefOpRef<'c, '_>, Error> {
+        self.get_cell_member(MemberKind::Fixed { col, row })
     }
 
-    fn get_output(&self, field: FieldId) -> Result<FieldDefOpRef<'c, '_>, Error> {
+    fn get_output(&self, field: FieldId) -> Result<MemberDefOpRef<'c, '_>, Error> {
         self.struct_op
-            .get_field_def(format!("out_{field}").as_str())
+            .find_member_def(format!("out_{field}").as_str())
             .ok_or(Error::MissingOutput(field))
     }
 
     fn get_constrain_func(&self) -> Result<FuncDefOpRef<'c, '_>, Error> {
         self.struct_op
-            .get_constrain_func()
+            .constrain_func()
             .ok_or(Error::MissingConstrainFunc)
     }
 
@@ -121,47 +142,69 @@ impl<'c, 's> LlzkStructLowering<'c, 's> {
     /// Returns the (n+1)-th argument of the constrain function. The index is offset by one because
     /// in the constrain function the first argument is always an instance of the struct.
     fn get_arg(&self, arg_no: ArgNo) -> Result<Value<'c, '_>, Error> {
-        let val = self.get_arg_impl(*arg_no + 1)?;
-        let signal_typ = StructType::from_str(self.context(), "Signal");
-        if val.r#type() == signal_typ.into() {
-            let builder = OpBuilder::new(self.context());
-            return self.append_expr(r#struct::readf(
-                &builder,
-                Location::unknown(self.context()),
-                FeltType::new(self.context()).into(),
-                val,
-                "reg",
-            )?);
-        }
-        Ok(val)
+        self.get_arg_impl(*arg_no + 1)
     }
 
     fn get_component(&self) -> Result<Value<'c, '_>, Error> {
         self.get_arg_impl(0)
     }
 
-    fn read_field(&self, field: FieldDefOpRef<'c, '_>) -> Result<Value<'c, '_>, Error> {
-        let builder = OpBuilder::new(self.context());
-
-        self.append_expr(r#struct::readf(
-            &builder,
+    fn read_field(&self, field: MemberDefOpRef<'c, '_>) -> Result<Value<'c, '_>, Error> {
+        self.append_expr(dialect::r#struct::readm(
+            self.builder(),
             Location::unknown(self.context()),
-            field.field_type(),
+            field.member_type(),
             self.get_component()?,
-            field.field_name(),
+            field.member_name(),
         )?)
     }
 
-    fn lower_constant_impl(&self, f: Felt) -> Result<Value<'c, '_>, Error> {
-        let const_attr = FeltConstAttribute::from_biguint(self.context(), f.as_ref());
-        self.append_expr(felt::constant(
+    fn read_callee_output(
+        &self,
+        field: MemberDefOpRef<'c, '_>,
+        callee: Value<'c, '_>,
+    ) -> Result<Value<'c, '_>, Error> {
+        self.append_expr(dialect::r#struct::readm(
+            self.builder(),
+            Location::unknown(self.context()),
+            field.member_type(),
+            callee,
+            field.member_name(),
+        )?)
+    }
+
+    fn lower_constant_impl(&self, f: &BigUint) -> Result<Value<'c, '_>, Error> {
+        let const_attr =
+            FeltConstAttribute::from_biguint(self.context(), f, self.state.field_name());
+        self.append_expr(dialect::felt::constant(
             Location::unknown(self.context()),
             const_attr,
         )?)
     }
 
-    fn create_assert_op(&self, expr: Value<'c, '_>) -> Result<Operation<'c>, Error> {
-        Ok(bool::assert(Location::unknown(self.context()), expr, None)?)
+    /// Generate an assertion as a constraint to 0.
+    ///
+    /// The type of `expr` must be `i1`. That expression is then
+    /// negated and converted into a felt. Then emit a constraint that
+    /// that felt is equal to 0.
+    fn create_assert_op(&self, expr: Value<'c, '_>) -> LoweringResult<Operation<'c>> {
+        let location = Location::unknown(self.context());
+        let i1 = Type::from(IntegerType::new(self.context(), 1));
+        if expr.r#type() != i1 {
+            bail_backend!(
+                UnexpectedTypeError::new(i1, expr.r#type())
+                    .with_context("Failed to assert expression")
+            );
+        }
+        let not_expr =
+            self.append_expr(dialect::bool::not(location, expr).map_err(Error::Llzk)?)?;
+        let as_felt = self.append_expr(dialect::cast::tofelt(
+            location,
+            not_expr,
+            Some(self.state.felt_type()),
+        ))?;
+        let zero = self.lower_constant_impl(&BigUint::ZERO)?;
+        Ok(dialect::constrain::eq(location, as_felt, zero))
     }
 
     fn create_bin_op<E>(
@@ -225,7 +268,7 @@ impl Lowering for LlzkStructLowering<'_, '_> {
         );
         let cond = match op {
             CmpOp::Eq => {
-                self.append_op(constrain::eq(loc, lhs.into(), rhs.into()))?;
+                self.append_op(dialect::constrain::eq(loc, lhs.into(), rhs.into()))?;
                 return Ok(());
             }
             CmpOp::Lt => self.lower_lt(lhs, rhs),
@@ -263,17 +306,33 @@ impl Lowering for LlzkStructLowering<'_, '_> {
 
     fn generate_call(
         &self,
-        _name: &str,
-        _inputs: &[Self::CellOutput],
-        _outputs: &[FuncIO],
-    ) -> LoweringResult<()> {
-        // 1. Define a field of the type of the struct that is going to be called
-        // 2. Load the field into a value
-        // 3. Call the constrain function
-        todo!()
+        name: &str,
+        inputs: &[Self::CellOutput],
+        output_count: usize,
+    ) -> LoweringResult<Vec<Slot>> {
+        let id = self.callees_counter.next();
+        let kind = MemberKind::Callee { name, id };
+        let subcmp = self.read_field(self.get_cell_member(kind)?)?;
+        let args = std::iter::once(subcmp)
+            .chain(inputs.iter().map(|i| i.into()))
+            .collect::<Vec<_>>();
+        let ret: [Type; 0] = [];
+
+        self.append_op(
+            function::call(
+                self.builder(),
+                Location::unknown(self.context()),
+                SymbolRefAttribute::new_from_str(self.context(), name, &[&FUNC_NAME_CONSTRAIN]),
+                &args,
+                &ret,
+            )
+            .map_err(Error::Llzk)?,
+        )?;
+
+        Ok(Slot::call_outputs(id, output_count))
     }
 
-    fn generate_assume_deterministic(&self, _func_io: FuncIO) -> LoweringResult<()> {
+    fn generate_assume_deterministic(&self, _func_io: Slot) -> LoweringResult<()> {
         // If the final target is picus generate a 'picus.assume_deterministic' op. Otherwise do nothing.
         todo!(
             "There isn't yet a construct in LLZK that supports the 'assume_deterministic' statement"
@@ -299,10 +358,10 @@ impl ExprLowering for LlzkStructLowering<'_, '_> {
         rhs: &Self::CellOutput,
     ) -> LoweringResult<Self::CellOutput> {
         wrap! {
-            self.append_expr(self.create_bin_op(felt::add,
-            lhs.into(),
-            rhs.into(),
-        )?)
+            self.append_expr(self.create_bin_op(dialect::felt::add,
+                lhs.into(),
+                rhs.into(),
+            )?)
         }
     }
 
@@ -312,7 +371,7 @@ impl ExprLowering for LlzkStructLowering<'_, '_> {
         rhs: &Self::CellOutput,
     ) -> LoweringResult<Self::CellOutput> {
         wrap! {
-            self.append_expr(self.create_bin_op(felt::mul,
+            self.append_expr(self.create_bin_op(dialect::felt::mul,
                 lhs.into(),
                 rhs.into(),
             )?)
@@ -320,11 +379,11 @@ impl ExprLowering for LlzkStructLowering<'_, '_> {
     }
 
     fn lower_neg(&self, expr: &Self::CellOutput) -> LoweringResult<Self::CellOutput> {
-        wrap! { self.append_expr(self.create_un_op(felt::neg, expr.into())?) }
+        wrap! { self.append_expr(self.create_un_op(dialect::felt::neg, expr.into())?) }
     }
 
     fn lower_constant(&self, f: Felt) -> LoweringResult<Self::CellOutput> {
-        wrap! {self.lower_constant_impl(f)}
+        wrap! {self.lower_constant_impl(&f)}
     }
 
     fn lower_eq(
@@ -332,7 +391,7 @@ impl ExprLowering for LlzkStructLowering<'_, '_> {
         lhs: &Self::CellOutput,
         rhs: &Self::CellOutput,
     ) -> LoweringResult<Self::CellOutput> {
-        wrap!(self.append_expr(self.create_bin_op(bool::eq, lhs.into(), rhs.into())?))
+        wrap!(self.append_expr(self.create_bin_op(dialect::bool::eq, lhs.into(), rhs.into())?))
     }
 
     fn lower_and(
@@ -340,7 +399,7 @@ impl ExprLowering for LlzkStructLowering<'_, '_> {
         lhs: &Self::CellOutput,
         rhs: &Self::CellOutput,
     ) -> LoweringResult<Self::CellOutput> {
-        wrap!(self.append_expr(self.create_bin_op(bool::and, lhs.into(), rhs.into())?))
+        wrap!(self.append_expr(self.create_bin_op(dialect::bool::and, lhs.into(), rhs.into())?))
     }
 
     fn lower_or(
@@ -348,34 +407,58 @@ impl ExprLowering for LlzkStructLowering<'_, '_> {
         lhs: &Self::CellOutput,
         rhs: &Self::CellOutput,
     ) -> LoweringResult<Self::CellOutput> {
-        wrap!(self.append_expr(self.create_bin_op(bool::or, lhs.into(), rhs.into())?))
+        wrap!(self.append_expr(self.create_bin_op(dialect::bool::or, lhs.into(), rhs.into())?))
     }
 
-    fn lower_function_input(&self, i: usize) -> FuncIO {
+    fn lower_function_input(&self, i: usize) -> Slot {
         ArgNo::from(i).into()
     }
 
-    fn lower_function_output(&self, o: usize) -> FuncIO {
+    fn lower_function_output(&self, o: usize) -> Slot {
         FieldId::from(o).into()
     }
 
     fn lower_funcio<IO>(&self, io: IO) -> LoweringResult<Self::CellOutput>
     where
-        IO: Into<FuncIO>,
+        IO: Into<Slot>,
     {
         match io.into() {
-            FuncIO::Arg(arg_no) => wrap!(self.get_arg(arg_no)),
-            FuncIO::Output(field_id) => wrap!(self.read_field(self.get_output(field_id)?)),
-            FuncIO::Advice(cell) => {
+            Slot::Arg(arg_no) => wrap!(self.get_arg(arg_no)),
+            Slot::Output(field_id) => wrap!(self.read_field(self.get_output(field_id)?)),
+            Slot::Advice(cell) => {
                 wrap!(self.read_field(self.get_adv_cell(cell.col(), cell.row())?))
             }
-            FuncIO::Fixed(cell) => {
+            Slot::Fixed(cell) => {
                 wrap!(self.read_field(self.get_fix_cell(cell.col(), cell.row())?))
             }
-            FuncIO::TableLookup(_, _, _, _, _) => todo!(),
-            FuncIO::CallOutput(_, _) => todo!(),
-            FuncIO::Temp(_) => todo!(),
-            FuncIO::Challenge(_, _, _) => todo!(),
+            Slot::TableLookup(_, _, _, _, _) => todo!(),
+            Slot::CallOutput(callee, output_idx) => {
+                let member = self.get_cell_member(self.io.callee(callee)?)?;
+                let member_type =
+                    StructType::try_from(member.member_type()).map_err(Error::Mlir)?;
+                let parent = self.struct_op.parent_operation().ok_or_else(|| {
+                    Error::Other("expected struct op to have a parent operation".to_owned())
+                })?;
+                let lookup = member_type
+                    .lookup_definition(&parent)
+                    .map_err(Error::Llzk)?;
+                let member_impl: StructDefOpRef = lookup
+                    .operation()
+                    .ok_or_else(|| Error::MissingStruct(format!("{member_type}")))?
+                    .try_into()
+                    .map_err(Error::Llzk)?;
+
+                let member_output = *member_impl
+                    .member_defs()
+                    .get(output_idx)
+                    .ok_or(Error::MissingCalleeMemberOutput(callee, output_idx))?;
+                let member_value = self.read_field(member)?;
+                wrap!(self.read_callee_output(member_output, member_value))
+            }
+            Slot::Temp(id) => {
+                wrap!(self.read_field(self.get_cell_member(MemberKind::Temp { id })?))
+            }
+            Slot::Challenge(_, _, _) => todo!(),
         }
     }
 
@@ -384,7 +467,7 @@ impl ExprLowering for LlzkStructLowering<'_, '_> {
         lhs: &Self::CellOutput,
         rhs: &Self::CellOutput,
     ) -> LoweringResult<Self::CellOutput> {
-        wrap!(self.append_expr(self.create_bin_op(bool::lt, lhs.into(), rhs.into())?))
+        wrap!(self.append_expr(self.create_bin_op(dialect::bool::lt, lhs.into(), rhs.into())?))
     }
 
     fn lower_le(
@@ -392,7 +475,7 @@ impl ExprLowering for LlzkStructLowering<'_, '_> {
         lhs: &Self::CellOutput,
         rhs: &Self::CellOutput,
     ) -> LoweringResult<Self::CellOutput> {
-        wrap!(self.append_expr(self.create_bin_op(bool::le, lhs.into(), rhs.into())?))
+        wrap!(self.append_expr(self.create_bin_op(dialect::bool::le, lhs.into(), rhs.into())?))
     }
 
     fn lower_gt(
@@ -400,7 +483,7 @@ impl ExprLowering for LlzkStructLowering<'_, '_> {
         lhs: &Self::CellOutput,
         rhs: &Self::CellOutput,
     ) -> LoweringResult<Self::CellOutput> {
-        wrap!(self.append_expr(self.create_bin_op(bool::gt, lhs.into(), rhs.into())?))
+        wrap!(self.append_expr(self.create_bin_op(dialect::bool::gt, lhs.into(), rhs.into())?))
     }
 
     fn lower_ge(
@@ -408,7 +491,7 @@ impl ExprLowering for LlzkStructLowering<'_, '_> {
         lhs: &Self::CellOutput,
         rhs: &Self::CellOutput,
     ) -> LoweringResult<Self::CellOutput> {
-        wrap!(self.append_expr(self.create_bin_op(bool::ge, lhs.into(), rhs.into())?))
+        wrap!(self.append_expr(self.create_bin_op(dialect::bool::ge, lhs.into(), rhs.into())?))
     }
 
     fn lower_ne(
@@ -416,11 +499,11 @@ impl ExprLowering for LlzkStructLowering<'_, '_> {
         lhs: &Self::CellOutput,
         rhs: &Self::CellOutput,
     ) -> LoweringResult<Self::CellOutput> {
-        wrap!(self.append_expr(self.create_bin_op(bool::ne, lhs.into(), rhs.into())?))
+        wrap!(self.append_expr(self.create_bin_op(dialect::bool::ne, lhs.into(), rhs.into())?))
     }
 
     fn lower_not(&self, value: &Self::CellOutput) -> LoweringResult<Self::CellOutput> {
-        wrap!(self.append_expr(self.create_un_op(bool::not, value.into(),)?))
+        wrap!(self.append_expr(self.create_un_op(dialect::bool::not, value.into(),)?))
     }
 
     fn lower_true(&self) -> LoweringResult<Self::CellOutput> {
@@ -463,8 +546,8 @@ impl ExprLowering for LlzkStructLowering<'_, '_> {
                     .with_context("Failed to lower rhs of implies expression")
             );
         }
-        let lhs = self.append_expr(self.create_un_op(bool::not, lhs)?)?;
-        wrap!(self.append_expr(self.create_bin_op(bool::or, lhs, rhs)?))
+        let lhs = self.append_expr(self.create_un_op(dialect::bool::not, lhs)?)?;
+        wrap!(self.append_expr(self.create_bin_op(dialect::bool::or, lhs, rhs)?))
     }
 
     fn lower_iff(
@@ -551,11 +634,11 @@ mod tests {
     fn lower_reading_cells(fragment_main_with_cells: FragmentCfg) {
         fragment_test(
             fragment_main_with_cells,
-            r"%0 = struct.readf %self[@adv_1_5] : <@Main<[]>>, !felt.type
-              %1 = struct.readf %self[@fix_2_3] : <@Main<[]>>, !felt.type",
+            r"%0 = struct.readm %self[@adv_1_5] : <@Main<[]>>, !felt.type
+              %1 = struct.readm %self[@fix_2_3] : <@Main<[]>>, !felt.type",
             |l| {
-                l.lower_funcio(FuncIO::advice_abs(1, 5))?;
-                l.lower_funcio(FuncIO::fixed_abs(2, 3))?;
+                l.lower_funcio(Slot::advice_abs(1, 5))?;
+                l.lower_funcio(Slot::fixed_abs(2, 3))?;
                 Ok(())
             },
         )
@@ -563,28 +646,21 @@ mod tests {
 
     #[rstest]
     fn lower_sum(fragment_main: FragmentCfg) {
-        fragment_test(
-            fragment_main,
-            r"%0 = struct.readf %arg1[@reg] : <@Signal<[]>>, !felt.type
-              %1 = felt.add %0, %0",
-            |l| {
-                let arg = l.lower_funcio(l.lower_function_input(0))?;
-                l.lower_sum(&arg, &arg)?;
-                Ok(())
-            },
-        )
+        fragment_test(fragment_main, r"%1 = felt.add %arg1, %arg1", |l| {
+            let arg = l.lower_funcio(l.lower_function_input(0))?;
+            l.lower_sum(&arg, &arg)?;
+            Ok(())
+        })
     }
 
     #[rstest]
     fn lower_sum_with_io(fragment_main: FragmentCfg) {
         fragment_test(
             fragment_main,
-            r"%0 = struct.readf %arg1[@reg] : <@Signal<[]>>, !felt.type
-              %1 = struct.readf %arg2[@reg] : <@Signal<[]>>, !felt.type
-              %2 = struct.readf %self[@out_0] : <@Main<[]>>, !felt.type
-              %3 = struct.readf %self[@out_1] : <@Main<[]>>, !felt.type
-              %4 = felt.add %0, %2
-              %5 = felt.add %1, %3",
+            r"%2 = struct.readm %self[@out_0] : <@Main<[]>>, !felt.type
+              %3 = struct.readm %self[@out_1] : <@Main<[]>>, !felt.type
+              %4 = felt.add %arg1, %2
+              %5 = felt.add %arg2, %3",
             |l| {
                 let arg0 = l.lower_funcio(l.lower_function_input(0))?;
                 let arg1 = l.lower_funcio(l.lower_function_input(1))?;
@@ -599,114 +675,74 @@ mod tests {
 
     #[rstest]
     fn lower_product(fragment_main: FragmentCfg) {
-        fragment_test(
-            fragment_main,
-            r"%0 = struct.readf %arg1[@reg] : <@Signal<[]>>, !felt.type
-              %1 = felt.mul %0, %0",
-            |l| {
-                let arg = l.lower_funcio(l.lower_function_input(0))?;
-                l.lower_product(&arg, &arg)?;
-                Ok(())
-            },
-        )
+        fragment_test(fragment_main, r"%1 = felt.mul %arg1, %arg1", |l| {
+            let arg = l.lower_funcio(l.lower_function_input(0))?;
+            l.lower_product(&arg, &arg)?;
+            Ok(())
+        })
     }
 
     #[rstest]
     fn lower_neg(fragment_main: FragmentCfg) {
-        fragment_test(
-            fragment_main,
-            r"%0 = struct.readf %arg1[@reg] : <@Signal<[]>>, !felt.type
-              %1 = felt.neg %0",
-            |l| {
-                let arg = l.lower_funcio(l.lower_function_input(0))?;
-                l.lower_neg(&arg)?;
-                Ok(())
-            },
-        )
+        fragment_test(fragment_main, r"%1 = felt.neg %arg1", |l| {
+            let arg = l.lower_funcio(l.lower_function_input(0))?;
+            l.lower_neg(&arg)?;
+            Ok(())
+        })
     }
 
     #[rstest]
     fn lower_eq(fragment_main: FragmentCfg) {
-        fragment_test(
-            fragment_main,
-            r"%0 = struct.readf %arg1[@reg] : <@Signal<[]>>, !felt.type
-              %1 = bool.cmp eq(%0, %0)",
-            |l| {
-                let arg = l.lower_funcio(l.lower_function_input(0))?;
-                l.lower_eq(&arg, &arg)?;
-                Ok(())
-            },
-        )
+        fragment_test(fragment_main, r"%1 = bool.cmp eq(%arg1, %arg1)", |l| {
+            let arg = l.lower_funcio(l.lower_function_input(0))?;
+            l.lower_eq(&arg, &arg)?;
+            Ok(())
+        })
     }
 
     #[rstest]
     fn lower_lt(fragment_main: FragmentCfg) {
-        fragment_test(
-            fragment_main,
-            r"%0 = struct.readf %arg1[@reg] : <@Signal<[]>>, !felt.type
-              %1 = bool.cmp lt(%0, %0)",
-            |l| {
-                let arg = l.lower_funcio(l.lower_function_input(0))?;
-                l.lower_lt(&arg, &arg)?;
-                Ok(())
-            },
-        )
+        fragment_test(fragment_main, r"%1 = bool.cmp lt(%arg1, %arg1)", |l| {
+            let arg = l.lower_funcio(l.lower_function_input(0))?;
+            l.lower_lt(&arg, &arg)?;
+            Ok(())
+        })
     }
 
     #[rstest]
     fn lower_le(fragment_main: FragmentCfg) {
-        fragment_test(
-            fragment_main,
-            r"%0 = struct.readf %arg1[@reg] : <@Signal<[]>>, !felt.type
-              %1 = bool.cmp le(%0, %0)",
-            |l| {
-                let arg = l.lower_funcio(l.lower_function_input(0))?;
-                l.lower_le(&arg, &arg)?;
-                Ok(())
-            },
-        )
+        fragment_test(fragment_main, r"%1 = bool.cmp le(%arg1, %arg1)", |l| {
+            let arg = l.lower_funcio(l.lower_function_input(0))?;
+            l.lower_le(&arg, &arg)?;
+            Ok(())
+        })
     }
 
     #[rstest]
     fn lower_gt(fragment_main: FragmentCfg) {
-        fragment_test(
-            fragment_main,
-            r"%0 = struct.readf %arg1[@reg] : <@Signal<[]>>, !felt.type
-              %1 = bool.cmp gt(%0, %0)",
-            |l| {
-                let arg = l.lower_funcio(l.lower_function_input(0))?;
-                l.lower_gt(&arg, &arg)?;
-                Ok(())
-            },
-        )
+        fragment_test(fragment_main, r"%1 = bool.cmp gt(%arg1, %arg1)", |l| {
+            let arg = l.lower_funcio(l.lower_function_input(0))?;
+            l.lower_gt(&arg, &arg)?;
+            Ok(())
+        })
     }
 
     #[rstest]
     fn lower_ge(fragment_main: FragmentCfg) {
-        fragment_test(
-            fragment_main,
-            r"%0 = struct.readf %arg1[@reg] : <@Signal<[]>>, !felt.type
-              %1 = bool.cmp ge(%0, %0)",
-            |l| {
-                let arg = l.lower_funcio(l.lower_function_input(0))?;
-                l.lower_ge(&arg, &arg)?;
-                Ok(())
-            },
-        )
+        fragment_test(fragment_main, r"%1 = bool.cmp ge(%arg1, %arg1)", |l| {
+            let arg = l.lower_funcio(l.lower_function_input(0))?;
+            l.lower_ge(&arg, &arg)?;
+            Ok(())
+        })
     }
 
     #[rstest]
     fn lower_ne(fragment_main: FragmentCfg) {
-        fragment_test(
-            fragment_main,
-            r"%0 = struct.readf %arg1[@reg] : <@Signal<[]>>, !felt.type
-              %1 = bool.cmp ne(%0, %0)",
-            |l| {
-                let arg = l.lower_funcio(l.lower_function_input(0))?;
-                l.lower_ne(&arg, &arg)?;
-                Ok(())
-            },
-        )
+        fragment_test(fragment_main, r"%1 = bool.cmp ne(%arg1, %arg1)", |l| {
+            let arg = l.lower_funcio(l.lower_function_input(0))?;
+            l.lower_ne(&arg, &arg)?;
+            Ok(())
+        })
     }
 
     #[rstest]
@@ -888,11 +924,11 @@ mod tests {
         let advice_io = cfg.advice_io();
         let instance_io = cfg.instance_io();
         let s = if cfg.is_main {
-            codegen.define_main_function(&advice_io, &instance_io)
+            codegen.define_main_function(&advice_io, &instance_io, [])
         } else {
             assert_eq!(cfg.n_public_inputs, 0);
             assert_eq!(cfg.n_public_outputs, 0);
-            codegen.define_function(cfg.struct_name, cfg.n_inputs, cfg.n_outputs)
+            codegen.define_function(cfg.struct_name, cfg.n_inputs, cfg.n_outputs, [])
         }
         .unwrap();
         test(&s).unwrap();
@@ -957,21 +993,17 @@ mod tests {
         }
 
         fn input_type_str(&self) -> &'static str {
-            if self.is_main {
-                "!struct.type<@Signal<[]>>"
-            } else {
-                "!felt.type"
-            }
+            "!felt.type"
         }
 
         fn cells(&self) -> String {
             self.advice_cells
                 .iter()
-                .map(|(col, row)| format!("struct.field @adv_{col}_{row} : !felt.type\n"))
+                .map(|(col, row)| format!("struct.member @adv_{col}_{row} : !felt.type\n"))
                 .chain(
                     self.fixed_cells
                         .iter()
-                        .map(|(col, row)| format!("struct.field @fix_{col}_{row} : !felt.type\n")),
+                        .map(|(col, row)| format!("struct.member @fix_{col}_{row} : !felt.type\n")),
                 )
                 .collect()
         }
@@ -980,7 +1012,7 @@ mod tests {
             (0..self.n_outputs).fold(String::new(), |mut acc, n| {
                 writeln!(
                     acc,
-                    "struct.field @out_{n} : !felt.type{}",
+                    "struct.member @out_{n} : !felt.type{}",
                     if n < self.n_public_outputs {
                         " {llzk.pub}"
                     } else {
@@ -995,9 +1027,8 @@ mod tests {
 
     fn expected_fragment(cfg: &FragmentCfg, frag: &str) -> String {
         format!(
-            r#"module attributes {{veridise.lang = "llzk"}} {{
-  {signal}
-  struct.def @{name}<[]> {{
+            r#"module attributes {{llzk.lang = "halo2", llzk.main = !struct.type<@{name}<[]>>}} {{
+  struct.def @{name} {{
     {fields}
     function.def @compute({inputs}) -> !struct.type<@{name}<[]>> attributes {{function.allow_non_native_field_ops, function.allow_witness}} {{
       %{self_name} = struct.new : <@{name}<[]>>
@@ -1013,7 +1044,6 @@ mod tests {
             name = cfg.struct_name,
             inputs = cfg.inputs(),
             fields = cfg.fields(),
-            signal = include_str!("test_files/signal_fragment.mlir"),
             self_name = cfg.self_name,
             cells = cfg.cells()
         )

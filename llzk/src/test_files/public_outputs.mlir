@@ -1,21 +1,8 @@
-module attributes {veridise.lang = "llzk"} {
-  struct.def @Signal<[]> {
-    struct.field @reg : !felt.type {llzk.pub}
-    function.def @compute(%arg0: !felt.type) -> !struct.type<@Signal<[]>> attributes {function.allow_non_native_field_ops, function.allow_witness} {
-      %self = struct.new : <@Signal<[]>>
-      struct.writef %self[@reg] = %arg0 : <@Signal<[]>>, !felt.type
-      function.return %self : !struct.type<@Signal<[]>>
-    }
-    function.def @constrain(%arg0: !struct.type<@Signal<[]>>, %arg1: !felt.type) attributes {function.allow_constraint, function.allow_non_native_field_ops} {
-      %0 = struct.readf %arg0[@reg] : <@Signal<[]>>, !felt.type
-      constrain.eq %0, %arg1 : !felt.type, !felt.type
-      function.return
-    }
-  }
-  struct.def @Main<[]> {
-    struct.field @out_0 : !felt.type {llzk.pub}
-    struct.field @out_1 : !felt.type {llzk.pub}
-    struct.field @out_2 : !felt.type {llzk.pub}
+module attributes {llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>>} {
+  struct.def @Main {
+    struct.member @out_0 : !felt.type {llzk.pub}
+    struct.member @out_1 : !felt.type {llzk.pub}
+    struct.member @out_2 : !felt.type {llzk.pub}
     function.def @compute() -> !struct.type<@Main<[]>> attributes {function.allow_non_native_field_ops, function.allow_witness} {
       %self = struct.new : <@Main<[]>>
       function.return %self : !struct.type<@Main<[]>>

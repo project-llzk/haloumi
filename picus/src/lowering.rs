@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use super::vars::{NamingConvention, VarKey, VarKeySeed};
 use crate::pcl::{ModuleLike as _, expr, stmt};
+use haloumi_backend::lowering::CallTracker;
 use haloumi_core::{
     cmp::CmpOp,
     felt::Felt,
@@ -18,6 +19,7 @@ pub struct PicusModuleLowering {
     module: PicusModuleRef,
     naming_convention: NamingConvention,
     prime: Prime,
+    calls: CallTracker,
 }
 
 impl PicusModuleLowering {
@@ -30,6 +32,7 @@ impl PicusModuleLowering {
             module,
             naming_convention,
             prime,
+            calls: Default::default(),
         }
     }
 }
@@ -78,20 +81,17 @@ impl Lowering for PicusModuleLowering {
         &self,
         name: &str,
         inputs: &[Self::CellOutput],
-        outputs: &[FuncIO],
-    ) -> Result<()> {
+        output_count: usize,
+    ) -> Result<Vec<FuncIO>> {
+        let slots = FuncIO::call_outputs(self.calls.next(), output_count);
         let stmt = stmt::call(
             name.to_owned(),
             inputs.to_vec(),
-            outputs
-                .iter()
-                .copied()
-                .map(|o| self.lower_func_io(o))
-                .collect(),
+            slots.iter().map(|o| self.lower_func_io(*o)).collect(),
         )
         .map_err(err)?;
         self.module.borrow_mut().add_stmt(stmt);
-        Ok(())
+        Ok(slots)
     }
 
     fn generate_assume_deterministic(&self, func_io: FuncIO) -> Result<()> {

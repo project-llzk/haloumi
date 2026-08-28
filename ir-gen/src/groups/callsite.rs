@@ -4,7 +4,7 @@ use crate::regions::{region_row::RegionRow, row::Row};
 use crate::{expressions::ScopedExpression, temps::ExprOrTemp};
 use ff::Field;
 use haloumi_core::expressions::ExprBuilder;
-use haloumi_ir::{Slot, groups::callsite::CallSite};
+use haloumi_ir::groups::callsite::CallSite;
 use haloumi_synthesis::io::{AdviceIO, InstanceIO};
 use haloumi_synthesis::{
     groups::{Group, GroupCell},
@@ -96,19 +96,13 @@ where
 
     let inputs = cells_to_exprs(callee.inputs(), ctx, advice_io, instance_io)?;
     let outputs = cells_to_exprs(callee.outputs(), ctx, advice_io, instance_io)?;
-    let output_vars: Vec<_> = callee
-        .outputs()
-        .iter()
-        .enumerate()
-        .map(|(n, _)| Slot::CallOutput(call_no, n))
-        .collect();
 
     Ok(CallSite::new(
+        call_no,
         callee.name().to_owned(),
         callee_key,
         callee_id,
         inputs,
-        output_vars,
         outputs,
     ))
 }

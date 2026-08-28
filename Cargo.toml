@@ -10,12 +10,12 @@ members = [
   "llzk",
   "driver",
   "support/midnight",
-  "support/test-circuits"
+  "support/mdnt-test-circuits",
 ]
 resolver = "2"
 
 [workspace.package]
-version = "0.5.11"
+version = "0.5.15"
 authors = ["Daniel Dominguez (Veridise) <daniel@veridise.com>"]
 edition = "2024"
 rust-version = "1.85"
@@ -34,9 +34,10 @@ log = "0.4"
 eqv = "0.1"
 bit-set = "0.8"
 disjoint = "0.8"
-llzk = { version = "0.2.0", features =["bigint"] }
+llzk = { version = "0.6.0", features =["bigint"] }
 
 # Testing dependencies
 halo2curves = "0.7.0"
 similar-asserts = "1.7"
 mlir-testutils = {version = "0.1.0", features = ["similar-asserts"]}
+

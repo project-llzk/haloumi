@@ -24,10 +24,12 @@ pub mod inline {
 
             log::debug!("Generating main body");
             let main_id = ir.main().id();
+            let groups = ir.groups();
             codegen.define_main_function_with_body(
                 ctx.advice_io_of_group(main_id),
                 ctx.instance_io_of_group(main_id),
-                ir.groups().to_vec(),
+                groups.iter().flat_map(|g| g.callees()),
+                groups.to_vec(),
             )
         }
     }
@@ -83,7 +85,12 @@ pub mod groups {
                 let instance_io = ctx.instance_io_of_group(group.id());
                 if group.is_main() {
                     log::debug!("Generating main body");
-                    codegen.define_main_function_with_body(advice_io, instance_io, [group])?;
+                    codegen.define_main_function_with_body(
+                        advice_io,
+                        instance_io,
+                        group.callees(),
+                        [group],
+                    )?;
                 } else {
                     log::debug!("Generating body of function {}", group.name());
                     let name = group.name().to_owned();
@@ -92,6 +99,7 @@ pub mod groups {
                         &name,
                         advice_io.inputs_count() + instance_io.inputs_count(),
                         advice_io.outputs_count() + instance_io.outputs_count(),
+                        group.callees(),
                         |_, _, _| Ok([group]),
                     )?;
                 }

@@ -12,11 +12,12 @@ pub mod error;
 /// Re-export of `haloumi-ir`.
 pub mod ir {
     pub use haloumi_ir::*;
+    /// Re-export of `haloumi-ir-gen`
+    pub mod r#gen {
+        pub use haloumi_ir_gen::*;
+    }
 }
-/// Re-export of `haloumi-ir-gen`
-pub mod ir_gen {
-    pub use haloumi_ir_gen::*;
-}
+
 /// Re-export of `haloumi-synthesis`
 pub mod synthesis {
     pub use haloumi_synthesis::*;
@@ -24,4 +25,19 @@ pub mod synthesis {
 /// Re-export of `haloumi-core`
 pub mod core {
     pub use haloumi_core::*;
+}
+
+/// Haloumi backends re-exports.
+pub mod backends {
+    /// Re-export of `haloumi-picus`
+    #[cfg(feature = "picus-backend")]
+    pub mod picus {
+        pub use haloumi_picus::*;
+    }
+
+    /// Re-export of `haloumi-llzk`
+    #[cfg(feature = "llzk-backend")]
+    pub mod llzk {
+        pub use haloumi_llzk::*;
+    }
 }

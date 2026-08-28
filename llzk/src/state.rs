@@ -1,4 +1,5 @@
 use haloumi_backend::codegen::CodegenParams;
+use llzk::prelude::{FeltType, FieldSpecAttribute};
 use melior::Context;
 
 use super::LlzkParams;
@@ -21,6 +22,37 @@ impl<'c> LlzkCodegenState<'c> {
     /// Returns true if optimization is enabled.
     pub fn optimize(&self) -> bool {
         self.params.optimize()
+    }
+
+    /// Returns the prime field spec if available.
+    ///
+    /// Only returns a value if the spec was configured with a custom field. If the user configured
+    /// the field with a builtin then this method returns `None` since there's no need for setting
+    /// the `llzk.fields` attribute in the resulting module.
+    pub fn spec(&self) -> Option<FieldSpecAttribute<'c>> {
+        let spec = self.params.spec()?;
+        let prime = spec.prime()?;
+        Some(FieldSpecAttribute::from_biguint(
+            self.context,
+            spec.name(),
+            prime.value(),
+        ))
+    }
+
+    /// Returns the field spec name, if available.
+    pub fn field_name(&self) -> Option<&str> {
+        self.params.spec().map(|spec| spec.name())
+    }
+
+    /// Returns the correct felt type based on the spec parameter.
+    ///
+    /// If the spec is available returns `!felt.type<"spec">` otherwise
+    /// returns an unspecified `!felt.type`.
+    pub fn felt_type(&self) -> FeltType<'c> {
+        match self.params.spec() {
+            Some(spec) => FeltType::with_field(self.context, spec.name()),
+            None => FeltType::new(self.context),
+        }
     }
 }
 

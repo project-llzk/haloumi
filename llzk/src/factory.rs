@@ -269,9 +269,9 @@ pub fn create_struct<'c: 'v, 'v>(
 
         let ty = StructType::from_str(state.context(), struct_name);
         helpers::compute_fn(builder, loc, ty, &func_args, Some(&arg_attrs))?;
-        let _func_op = helpers::constrain_fn(builder, loc, ty, &func_args, Some(&arg_attrs))?;
-        //let func_op = unsafe { FuncDefOpRefMut::from_raw(func_op.to_raw()) };
-        //TODO: func_op.set_allow_verif_ops_attr(true);
+        let func_op = helpers::constrain_fn(builder, loc, ty, &func_args, Some(&arg_attrs))?;
+        let func_op = unsafe { FuncDefOpRefMut::from_raw(func_op.to_raw()) };
+        func_op.set_allow_verif_ops_attr(true);
 
         Ok(())
     })

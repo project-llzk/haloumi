@@ -5,7 +5,7 @@ use haloumi_backend::lowering::CallTracker;
 //use backend_err::{Result, backend_err};
 use haloumi_lowering::{ExprLowering, Lowering, Result as LoweringResult, bail_backend};
 use llzk::builder::{OpBuilder, OpBuilderLike as _};
-use llzk::dialect::function;
+use llzk::dialect::{function, verif};
 use llzk::prelude::*;
 use melior::dialect::arith;
 use melior::ir::ValueLike;
@@ -360,11 +360,10 @@ impl Lowering for LlzkStructLowering<'_, '_> {
         Ok(Slot::call_outputs(id, output_count))
     }
 
-    fn generate_assume_deterministic(&self, _func_io: Slot) -> LoweringResult<()> {
-        // If the final target is picus generate a 'picus.assume_deterministic' op. Otherwise do nothing.
-        todo!(
-            "There isn't yet a construct in LLZK that supports the 'assume_deterministic' statement"
-        )
+    fn generate_assume_deterministic(&self, func_io: Slot) -> LoweringResult<()> {
+        let value = self.lower_funcio(func_io)?;
+        verif::assume_det(self.builder(), Location::unknown(self.context()), value);
+        Ok(())
     }
 
     fn generate_assert<'l: 'o, 'o>(&'l self, &expr: &Self::CellOutput<'o>) -> LoweringResult<()> {
@@ -374,9 +373,11 @@ impl Lowering for LlzkStructLowering<'_, '_> {
 
     fn generate_post_condition<'l: 'o, 'o>(
         &'l self,
-        _expr: &Self::CellOutput<'o>,
+        &condition: &Self::CellOutput<'o>,
     ) -> LoweringResult<()> {
-        todo!()
+        verif::ensure_constrain(self.builder(), Location::unknown(self.context()), condition)
+            .map_err(Error::from)?;
+        Ok(())
     }
 }
 
@@ -540,9 +541,13 @@ impl<'c> ExprLowering for LlzkStructLowering<'c, '_> {
 
     fn lower_det<'l: 'o, 'o>(
         &'l self,
-        _expr: &Self::CellOutput<'o>,
+        &expr: &Self::CellOutput<'o>,
     ) -> LoweringResult<Self::CellOutput<'o>> {
-        unimplemented!("the determinism predicate is not supported by the LLZK backend")
+        ok_value!(verif::prove_det(
+            self.builder(),
+            Location::unknown(self.context()),
+            expr
+        ))
     }
 
     fn lower_implies<'l: 'o, 'o>(
@@ -870,13 +875,37 @@ mod tests {
     }
 
     #[rstest]
-    #[should_panic(expected = "the determinism predicate is not supported by the LLZK backend")]
     fn lower_det(fragment_main: FragmentCfg) {
-        fragment_test(fragment_main, "", |l| {
-            let t = l.lower_true()?;
-            l.lower_det(&t)?;
+        fragment_test(
+            fragment_main,
+            "%felt_const_1 = felt.const 1\n%0 = verif.det.prove %felt_const_1 : !felt.type",
+            |l| {
+                let t = l.lower_constant(Felt::new(halo2curves::bn256::Fq::ONE))?;
+                l.lower_det(&t)?;
+                Ok(())
+            },
+        )
+    }
+
+    #[rstest]
+    fn generate_assume_deterministic(fragment_main: FragmentCfg) {
+        fragment_test(fragment_main, r"verif.det.assume %arg1 : !felt.type", |l| {
+            l.generate_assume_deterministic(l.lower_function_input(0))?;
             Ok(())
         })
+    }
+
+    #[rstest]
+    fn generate_post_condition(fragment_main: FragmentCfg) {
+        fragment_test(
+            fragment_main,
+            "%true = arith.constant true\nverif.ensure_constrain %true",
+            |l| {
+                let t = l.lower_true()?;
+                l.generate_post_condition(&t)?;
+                Ok(())
+            },
+        )
     }
 
     #[rstest]
@@ -1028,7 +1057,7 @@ mod tests {
       %{self_name} = struct.new : <@{name}<[]>>
       function.return %{self_name} : !struct.type<@{name}<[]>>
     }}
-    function.def @constrain(%{self_name}: !struct.type<@{name}<[]>>, {inputs}) attributes {{function.allow_constraint, function.allow_non_native_field_ops}} {{
+    function.def @constrain(%{self_name}: !struct.type<@{name}<[]>>, {inputs}) attributes {{function.allow_constraint, function.allow_non_native_field_ops, function.allow_verif_ops}} {{
       {frag}
       function.return
     }}

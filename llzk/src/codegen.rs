@@ -3,6 +3,7 @@ use super::state::LlzkCodegenState;
 use super::{LlzkOutput, counter::Counter};
 
 use haloumi_backend::codegen::Codegen;
+use llzk::builder::OpBuilder;
 use llzk::prelude::*;
 use melior::{
     Context,
@@ -23,18 +24,18 @@ pub struct LlzkCodegen<'c, 's> {
 }
 
 impl<'c, 's> LlzkCodegen<'c, 's> {
-    fn add_struct(&self, s: StructDefOp<'c>) -> Result<StructDefOpRefMut<'c, 's>, Error> {
-        let s: StructDefOpRef = self.module.body().append_operation(s.into()).try_into()?;
-        Ok(unsafe { StructDefOpRefMut::from_raw(s.to_raw()) })
-    }
-
     fn create_lowering_scope(
         &self,
         name: &str,
         io: StructIO,
     ) -> Result<LlzkStructLowering<'c, 's>, Error> {
-        let s = factory::create_struct(self.state, name, self.struct_count.next(), &io)?;
-        LlzkStructLowering::new(self.state, self.add_struct(s)?, io)
+        let builder = OpBuilder::at_block_end(self.context(), self.module.body());
+        let s = factory::create_struct(&builder, self.state, name, self.struct_count.next(), &io)?;
+        LlzkStructLowering::new(
+            self.state,
+            unsafe { StructDefOpRefMut::from_raw(s.to_raw()) },
+            io,
+        )
     }
 
     fn context(&self) -> &'c Context {
@@ -58,7 +59,8 @@ impl<'c: 's, 's> Codegen<'c, 's> for LlzkCodegen<'c, 's> {
     type Error = Error;
 
     fn initialize(state: &'s Self::State) -> Self {
-        let mut module = llzk_module(Location::unknown(state.context()), Some("halo2"));
+        let mut module =
+            LlzkModuleBuilder::create(Location::unknown(state.context()), Some("halo2"));
         if let Some(spec) = state.spec() {
             module.add_field_spec(spec);
         }

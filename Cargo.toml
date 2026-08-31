@@ -41,3 +41,5 @@ halo2curves = "0.7.0"
 similar-asserts = "1.7"
 mlir-testutils = {version = "0.1.0", features = ["similar-asserts"]}
 
+[patch.crates-io]
+llzk = { git = "https://github.com/project-llzk/llzk-rs" }

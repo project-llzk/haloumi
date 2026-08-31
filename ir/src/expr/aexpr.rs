@@ -264,9 +264,10 @@ impl EqvRelation<IRAexpr> for SymbolicEqv {
 }
 
 impl LowerableExpr for IRAexpr {
-    fn lower<L>(self, l: &L) -> haloumi_lowering::Result<L::CellOutput>
+    fn lower<'l, 'o, L>(self, l: &'l L) -> haloumi_lowering::Result<L::CellOutput<'o>>
     where
         L: ExprLowering + ?Sized,
+        'l: 'o,
     {
         match self.0 {
             IRAexprImpl::Constant(f) => l.lower_constant(f),

@@ -4,7 +4,7 @@ use crate::state::LlzkCodegenState;
 use haloumi_backend::lowering::CallTracker;
 //use backend_err::{Result, backend_err};
 use haloumi_lowering::{ExprLowering, Lowering, Result as LoweringResult, bail_backend};
-use llzk::builder::OpBuilder;
+use llzk::builder::{OpBuilder, OpBuilderLike as _};
 use llzk::dialect::function;
 use llzk::prelude::*;
 use melior::dialect::arith;
@@ -13,9 +13,8 @@ use melior::ir::attribute::IntegerAttribute;
 use melior::ir::r#type::IntegerType;
 use melior::{
     Context,
-    ir::{Location, Operation, OperationRef, Type, Value},
+    ir::{Location, OperationRef, Type, Value},
 };
-use mlir_sys::MlirValue;
 use num_bigint::BigUint;
 use std::rc::Rc;
 
@@ -26,6 +25,36 @@ use haloumi_core::{
     felt::Felt,
     slot::{Slot, arg::ArgNo, output::OutputId as FieldId},
 };
+
+macro_rules! value {
+    ($op:expr) => {
+        Value::from($op.result(0).map_err(Error::from)?)
+    };
+}
+
+macro_rules! ok_value {
+    ($op:expr) => {
+        Ok(value!($op))
+    };
+}
+
+macro_rules! expect_type {
+    ($value:expr, $ty:expr, $expr_name:literal) => {{
+        let __value_type = $value.r#type();
+        let __ty = $ty;
+        if __value_type != __ty {
+            bail_backend!(
+                UnexpectedTypeError::new(__ty, __value_type).with_context(concat!(
+                    "Failed to lower ",
+                    stringify!($value),
+                    " of ",
+                    $expr_name,
+                    " expression"
+                ))
+            );
+        }
+    }};
+}
 
 #[derive(Debug)]
 pub struct LlzkStructLowering<'c, 's> {
@@ -76,9 +105,9 @@ impl<'c, 's> LlzkStructLowering<'c, 's> {
 
     fn get_cell_member(&self, kind: MemberKind<'_>) -> Result<MemberDefOpRef<'c, '_>, Error> {
         let name = kind.member_name();
-        Ok(self.struct_op.find_or_create_member_def(&name, || {
+        Ok(self.struct_op.find_or_create_member_def(&name, |builder| {
             log::debug!("Creating member named '@{name}'");
-            kind.create_member_op(self.state, self.struct_name())
+            kind.create_member_op(builder, self.state, self.struct_name())
         })?)
     }
 
@@ -108,33 +137,6 @@ impl<'c, 's> LlzkStructLowering<'c, 's> {
             .ok_or(Error::MissingConstrainFunc)
     }
 
-    /// Adds an operation at the end of the constrain function.
-    fn append_op<O>(&self, op: O) -> Result<OperationRef<'c, '_>, Error>
-    where
-        O: Into<Operation<'c>>,
-    {
-        let block = self
-            .get_constrain_func()?
-            .region(0)?
-            .first_block()
-            .ok_or(Error::MissingBlock)?;
-        let op_ref = block.insert_operation_before(
-            block.terminator().ok_or(Error::MissingTerminator)?,
-            op.into(),
-        );
-        log::debug!("Inserted operation {op_ref}");
-        Ok(op_ref)
-    }
-
-    /// Adds an operation at the end of the constrain function and returns the first resulf of the
-    /// operation.
-    fn append_expr<O>(&self, op: O) -> Result<Value<'c, '_>, Error>
-    where
-        O: Into<Operation<'c>>,
-    {
-        Ok(self.append_op(op)?.result(0)?.into())
-    }
-
     fn get_arg_impl(&self, idx: usize) -> Result<Value<'c, '_>, Error> {
         Ok(self.get_constrain_func()?.argument(idx)?.into())
     }
@@ -149,8 +151,11 @@ impl<'c, 's> LlzkStructLowering<'c, 's> {
         self.get_arg_impl(0)
     }
 
-    fn read_field(&self, field: MemberDefOpRef<'c, '_>) -> Result<Value<'c, '_>, Error> {
-        self.append_expr(dialect::r#struct::readm(
+    fn read_field<'v>(&self, field: MemberDefOpRef<'c, '_>) -> Result<Value<'c, 'v>, Error>
+    where
+        'c: 'v,
+    {
+        ok_value!(dialect::r#struct::readm(
             self.builder(),
             Location::unknown(self.context()),
             field.member_type(),
@@ -164,7 +169,7 @@ impl<'c, 's> LlzkStructLowering<'c, 's> {
         field: MemberDefOpRef<'c, '_>,
         callee: Value<'c, '_>,
     ) -> Result<Value<'c, '_>, Error> {
-        self.append_expr(dialect::r#struct::readm(
+        ok_value!(dialect::r#struct::readm(
             self.builder(),
             Location::unknown(self.context()),
             field.member_type(),
@@ -173,10 +178,14 @@ impl<'c, 's> LlzkStructLowering<'c, 's> {
         )?)
     }
 
-    fn lower_constant_impl(&self, f: &BigUint) -> Result<Value<'c, '_>, Error> {
+    fn lower_constant_impl<'v>(&self, f: &BigUint) -> Result<Value<'c, 'v>, Error>
+    where
+        'c: 'v,
+    {
         let const_attr =
             FeltConstAttribute::from_biguint(self.context(), f, self.state.field_name());
-        self.append_expr(dialect::felt::constant(
+        ok_value!(dialect::felt::constant(
+            self.builder(),
             Location::unknown(self.context()),
             const_attr,
         )?)
@@ -187,7 +196,10 @@ impl<'c, 's> LlzkStructLowering<'c, 's> {
     /// The type of `expr` must be `i1`. That expression is then
     /// negated and converted into a felt. Then emit a constraint that
     /// that felt is equal to 0.
-    fn create_assert_op(&self, expr: Value<'c, '_>) -> LoweringResult<Operation<'c>> {
+    fn create_assert_op<'v>(&self, expr: Value<'c, '_>) -> LoweringResult<OperationRef<'c, 'v>>
+    where
+        'c: 'v,
+    {
         let location = Location::unknown(self.context());
         let i1 = Type::from(IntegerType::new(self.context(), 1));
         if expr.r#type() != i1 {
@@ -197,68 +209,86 @@ impl<'c, 's> LlzkStructLowering<'c, 's> {
             );
         }
         let not_expr =
-            self.append_expr(dialect::bool::not(location, expr).map_err(Error::Llzk)?)?;
-        let as_felt = self.append_expr(dialect::cast::tofelt(
+            value!(dialect::bool::not(self.builder(), location, expr).map_err(Error::Llzk)?);
+        let as_felt = value!(dialect::cast::tofelt(
+            self.builder(),
             location,
             not_expr,
             Some(self.state.felt_type()),
-        ))?;
+        ));
         let zero = self.lower_constant_impl(&BigUint::ZERO)?;
-        Ok(dialect::constrain::eq(location, as_felt, zero))
+        Ok(dialect::constrain::eq(
+            self.builder(),
+            location,
+            as_felt,
+            zero,
+        ))
     }
 
-    fn create_bin_op<E>(
+    fn create_bin_op<'v, E>(
         &self,
-        op: impl Fn(Location<'c>, Value<'c, '_>, Value<'c, '_>) -> Result<Operation<'c>, E>,
+        op: impl Fn(
+            &OpBuilder<'c, 'c>,
+            Location<'c>,
+            Value<'c, '_>,
+            Value<'c, '_>,
+        ) -> Result<OperationRef<'c, 'v>, E>,
         lhs: Value<'c, '_>,
         rhs: Value<'c, '_>,
-    ) -> Result<Operation<'c>, Error>
+    ) -> Result<OperationRef<'c, 'v>, Error>
     where
         Error: From<E>,
+        'c: 'v,
     {
-        Ok(op(Location::unknown(self.context()), lhs, rhs)?)
+        Ok(op(
+            self.builder(),
+            Location::unknown(self.context()),
+            lhs,
+            rhs,
+        )?)
     }
 
-    fn create_un_op<E>(
+    fn create_un_op<'v, E>(
         &self,
-        op: impl Fn(Location<'c>, Value<'c, '_>) -> Result<Operation<'c>, E>,
+        op: impl Fn(&OpBuilder<'c, 'c>, Location<'c>, Value<'c, '_>) -> Result<OperationRef<'c, 'v>, E>,
         value: Value<'c, '_>,
-    ) -> Result<Operation<'c>, Error>
+    ) -> Result<OperationRef<'c, 'v>, Error>
     where
         Error: From<E>,
+        'c: 'v,
     {
-        Ok(op(Location::unknown(self.context()), value)?)
+        Ok(op(
+            self.builder(),
+            Location::unknown(self.context()),
+            value,
+        )?)
     }
-}
 
-/// Value wrapper used as lowering output for circumventing lifetime restrictions.
-#[derive(Copy, Clone, Debug)]
-pub struct ValueWrap(MlirValue);
-
-impl From<ValueWrap> for Value<'_, '_> {
-    fn from(value: ValueWrap) -> Self {
-        unsafe { Self::from_raw(value.0) }
+    fn i1_type(&self) -> Type<'c> {
+        IntegerType::new(self.context(), 1).into()
     }
-}
 
-impl From<&ValueWrap> for Value<'_, '_> {
-    fn from(value: &ValueWrap) -> Self {
-        unsafe { Self::from_raw(value.0) }
+    fn create_arith_const_op<'v>(&self, r#type: Type<'c>, value: i64) -> OperationRef<'c, 'v>
+    where
+        'c: 'v,
+    {
+        self.builder()
+            .insert(Location::unknown(self.context()), |context, location| {
+                arith::constant(
+                    context,
+                    IntegerAttribute::new(r#type, value).into(),
+                    location,
+                )
+            })
     }
-}
-
-macro_rules! wrap {
-    ($r:expr) => {
-        Ok(($r).map(|v| ValueWrap(v.to_raw()))?)
-    };
 }
 
 impl Lowering for LlzkStructLowering<'_, '_> {
-    fn generate_constraint(
-        &self,
+    fn generate_constraint<'l: 'o, 'o>(
+        &'l self,
         op: CmpOp,
-        lhs: &Self::CellOutput,
-        rhs: &Self::CellOutput,
+        lhs: &Self::CellOutput<'o>,
+        rhs: &Self::CellOutput<'o>,
     ) -> LoweringResult<()> {
         let loc = Location::new(
             self.context(),
@@ -268,7 +298,7 @@ impl Lowering for LlzkStructLowering<'_, '_> {
         );
         let cond = match op {
             CmpOp::Eq => {
-                self.append_op(dialect::constrain::eq(loc, lhs.into(), rhs.into()))?;
+                dialect::constrain::eq(self.builder(), loc, *lhs, *rhs);
                 return Ok(());
             }
             CmpOp::Lt => self.lower_lt(lhs, rhs),
@@ -304,30 +334,28 @@ impl Lowering for LlzkStructLowering<'_, '_> {
         Ok(())
     }
 
-    fn generate_call(
-        &self,
+    fn generate_call<'l: 'o, 'o>(
+        &'l self,
         name: &str,
-        inputs: &[Self::CellOutput],
+        inputs: &[Self::CellOutput<'o>],
         output_count: usize,
     ) -> LoweringResult<Vec<Slot>> {
         let id = self.callees_counter.next();
         let kind = MemberKind::Callee { name, id };
         let subcmp = self.read_field(self.get_cell_member(kind)?)?;
         let args = std::iter::once(subcmp)
-            .chain(inputs.iter().map(|i| i.into()))
+            .chain(inputs.iter().copied())
             .collect::<Vec<_>>();
         let ret: [Type; 0] = [];
 
-        self.append_op(
-            function::call(
-                self.builder(),
-                Location::unknown(self.context()),
-                SymbolRefAttribute::new_from_str(self.context(), name, &[&FUNC_NAME_CONSTRAIN]),
-                &args,
-                &ret,
-            )
-            .map_err(Error::Llzk)?,
-        )?;
+        function::call(
+            self.builder(),
+            Location::unknown(self.context()),
+            SymbolRefAttribute::new_from_str(self.context(), name, &[&FUNC_NAME_CONSTRAIN]),
+            &args,
+            &ret,
+        )
+        .map_err(Error::Llzk)?;
 
         Ok(Slot::call_outputs(id, output_count))
     }
@@ -339,75 +367,74 @@ impl Lowering for LlzkStructLowering<'_, '_> {
         )
     }
 
-    fn generate_assert(&self, expr: &Self::CellOutput) -> LoweringResult<()> {
-        self.append_op(self.create_assert_op(expr.into())?)?;
+    fn generate_assert<'l: 'o, 'o>(&'l self, &expr: &Self::CellOutput<'o>) -> LoweringResult<()> {
+        self.create_assert_op(expr)?;
         Ok(())
     }
 
-    fn generate_post_condition(&self, _expr: &Self::CellOutput) -> LoweringResult<()> {
+    fn generate_post_condition<'l: 'o, 'o>(
+        &'l self,
+        _expr: &Self::CellOutput<'o>,
+    ) -> LoweringResult<()> {
         todo!()
     }
 }
 
-impl ExprLowering for LlzkStructLowering<'_, '_> {
-    type CellOutput = ValueWrap;
+impl<'c> ExprLowering for LlzkStructLowering<'c, '_> {
+    type CellOutput<'v>
+        = Value<'c, 'v>
+    where
+        Self: 'v;
 
-    fn lower_sum(
-        &self,
-        lhs: &Self::CellOutput,
-        rhs: &Self::CellOutput,
-    ) -> LoweringResult<Self::CellOutput> {
-        wrap! {
-            self.append_expr(self.create_bin_op(dialect::felt::add,
-                lhs.into(),
-                rhs.into(),
-            )?)
-        }
+    fn lower_sum<'l: 'o, 'o>(
+        &'l self,
+        &lhs: &Self::CellOutput<'o>,
+        &rhs: &Self::CellOutput<'o>,
+    ) -> LoweringResult<Self::CellOutput<'o>> {
+        ok_value!(self.create_bin_op(dialect::felt::add, lhs, rhs)?)
     }
 
-    fn lower_product(
-        &self,
-        lhs: &Self::CellOutput,
-        rhs: &Self::CellOutput,
-    ) -> LoweringResult<Self::CellOutput> {
-        wrap! {
-            self.append_expr(self.create_bin_op(dialect::felt::mul,
-                lhs.into(),
-                rhs.into(),
-            )?)
-        }
+    fn lower_product<'l: 'o, 'o>(
+        &'l self,
+        &lhs: &Self::CellOutput<'o>,
+        &rhs: &Self::CellOutput<'o>,
+    ) -> LoweringResult<Self::CellOutput<'o>> {
+        ok_value!(self.create_bin_op(dialect::felt::mul, lhs, rhs)?)
     }
 
-    fn lower_neg(&self, expr: &Self::CellOutput) -> LoweringResult<Self::CellOutput> {
-        wrap! { self.append_expr(self.create_un_op(dialect::felt::neg, expr.into())?) }
+    fn lower_neg<'l: 'o, 'o>(
+        &'l self,
+        &expr: &Self::CellOutput<'o>,
+    ) -> LoweringResult<Self::CellOutput<'o>> {
+        ok_value!(self.create_un_op(dialect::felt::neg, expr)?)
     }
 
-    fn lower_constant(&self, f: Felt) -> LoweringResult<Self::CellOutput> {
-        wrap! {self.lower_constant_impl(&f)}
+    fn lower_constant<'l: 'o, 'o>(&'l self, f: Felt) -> LoweringResult<Self::CellOutput<'o>> {
+        Ok(self.lower_constant_impl(&f)?)
     }
 
-    fn lower_eq(
-        &self,
-        lhs: &Self::CellOutput,
-        rhs: &Self::CellOutput,
-    ) -> LoweringResult<Self::CellOutput> {
-        wrap!(self.append_expr(self.create_bin_op(dialect::bool::eq, lhs.into(), rhs.into())?))
+    fn lower_eq<'l: 'o, 'o>(
+        &'l self,
+        &lhs: &Self::CellOutput<'o>,
+        &rhs: &Self::CellOutput<'o>,
+    ) -> LoweringResult<Self::CellOutput<'o>> {
+        ok_value!(self.create_bin_op(dialect::bool::eq, lhs, rhs)?)
     }
 
-    fn lower_and(
-        &self,
-        lhs: &Self::CellOutput,
-        rhs: &Self::CellOutput,
-    ) -> LoweringResult<Self::CellOutput> {
-        wrap!(self.append_expr(self.create_bin_op(dialect::bool::and, lhs.into(), rhs.into())?))
+    fn lower_and<'l: 'o, 'o>(
+        &'l self,
+        &lhs: &Self::CellOutput<'o>,
+        &rhs: &Self::CellOutput<'o>,
+    ) -> LoweringResult<Self::CellOutput<'o>> {
+        ok_value!(self.create_bin_op(dialect::bool::and, lhs, rhs)?)
     }
 
-    fn lower_or(
-        &self,
-        lhs: &Self::CellOutput,
-        rhs: &Self::CellOutput,
-    ) -> LoweringResult<Self::CellOutput> {
-        wrap!(self.append_expr(self.create_bin_op(dialect::bool::or, lhs.into(), rhs.into())?))
+    fn lower_or<'l: 'o, 'o>(
+        &'l self,
+        &lhs: &Self::CellOutput<'o>,
+        &rhs: &Self::CellOutput<'o>,
+    ) -> LoweringResult<Self::CellOutput<'o>> {
+        ok_value!(self.create_bin_op(dialect::bool::or, lhs, rhs)?)
     }
 
     fn lower_function_input(&self, i: usize) -> Slot {
@@ -418,19 +445,15 @@ impl ExprLowering for LlzkStructLowering<'_, '_> {
         FieldId::from(o).into()
     }
 
-    fn lower_funcio<IO>(&self, io: IO) -> LoweringResult<Self::CellOutput>
+    fn lower_funcio<'l: 'o, 'o, IO>(&'l self, io: IO) -> LoweringResult<Self::CellOutput<'o>>
     where
         IO: Into<Slot>,
     {
-        match io.into() {
-            Slot::Arg(arg_no) => wrap!(self.get_arg(arg_no)),
-            Slot::Output(field_id) => wrap!(self.read_field(self.get_output(field_id)?)),
-            Slot::Advice(cell) => {
-                wrap!(self.read_field(self.get_adv_cell(cell.col(), cell.row())?))
-            }
-            Slot::Fixed(cell) => {
-                wrap!(self.read_field(self.get_fix_cell(cell.col(), cell.row())?))
-            }
+        Ok(match io.into() {
+            Slot::Arg(arg_no) => self.get_arg(arg_no),
+            Slot::Output(field_id) => self.read_field(self.get_output(field_id)?),
+            Slot::Advice(cell) => self.read_field(self.get_adv_cell(cell.col(), cell.row())?),
+            Slot::Fixed(cell) => self.read_field(self.get_fix_cell(cell.col(), cell.row())?),
             Slot::TableLookup(_, _, _, _, _) => todo!(),
             Slot::CallOutput(callee, output_idx) => {
                 let member = self.get_cell_member(self.io.callee(callee)?)?;
@@ -453,131 +476,102 @@ impl ExprLowering for LlzkStructLowering<'_, '_> {
                     .get(output_idx)
                     .ok_or(Error::MissingCalleeMemberOutput(callee, output_idx))?;
                 let member_value = self.read_field(member)?;
-                wrap!(self.read_callee_output(member_output, member_value))
+                self.read_callee_output(member_output, member_value)
             }
-            Slot::Temp(id) => {
-                wrap!(self.read_field(self.get_cell_member(MemberKind::Temp { id })?))
-            }
+            Slot::Temp(id) => self.read_field(self.get_cell_member(MemberKind::Temp { id })?),
             Slot::Challenge(_, _, _) => todo!(),
-        }
+        }?)
     }
 
-    fn lower_lt(
-        &self,
-        lhs: &Self::CellOutput,
-        rhs: &Self::CellOutput,
-    ) -> LoweringResult<Self::CellOutput> {
-        wrap!(self.append_expr(self.create_bin_op(dialect::bool::lt, lhs.into(), rhs.into())?))
+    fn lower_lt<'l: 'o, 'o>(
+        &'l self,
+        &lhs: &Self::CellOutput<'o>,
+        &rhs: &Self::CellOutput<'o>,
+    ) -> LoweringResult<Self::CellOutput<'o>> {
+        ok_value!(self.create_bin_op(dialect::bool::lt, lhs, rhs)?)
     }
 
-    fn lower_le(
-        &self,
-        lhs: &Self::CellOutput,
-        rhs: &Self::CellOutput,
-    ) -> LoweringResult<Self::CellOutput> {
-        wrap!(self.append_expr(self.create_bin_op(dialect::bool::le, lhs.into(), rhs.into())?))
+    fn lower_le<'l: 'o, 'o>(
+        &'l self,
+        &lhs: &Self::CellOutput<'o>,
+        &rhs: &Self::CellOutput<'o>,
+    ) -> LoweringResult<Self::CellOutput<'o>> {
+        ok_value!(self.create_bin_op(dialect::bool::le, lhs, rhs)?)
     }
 
-    fn lower_gt(
-        &self,
-        lhs: &Self::CellOutput,
-        rhs: &Self::CellOutput,
-    ) -> LoweringResult<Self::CellOutput> {
-        wrap!(self.append_expr(self.create_bin_op(dialect::bool::gt, lhs.into(), rhs.into())?))
+    fn lower_gt<'l: 'o, 'o>(
+        &'l self,
+        &lhs: &Self::CellOutput<'o>,
+        &rhs: &Self::CellOutput<'o>,
+    ) -> LoweringResult<Self::CellOutput<'o>> {
+        ok_value!(self.create_bin_op(dialect::bool::gt, lhs, rhs)?)
     }
 
-    fn lower_ge(
-        &self,
-        lhs: &Self::CellOutput,
-        rhs: &Self::CellOutput,
-    ) -> LoweringResult<Self::CellOutput> {
-        wrap!(self.append_expr(self.create_bin_op(dialect::bool::ge, lhs.into(), rhs.into())?))
+    fn lower_ge<'l: 'o, 'o>(
+        &'l self,
+        &lhs: &Self::CellOutput<'o>,
+        &rhs: &Self::CellOutput<'o>,
+    ) -> LoweringResult<Self::CellOutput<'o>> {
+        ok_value!(self.create_bin_op(dialect::bool::ge, lhs, rhs)?)
     }
 
-    fn lower_ne(
-        &self,
-        lhs: &Self::CellOutput,
-        rhs: &Self::CellOutput,
-    ) -> LoweringResult<Self::CellOutput> {
-        wrap!(self.append_expr(self.create_bin_op(dialect::bool::ne, lhs.into(), rhs.into())?))
+    fn lower_ne<'l: 'o, 'o>(
+        &'l self,
+        &lhs: &Self::CellOutput<'o>,
+        &rhs: &Self::CellOutput<'o>,
+    ) -> LoweringResult<Self::CellOutput<'o>> {
+        ok_value!(self.create_bin_op(dialect::bool::ne, lhs, rhs)?)
     }
 
-    fn lower_not(&self, value: &Self::CellOutput) -> LoweringResult<Self::CellOutput> {
-        wrap!(self.append_expr(self.create_un_op(dialect::bool::not, value.into(),)?))
+    fn lower_not<'l: 'o, 'o>(
+        &'l self,
+        &value: &Self::CellOutput<'o>,
+    ) -> LoweringResult<Self::CellOutput<'o>> {
+        ok_value!(self.create_un_op(dialect::bool::not, value)?)
     }
 
-    fn lower_true(&self) -> LoweringResult<Self::CellOutput> {
-        wrap!(self.append_expr(arith::constant(
-            self.context(),
-            IntegerAttribute::new(IntegerType::new(self.context(), 1).into(), 1).into(),
-            Location::unknown(self.context())
-        )))
+    fn lower_true<'l: 'o, 'o>(&'l self) -> LoweringResult<Self::CellOutput<'o>> {
+        ok_value!(self.create_arith_const_op(self.i1_type(), 1))
     }
 
-    fn lower_false(&self) -> LoweringResult<Self::CellOutput> {
-        wrap!(self.append_expr(arith::constant(
-            self.context(),
-            IntegerAttribute::new(IntegerType::new(self.context(), 1).into(), 0).into(),
-            Location::unknown(self.context())
-        )))
+    fn lower_false<'l: 'o, 'o>(&'l self) -> LoweringResult<Self::CellOutput<'o>> {
+        ok_value!(self.create_arith_const_op(self.i1_type(), 0))
     }
 
-    fn lower_det(&self, _expr: &Self::CellOutput) -> LoweringResult<Self::CellOutput> {
+    fn lower_det<'l: 'o, 'o>(
+        &'l self,
+        _expr: &Self::CellOutput<'o>,
+    ) -> LoweringResult<Self::CellOutput<'o>> {
         unimplemented!("the determinism predicate is not supported by the LLZK backend")
     }
 
-    fn lower_implies(
-        &self,
-        lhs: &Self::CellOutput,
-        rhs: &Self::CellOutput,
-    ) -> LoweringResult<Self::CellOutput> {
-        let i1: Type = IntegerType::new(self.context(), 1).into();
-        let lhs: Value = lhs.into();
-        let rhs: Value = rhs.into();
-        if lhs.r#type() != i1 {
-            bail_backend!(
-                UnexpectedTypeError::new(i1, lhs.r#type())
-                    .with_context("Failed to lower lhs of implies expression")
-            );
-        }
-        if rhs.r#type() != i1 {
-            bail_backend!(
-                UnexpectedTypeError::new(i1, rhs.r#type())
-                    .with_context("Failed to lower rhs of implies expression")
-            );
-        }
-        let lhs = self.append_expr(self.create_un_op(dialect::bool::not, lhs)?)?;
-        wrap!(self.append_expr(self.create_bin_op(dialect::bool::or, lhs, rhs)?))
+    fn lower_implies<'l: 'o, 'o>(
+        &'l self,
+        &lhs: &Self::CellOutput<'o>,
+        &rhs: &Self::CellOutput<'o>,
+    ) -> LoweringResult<Self::CellOutput<'o>> {
+        let i1 = self.i1_type();
+        expect_type!(lhs, i1, "implies");
+        expect_type!(rhs, i1, "implies");
+        let lhs = value!(self.create_un_op(dialect::bool::not, lhs)?);
+        ok_value!(self.create_bin_op(dialect::bool::or, lhs, rhs)?)
     }
 
-    fn lower_iff(
-        &self,
-        lhs: &Self::CellOutput,
-        rhs: &Self::CellOutput,
-    ) -> LoweringResult<Self::CellOutput> {
-        let i1: Type = IntegerType::new(self.context(), 1).into();
-        let lhs: Value = lhs.into();
-        let rhs: Value = rhs.into();
-        if lhs.r#type() != i1 {
-            bail_backend!(
-                UnexpectedTypeError::new(i1, lhs.r#type())
-                    .with_context("Failed to lower lhs of iff expression")
-            );
-        }
-        if rhs.r#type() != i1 {
-            bail_backend!(
-                UnexpectedTypeError::new(i1, rhs.r#type())
-                    .with_context("Failed to lower rhs of iff expression")
-            );
-        }
+    fn lower_iff<'l: 'o, 'o>(
+        &'l self,
+        &lhs: &Self::CellOutput<'o>,
+        &rhs: &Self::CellOutput<'o>,
+    ) -> LoweringResult<Self::CellOutput<'o>> {
+        let i1 = self.i1_type();
+        expect_type!(lhs, i1, "iff");
+        expect_type!(rhs, i1, "iff");
 
-        wrap!(self.append_expr(arith::cmpi(
-            self.context(),
-            arith::CmpiPredicate::Eq,
-            lhs,
-            rhs,
-            Location::unknown(self.context())
-        )))
+        ok_value!(
+            self.builder()
+                .insert(Location::unknown(self.context()), |context, location| {
+                    arith::cmpi(context, arith::CmpiPredicate::Eq, lhs, rhs, location)
+                })
+        )
     }
 }
 

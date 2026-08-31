@@ -1,11 +1,18 @@
 use std::collections::HashMap;
 
 use haloumi_synthesis::io::{AdviceIO, InstanceIO};
-use llzk::{attributes::NamedAttribute, prelude::*};
+use llzk::{
+    attributes::NamedAttribute,
+    builder::OpBuilder,
+    prelude::{
+        dialect::r#struct::{self, helpers},
+        *,
+    },
+};
 
 use melior::{
     Context,
-    ir::{Identifier, Location, Operation, Type},
+    ir::{Identifier, Location, Type},
 };
 
 use crate::{error::Error, state::LlzkCodegenState};
@@ -106,16 +113,19 @@ impl MemberKind<'_> {
         }
     }
 
-    pub fn create_member_op<'c>(
+    pub fn create_member_op<'c: 'v, 'v>(
         &self,
+        builder: &OpBuilder<'c, '_>,
         state: &LlzkCodegenState<'c>,
         struct_name: &str,
-    ) -> Result<MemberDefOp<'c>, LlzkError> {
-        dialect::r#struct::member(
+    ) -> Result<MemberDefOpRef<'c, 'v>, LlzkError> {
+        r#struct::member(
+            builder,
             self.location(state.context(), struct_name),
             &self.member_name(),
             self.member_type(state),
-            false,
+            state.members_are_signals(),
+            state.members_are_columns(),
             self.is_public(),
         )
     }
@@ -151,11 +161,7 @@ pub struct StructIO {
 }
 
 impl StructIO {
-    fn fields<'c>(
-        &self,
-        state: &LlzkCodegenState<'c>,
-        struct_name: &str,
-    ) -> impl Iterator<Item = Result<MemberDefOp<'c>, LlzkError>> {
+    fn fields(&self) -> impl Iterator<Item = MemberKind<'_>> {
         let public_outputs = MemberKind::outputs(0..self.public_outputs, true);
         let private_outputs = MemberKind::outputs(
             self.public_outputs..(self.public_outputs + self.private_outputs),
@@ -163,10 +169,7 @@ impl StructIO {
         );
         let callees = MemberKind::callees(&self.callees);
 
-        public_outputs
-            .chain(private_outputs)
-            .chain(callees)
-            .map(|m| m.create_member_op(state, struct_name))
+        public_outputs.chain(private_outputs).chain(callees)
     }
 
     pub fn callees_mapping(&self) -> HashMap<usize, String> {
@@ -243,40 +246,33 @@ impl StructIO {
     }
 }
 
-pub fn create_struct<'c>(
+pub fn create_struct<'c: 'v, 'v>(
+    builder: &OpBuilder<'c, '_>,
     state: &LlzkCodegenState<'c>,
     struct_name: &str,
     idx: usize,
     io: &StructIO,
-) -> Result<StructDefOp<'c>, LlzkError> {
+) -> Result<StructDefOpRef<'c, 'v>, LlzkError> {
     log::debug!("context = {:?}", state.context());
     let loc = struct_def_op_location(state.context(), struct_name, idx);
     log::debug!("Struct location: {loc:?}");
-    let fields = io
-        .fields(state, struct_name)
-        .map(|r| r.map(Operation::from));
 
     let func_args = io.args(state, struct_name);
     let arg_attrs = io.arg_attrs(state.context());
 
     log::debug!("Creating function with arguments: {func_args:?}");
 
-    let funcs = [
-        dialect::r#struct::helpers::compute_fn(
-            loc,
-            StructType::from_str(state.context(), struct_name),
-            &func_args,
-            Some(&arg_attrs),
-        )
-        .map(Operation::from),
-        dialect::r#struct::helpers::constrain_fn(
-            loc,
-            StructType::from_str(state.context(), struct_name),
-            &func_args,
-            Some(&arg_attrs),
-        )
-        .map(Operation::from),
-    ];
+    r#struct::def(builder, loc, struct_name, |builder| {
+        for field in io.fields() {
+            field.create_member_op(builder, state, struct_name)?;
+        }
 
-    dialect::r#struct::def(loc, struct_name, fields.chain(funcs))
+        let ty = StructType::from_str(state.context(), struct_name);
+        helpers::compute_fn(builder, loc, ty, &func_args, Some(&arg_attrs))?;
+        let _func_op = helpers::constrain_fn(builder, loc, ty, &func_args, Some(&arg_attrs))?;
+        //let func_op = unsafe { FuncDefOpRefMut::from_raw(func_op.to_raw()) };
+        //TODO: func_op.set_allow_verif_ops_attr(true);
+
+        Ok(())
+    })
 }

@@ -90,6 +90,16 @@
             // pkgs.llzkSharedEnvironment.env
             // pkgs.llzkSharedEnvironment.devSettings
           );
+          nightly = pkgs.mkShell (
+            {
+              nativeBuildInputs = pkgs.llzkSharedEnvironment.nativeBuildInputs;
+              buildInputs = pkgs.llzkSharedEnvironment.devBuildInputs ++ [
+                pkgs.rust-bin.nightly.latest.default
+              ];
+            }
+            // pkgs.llzkSharedEnvironment.env
+            // pkgs.llzkSharedEnvironment.devSettings
+          );
         };
       }
     );

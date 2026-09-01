@@ -31,6 +31,8 @@ pub struct LlzkParams<'c> {
     inline: bool,
     optimize: bool,
     spec: Option<FieldSpecParam>,
+    members_are_signals: bool,
+    members_are_columns: bool,
 }
 
 impl<'c> LlzkParams<'c> {
@@ -42,6 +44,8 @@ impl<'c> LlzkParams<'c> {
             optimize: true,
             inline: false,
             spec: None,
+            members_are_signals: false,
+            members_are_columns: false,
         }
     }
 
@@ -68,6 +72,16 @@ impl<'c> LlzkParams<'c> {
     /// Returns the prime field spec, if available.
     pub fn spec(&self) -> Option<&FieldSpecParam> {
         self.spec.as_ref()
+    }
+
+    /// Returns whether struct members are configured to be lowered as signals.
+    pub fn members_are_signals(&self) -> bool {
+        self.members_are_signals
+    }
+
+    /// Returns whether struct members are configured to be lowered as columns.
+    pub fn members_are_columns(&self) -> bool {
+        self.members_are_columns
     }
 
     // Builder methods
@@ -129,6 +143,30 @@ impl<'c> LlzkParams<'c> {
     /// Removes the prime field spec.
     pub fn no_prime_field(mut self) -> Self {
         self.spec = None;
+        self
+    }
+
+    /// Sets the `members_are_signals` flag to true.
+    pub fn with_members_as_signals(mut self) -> Self {
+        self.members_are_signals = true;
+        self
+    }
+
+    /// Sets the `members_are_signals` flag to false.
+    pub fn without_members_as_signals(mut self) -> Self {
+        self.members_are_signals = false;
+        self
+    }
+
+    /// Sets the `members_are_columns` flag to true.
+    pub fn with_members_as_columns(mut self) -> Self {
+        self.members_are_columns = true;
+        self
+    }
+
+    /// Sets the `members_are_columns` flag to false.
+    pub fn without_members_as_columns(mut self) -> Self {
+        self.members_are_columns = false;
         self
     }
 }

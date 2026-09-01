@@ -5,7 +5,7 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>> } {
       %self = struct.new : <@Main<[]>>
       function.return %self : !struct.type<@Main<[]>>
     }
-    function.def @constrain(%arg0: !struct.type<@Main<[]>>, %arg1: !felt.type<"bn254"> {llzk.pub = #llzk.pub}, %arg2: !felt.type<"bn254"> {llzk.pub = #llzk.pub}) attributes {function.allow_constraint, function.allow_non_native_field_ops} {
+    function.def @constrain(%arg0: !struct.type<@Main<[]>>, %arg1: !felt.type<"bn254"> {llzk.pub = #llzk.pub}, %arg2: !felt.type<"bn254"> {llzk.pub = #llzk.pub}) attributes {function.allow_constraint, function.allow_non_native_field_ops, function.allow_verif_ops} {
       %felt_const_1 = felt.const  1 <"bn254">
       %0 = struct.readm %arg0[@adv_0_0] : <@Main<[]>>, !felt.type<"bn254">
       %1 = struct.readm %arg0[@adv_1_0] : <@Main<[]>>, !felt.type<"bn254">

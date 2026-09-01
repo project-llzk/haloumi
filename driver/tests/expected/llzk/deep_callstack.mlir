@@ -5,7 +5,7 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>>    
       %self = struct.new : <@"test group"<[]>>
       function.return %self : !struct.type<@"test group"<[]>>
     }
-    function.def @constrain(%arg0: !struct.type<@"test group"<[]>>, %arg1: !felt.type<"bn254">) attributes {function.allow_constraint, function.allow_non_native_field_ops} {
+    function.def @constrain(%arg0: !struct.type<@"test group"<[]>>, %arg1: !felt.type<"bn254">) attributes {function.allow_constraint, function.allow_non_native_field_ops, function.allow_verif_ops} {
       %felt_const_1 = felt.const  1 <"bn254">
       %felt_const_21888242871839275222246405745257275088548364400416034343698204186575808495616 = felt.const  21888242871839275222246405745257275088548364400416034343698204186575808495616 <"bn254">
       %0 = struct.readm %arg0[@adv_0_1] : <@"test group"<[]>>, !felt.type<"bn254">
@@ -39,7 +39,7 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>>    
       %self = struct.new : <@"test group1"<[]>>
       function.return %self : !struct.type<@"test group1"<[]>>
     }
-    function.def @constrain(%arg0: !struct.type<@"test group1"<[]>>, %arg1: !felt.type<"bn254">) attributes {function.allow_constraint, function.allow_non_native_field_ops} {
+    function.def @constrain(%arg0: !struct.type<@"test group1"<[]>>, %arg1: !felt.type<"bn254">) attributes {function.allow_constraint, function.allow_non_native_field_ops, function.allow_verif_ops} {
       %felt_const_1 = felt.const  1 <"bn254">
       %0 = struct.readm %arg0[@adv_0_3] : <@"test group1"<[]>>, !felt.type<"bn254">
       %1 = struct.readm %arg0[@adv_1_3] : <@"test group1"<[]>>, !felt.type<"bn254">
@@ -63,7 +63,7 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>>    
       %self = struct.new : <@"inner group"<[]>>
       function.return %self : !struct.type<@"inner group"<[]>>
     }
-    function.def @constrain(%arg0: !struct.type<@"inner group"<[]>>, %arg1: !felt.type<"bn254">) attributes {function.allow_constraint, function.allow_non_native_field_ops} {
+    function.def @constrain(%arg0: !struct.type<@"inner group"<[]>>, %arg1: !felt.type<"bn254">) attributes {function.allow_constraint, function.allow_non_native_field_ops, function.allow_verif_ops} {
       %felt_const_1 = felt.const  1 <"bn254">
       %0 = struct.readm %arg0[@adv_0_4] : <@"inner group"<[]>>, !felt.type<"bn254">
       %1 = struct.readm %arg0[@adv_1_4] : <@"inner group"<[]>>, !felt.type<"bn254">
@@ -88,7 +88,7 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>>    
       %self = struct.new : <@"outer group"<[]>>
       function.return %self : !struct.type<@"outer group"<[]>>
     }
-    function.def @constrain(%arg0: !struct.type<@"outer group"<[]>>, %arg1: !felt.type<"bn254">) attributes {function.allow_constraint, function.allow_non_native_field_ops} {
+    function.def @constrain(%arg0: !struct.type<@"outer group"<[]>>, %arg1: !felt.type<"bn254">) attributes {function.allow_constraint, function.allow_non_native_field_ops, function.allow_verif_ops} {
       %0 = struct.readm %arg0[@"subgrp_inner group_0"] : <@"outer group"<[]>>, !struct.type<@"inner group"<[]>>
       function.call @"inner group"::@constrain(%0, %arg1) : (!struct.type<@"inner group"<[]>>, !felt.type<"bn254">) -> ()
       %1 = struct.readm %arg0[@adv_2_4] : <@"outer group"<[]>>, !felt.type<"bn254">
@@ -134,7 +134,7 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>>    
       %self = struct.new : <@Main<[]>>
       function.return %self : !struct.type<@Main<[]>>
     }
-    function.def @constrain(%arg0: !struct.type<@Main<[]>>, %arg1: !felt.type<"bn254"> {llzk.pub = #llzk.pub}) attributes {function.allow_constraint, function.allow_non_native_field_ops} {
+    function.def @constrain(%arg0: !struct.type<@Main<[]>>, %arg1: !felt.type<"bn254"> {llzk.pub = #llzk.pub}) attributes {function.allow_constraint, function.allow_non_native_field_ops, function.allow_verif_ops} {
       %0 = struct.readm %arg0[@adv_0_0] : <@Main<[]>>, !felt.type<"bn254">
       %1 = struct.readm %arg0[@"subgrp_test group_0"] : <@Main<[]>>, !struct.type<@"test group"<[]>>
       function.call @"test group"::@constrain(%1, %0) : (!struct.type<@"test group"<[]>>, !felt.type<"bn254">) -> ()

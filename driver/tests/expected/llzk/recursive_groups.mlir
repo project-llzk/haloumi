@@ -5,7 +5,7 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>> } {
       %self = struct.new : <@mul_many<[]>>
       function.return %self : !struct.type<@mul_many<[]>>
     }
-    function.def @constrain(%arg0: !struct.type<@mul_many<[]>>, %arg1: !felt.type<"bn254">, %arg2: !felt.type<"bn254">) attributes {function.allow_constraint, function.allow_non_native_field_ops} {
+    function.def @constrain(%arg0: !struct.type<@mul_many<[]>>, %arg1: !felt.type<"bn254">, %arg2: !felt.type<"bn254">) attributes {function.allow_constraint, function.allow_non_native_field_ops, function.allow_verif_ops} {
       %felt_const_1 = felt.const  1 <"bn254">
       %0 = struct.readm %arg0[@adv_0_4] : <@mul_many<[]>>, !felt.type<"bn254">
       %1 = struct.readm %arg0[@adv_1_4] : <@mul_many<[]>>, !felt.type<"bn254">
@@ -32,7 +32,7 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>> } {
       %self = struct.new : <@mul_many1<[]>>
       function.return %self : !struct.type<@mul_many1<[]>>
     }
-    function.def @constrain(%arg0: !struct.type<@mul_many1<[]>>, %arg1: !felt.type<"bn254">, %arg2: !felt.type<"bn254">, %arg3: !felt.type<"bn254">) attributes {function.allow_constraint, function.allow_non_native_field_ops} {
+    function.def @constrain(%arg0: !struct.type<@mul_many1<[]>>, %arg1: !felt.type<"bn254">, %arg2: !felt.type<"bn254">, %arg3: !felt.type<"bn254">) attributes {function.allow_constraint, function.allow_non_native_field_ops, function.allow_verif_ops} {
       %0 = struct.readm %arg0[@subgrp_mul_many_0] : <@mul_many1<[]>>, !struct.type<@mul_many<[]>>
       function.call @mul_many::@constrain(%0, %arg2, %arg3) : (!struct.type<@mul_many<[]>>, !felt.type<"bn254">, !felt.type<"bn254">) -> ()
       %1 = struct.readm %arg0[@adv_2_4] : <@mul_many1<[]>>, !felt.type<"bn254">
@@ -67,7 +67,7 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>> } {
       %self = struct.new : <@mul_many2<[]>>
       function.return %self : !struct.type<@mul_many2<[]>>
     }
-    function.def @constrain(%arg0: !struct.type<@mul_many2<[]>>, %arg1: !felt.type<"bn254">, %arg2: !felt.type<"bn254">, %arg3: !felt.type<"bn254">, %arg4: !felt.type<"bn254">) attributes {function.allow_constraint, function.allow_non_native_field_ops} {
+    function.def @constrain(%arg0: !struct.type<@mul_many2<[]>>, %arg1: !felt.type<"bn254">, %arg2: !felt.type<"bn254">, %arg3: !felt.type<"bn254">, %arg4: !felt.type<"bn254">) attributes {function.allow_constraint, function.allow_non_native_field_ops, function.allow_verif_ops} {
       %0 = struct.readm %arg0[@subgrp_mul_many1_0] : <@mul_many2<[]>>, !struct.type<@mul_many1<[]>>
       function.call @mul_many1::@constrain(%0, %arg2, %arg3, %arg4) : (!struct.type<@mul_many1<[]>>, !felt.type<"bn254">, !felt.type<"bn254">, !felt.type<"bn254">) -> ()
       %1 = struct.readm %arg0[@adv_2_5] : <@mul_many2<[]>>, !felt.type<"bn254">
@@ -102,7 +102,7 @@ module attributes { llzk.lang = "halo2", llzk.main = !struct.type<@Main<[]>> } {
       %self = struct.new : <@Main<[]>>
       function.return %self : !struct.type<@Main<[]>>
     }
-    function.def @constrain(%arg0: !struct.type<@Main<[]>>, %arg1: !felt.type<"bn254"> {llzk.pub = #llzk.pub}, %arg2: !felt.type<"bn254"> {llzk.pub = #llzk.pub}, %arg3: !felt.type<"bn254"> {llzk.pub = #llzk.pub}, %arg4: !felt.type<"bn254"> {llzk.pub = #llzk.pub}) attributes {function.allow_constraint, function.allow_non_native_field_ops} {
+    function.def @constrain(%arg0: !struct.type<@Main<[]>>, %arg1: !felt.type<"bn254"> {llzk.pub = #llzk.pub}, %arg2: !felt.type<"bn254"> {llzk.pub = #llzk.pub}, %arg3: !felt.type<"bn254"> {llzk.pub = #llzk.pub}, %arg4: !felt.type<"bn254"> {llzk.pub = #llzk.pub}) attributes {function.allow_constraint, function.allow_non_native_field_ops, function.allow_verif_ops} {
       %0 = struct.readm %arg0[@adv_0_0] : <@Main<[]>>, !felt.type<"bn254">
       %1 = struct.readm %arg0[@adv_0_1] : <@Main<[]>>, !felt.type<"bn254">
       %2 = struct.readm %arg0[@adv_0_2] : <@Main<[]>>, !felt.type<"bn254">

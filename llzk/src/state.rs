@@ -24,6 +24,16 @@ impl<'c> LlzkCodegenState<'c> {
         self.params.optimize()
     }
 
+    /// Returns true if struct members need to be marked as signals.
+    pub fn members_are_signals(&self) -> bool {
+        self.params.members_are_signals()
+    }
+
+    /// Returns true if struct members need to be marked as columns.
+    pub fn members_are_columns(&self) -> bool {
+        self.params.members_are_columns()
+    }
+
     /// Returns the prime field spec if available.
     ///
     /// Only returns a value if the spec was configured with a custom field. If the user configured

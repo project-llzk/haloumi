@@ -696,14 +696,20 @@ impl<T: PartialEq> PartialEq for IRBexpr<T> {
     }
 }
 
-fn reduce_bool_expr<A, L>(
+fn reduce_bool_expr<'l, 'o, A, L, F>(
     exprs: impl IntoIterator<Item = IRBexpr<A>>,
-    l: &L,
-    cb: impl Fn(&L, &L::CellOutput, &L::CellOutput) -> haloumi_lowering::Result<L::CellOutput>,
-) -> haloumi_lowering::Result<L::CellOutput>
+    l: &'l L,
+    cb: F,
+) -> haloumi_lowering::Result<L::CellOutput<'o>>
 where
     A: LowerableExpr,
-    L: ExprLowering + ?Sized,
+    L: ExprLowering + ?Sized + 'l,
+    'l: 'o,
+    F: Fn(
+        &'l L,
+        &L::CellOutput<'o>,
+        &L::CellOutput<'o>,
+    ) -> haloumi_lowering::Result<L::CellOutput<'o>>,
 {
     exprs
         .into_iter()
@@ -714,9 +720,10 @@ where
 }
 
 impl<A: LowerableExpr> LowerableExpr for IRBexpr<A> {
-    fn lower<L>(self, l: &L) -> haloumi_lowering::Result<L::CellOutput>
+    fn lower<'l, 'o, L>(self, l: &'l L) -> haloumi_lowering::Result<L::CellOutput<'o>>
     where
         L: ExprLowering + ?Sized,
+        'l: 'o,
     {
         match self.0 {
             IRBexprImpl::Cmp(cmp_op, lhs, rhs) => {

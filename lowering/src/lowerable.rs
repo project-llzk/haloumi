@@ -7,9 +7,10 @@ use super::{ExprLowering, Lowering, Result};
 /// Declares that the type can be lowered into an expression.
 pub trait LowerableExpr {
     /// Transforms the value into an expression.
-    fn lower<L>(self, l: &L) -> Result<L::CellOutput>
+    fn lower<'l, 'o, L>(self, l: &'l L) -> Result<L::CellOutput<'o>>
     where
-        L: ExprLowering + ?Sized;
+        L: ExprLowering + ?Sized + 'l,
+        'l: 'o;
 }
 
 impl<T, E> LowerableExpr for std::result::Result<T, E>
@@ -17,18 +18,20 @@ where
     T: LowerableExpr,
     Error: From<E>,
 {
-    fn lower<L>(self, l: &L) -> Result<L::CellOutput>
+    fn lower<'l, 'o, L>(self, l: &'l L) -> Result<L::CellOutput<'o>>
     where
         L: ExprLowering + ?Sized,
+        'l: 'o,
     {
         self?.lower(l)
     }
 }
 
 impl<Lw: LowerableExpr> LowerableExpr for Box<Lw> {
-    fn lower<L>(self, l: &L) -> Result<L::CellOutput>
+    fn lower<'l, 'o, L>(self, l: &'l L) -> Result<L::CellOutput<'o>>
     where
         L: ExprLowering + ?Sized,
+        'l: 'o,
     {
         (*self).lower(l)
     }

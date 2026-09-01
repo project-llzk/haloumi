@@ -34,7 +34,7 @@ log = "0.4"
 eqv = "0.1"
 bit-set = "0.8"
 disjoint = "0.8"
-llzk = { version = "0.6.0", features =["bigint"] }
+llzk = { version = "0.7.0", features = ["bigint"] }
 
 # Testing dependencies
 halo2curves = "0.7.0"

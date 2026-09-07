@@ -10,6 +10,10 @@ members = [
   "llzk",
   "driver",
   "extractor-core",
+  "extractor",
+  "extractor-runner",
+  "integration",
+  "integration-macros",
   "support/midnight",
   "support/mdnt-test-circuits",
 ]

@@ -1,0 +1,27 @@
+[package]
+name = "haloumi-integration-macros"
+description = "Proc-macros for integrating with Haloumi"
+version = {workspace = true}
+authors = {workspace = true}
+edition = {workspace = true}
+rust-version = {workspace = true}
+readme = "README.md"
+repository = {workspace = true}
+license-file = {workspace = true}
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = { version = "3.0", features = ["full", "extra-traits"] }
+log = "0.4"
+
+[dev-dependencies]
+macrotest = "1.2"
+macro_expand = "0.1"
+rstest = "0"
+prettyplease = "0.2"
+similar-asserts = "1.7"
+simplelog = {version = "0.12", features = ["test"] }

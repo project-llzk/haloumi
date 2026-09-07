@@ -1,0 +1,17 @@
+[package]
+name = "haloumi-integration"
+description = "Helpers for integrating Haloumi with Halo2 implementations."
+categories = {workspace = true}
+version = {workspace = true}
+authors = {workspace = true}
+edition = {workspace = true}
+rust-version = {workspace = true}
+readme = "README.md"
+repository = {workspace = true}
+license-file = {workspace = true}
+keywords = {workspace = true}
+
+[dependencies]
+ff.workspace = true
+haloumi-core = { path = "../core", version = "0.5.5"}
+haloumi-integration-macros = { path = "../integration-macros" }

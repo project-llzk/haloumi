@@ -15,7 +15,7 @@ macro_rules! __impl_selector_info_for_selector {
 /// Implements the [`::core::info_traits::QueryInfo`] trait.
 #[macro_export]
 macro_rules! __impl_query_info {
-    ($query:ty, $kind:ty) => {
+    ($query:ty, $kind:ident) => {
         impl $crate::core::info_traits::QueryInfo for $query {
             type Kind = $crate::core::query::$kind;
 
@@ -33,10 +33,10 @@ macro_rules! __impl_query_info {
 /// Implements the [`::core::info_traits::CreateQuery`] trait.
 #[macro_export]
 macro_rules! __impl_create_query {
-    ($query:ty, $field:path, $expr:path, $rotation:ty, $new:expr) => {
-        impl<F: $field> $crate::core::info_traits::CreateQuery<$expr<F>> for $query {
-            fn query_expr(index: usize, at: $crate::core::table::Rotation) -> $expr<F> {
-                { $new }.query_cell(index, $rotation(at))
+    ($query:ty, $field:path, $rotation:path, $new:expr, $($expr:ident)::+) => {
+        impl<F: $field> $crate::core::info_traits::CreateQuery<$($expr)::+<F>> for $query {
+            fn query_expr(index: usize, at: $crate::core::table::Rotation) -> $($expr)::+<F> {
+                { $new }.query_cell(index, ($rotation)(at))
             }
         }
     };
@@ -44,7 +44,7 @@ macro_rules! __impl_create_query {
 
 /// Implements the [`::core::info_traits::ChallengeInfo`] trait.
 #[macro_export]
-macro_rules! __impl_challenge_info {
+macro_rules! __impl_challenge_info_for_challenge {
     ($challenge:ty) => {
         impl $crate::core::info_traits::ChallengeInfo for $challenge {
             fn index(&self) -> usize {
@@ -60,14 +60,14 @@ macro_rules! __impl_challenge_info {
 
 /// Implements the [`::core::info_traits::GateInfo`] trait.
 #[macro_export]
-macro_rules! __impl_gate_info {
-    ($gate:path, $field:path, $expr:path) => {
-        impl<F: $field> $crate::core::info_traits::GateInfo<$expr<F>> for $gate<F> {
+macro_rules! __impl_gate_info_for_gate {
+    ($($gate:ident)::+, $field:path, $($expr:ident)::+) => {
+        impl<F: $field> $crate::core::info_traits::GateInfo<$($expr)::+<F>> for $($gate)::+<F> {
             fn name(&self) -> &str {
                 &self.name
             }
 
-            fn polynomials(&self) -> &[$expr<F>] {
+            fn polynomials(&self) -> &[$($expr)::+<F>] {
                 &self.polys
             }
         }
@@ -76,10 +76,10 @@ macro_rules! __impl_gate_info {
 
 /// Implements the [`::core::info_traits::ConstraintSystemInfo`] trait.
 #[macro_export]
-macro_rules! __impl_constraint_system_info {
-    ($cs:path, $field:path, $expr:path) => {
-        impl<F: $field> $crate::core::info_traits::ConstraintSystemInfo<F> for $cs<F> {
-            type Polynomial = $expr<F>;
+macro_rules! __impl_constraint_system_info_for_constraint_system {
+    ($($cs:ident)::+, $field:path, $($expr:ident)::+) => {
+        impl<F: $field> $crate::core::info_traits::ConstraintSystemInfo<F> for $($cs)::+<F> {
+            type Polynomial = $($expr)::+<F>;
 
             fn gates(&self) -> Vec<&dyn $crate::core::info_traits::GateInfo<Self::Polynomial>> {
                 self.gates

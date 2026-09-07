@@ -35,50 +35,51 @@ macro_rules! __impl_from_cell_for_haloumi_cell {
 /// Implements the required traits for integrating with [`::core::table::Column`].
 #[macro_export]
 macro_rules! __impl_column_support {
-    ($column_trait:path, $column:path, $any:ty, $instance:ty, $advice:ty,$fixed:ty) => {
-        impl<F: $column_trait + Into<T>, T: $crate::core::table::ColumnType> From<$column<F>>
+    ($column_trait:path, $($column:ident)::+, $any:path, $instance:ty, $advice:ty,$fixed:ty) => {
+        impl<F: $column_trait + Into<T>, T: $crate::core::table::ColumnType> From<$($column)::+<F>>
             for $crate::core::table::Column<T>
         {
-            fn from(value: $column<F>) -> Self {
+            fn from(value: $($column)::+<F>) -> Self {
                 Self::new(value.index, value.column_type.into())
             }
         }
 
-        impl TryFrom<$column<$any>> for $crate::core::table::Column<$crate::core::table::Instance> {
-            type Error = <$column<$instance> as TryFrom<$column<$any>>>::Error;
+        impl TryFrom<$($column)::+<$any>> for $crate::core::table::Column<$crate::core::query::Instance> {
+            type Error = <$($column)::+<$instance> as TryFrom<$($column)::+<$any>>>::Error;
 
-            fn try_from(value: $column<$any>) -> Result<Self, Self::Error> {
-                $column::<$instance>::try_from(value).map(Into::into)
+            fn try_from(value: $($column)::+<$any>) -> Result<Self, Self::Error> {
+                $($column)::+::<$instance>::try_from(value).map(Into::into)
             }
         }
 
-        impl TryFrom<$column<$any>> for $crate::core::table::Column<$crate::core::table::Advice> {
-            type Error = <$column<$advice> as TryFrom<$column<$any>>>::Error;
+        impl TryFrom<$($column)::+<$any>> for $crate::core::table::Column<$crate::core::query::Advice> {
+            type Error = <$($column)::+<$advice> as TryFrom<$($column)::+<$any>>>::Error;
 
-            fn try_from(value: $column<$any>) -> Result<Self, Self::Error> {
-                $column::<$advice>::try_from(value).map(Into::into)
+            fn try_from(value: $($column)::+<$any>) -> Result<Self, Self::Error> {
+                $($column)::+::<$advice>::try_from(value).map(Into::into)
             }
         }
 
-        impl TryFrom<$column<$any>> for $crate::core::table::Column<$crate::core::table::Fixed> {
-            type Error = <$column<$fixed> as TryFrom<$column<$any>>>::Error;
+        impl TryFrom<$($column)::+<$any>> for $crate::core::table::Column<$crate::core::query::Fixed> {
+            type Error = <$($column)::+<$fixed> as TryFrom<$($column)::+<$any>>>::Error;
 
-            fn try_from(value: $column<$any>) -> Result<Self, Self::Error> {
-                $column::<$fixed>::try_from(value).map(Into::into)
+            fn try_from(value: $($column)::+<$any>) -> Result<Self, Self::Error> {
+                $($column)::+::<$fixed>::try_from(value).map(Into::into)
             }
         }
 
         impl From<$any> for $crate::core::table::Any {
             fn from(value: $any) -> Self {
+                use $any::*;
                 match value {
-                    $any::Advice(_) => Self::Advice,
-                    $any::Fixed => Self::Fixed,
-                    $any::Instance => Self::Instance,
+                    Advice(_) => Self::Advice,
+                    Fixed => Self::Fixed,
+                    Instance => Self::Instance,
                 }
             }
         }
 
-        impl From<$instance> for $crate::core::table::Instance {
+        impl From<$instance> for $crate::core::query::Instance {
             fn from(_: $instance) -> Self {
                 Self
             }
@@ -90,7 +91,7 @@ macro_rules! __impl_column_support {
             }
         }
 
-        impl From<$advice> for $crate::core::table::Advice {
+        impl From<$advice> for $crate::core::query::Advice {
             fn from(_: $advice) -> Self {
                 Self
             }
@@ -102,7 +103,7 @@ macro_rules! __impl_column_support {
             }
         }
 
-        impl From<$fixed> for $crate::core::table::Fixed {
+        impl From<$fixed> for $crate::core::query::Fixed {
             fn from(_: $fixed) -> Self {
                 Self
             }

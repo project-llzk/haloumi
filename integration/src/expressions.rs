@@ -3,8 +3,8 @@
 /// Implements the required traits for supporting an expression type.
 #[macro_export]
 macro_rules! __impl_expression_support {
-    ($expr:path, $field:path, $selector:ty, $fixed_query:ty, $advice_query:ty, $instance_query:ty, $challenge:ty) => {
-        impl<F: $field> $crate::core::expressions::ExpressionTypes for $expr<F> {
+    ($($expr:ident)::+, $field:path, $selector:ty, $fixed_query:ty, $advice_query:ty, $instance_query:ty, $challenge:ty) => {
+        impl<F: $field> $crate::core::expressions::ExpressionTypes for $($expr)::+<F> {
             type Selector = $selector;
             type FixedQuery = $fixed_query;
             type AdviceQuery = $advice_query;
@@ -12,23 +12,23 @@ macro_rules! __impl_expression_support {
             type Challenge = $challenge;
         }
 
-        impl<F: $field> $crate::core::expressions::ExpressionInfo for $expr<F> {
+        impl<F: $field> $crate::core::expressions::ExpressionInfo for $($expr)::+<F> {
             fn as_negation(&self) -> Option<&Self> {
                 match self {
-                    $expr::Negated(e) => Some(e.as_ref()),
+                    $($expr)::+::Negated(e) => Some(e.as_ref()),
                     _ => None,
                 }
             }
 
             fn as_fixed_query(&self) -> Option<&Self::FixedQuery> {
                 match self {
-                    $expr::Fixed(q) => Some(q),
+                    $($expr)::+::Fixed(q) => Some(q),
                     _ => None,
                 }
             }
         }
 
-        impl<F: $field> $crate::core::expressions::EvaluableExpr<F> for $expr<F> {
+        impl<F: $field> $crate::core::expressions::EvaluableExpr<F> for $($expr)::+<F> {
             fn evaluate<E: $crate::core::expressions::EvalExpression<F, Self>>(
                 &self,
                 evaluator: &E,
@@ -48,7 +48,7 @@ macro_rules! __impl_expression_support {
             }
         }
 
-        impl<F: $field> $crate::core::expressions::ExprBuilder<F> for $expr<F> {
+        impl<F: $field> $crate::core::expressions::ExprBuilder<F> for $($expr)::+<F> {
             fn constant(f: F) -> Self {
                 Self::Constant(f)
             }

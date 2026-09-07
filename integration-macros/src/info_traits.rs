@@ -19,6 +19,6 @@ pub fn derive_selector_info_impl(input: DeriveInput) -> syn::Result<TokenStream>
     let name = input.ident;
 
     Ok(quote! {
-        #module :: __impl_selector_info_for_selector(#name);
+        #module :: __impl_selector_info_for_selector!(#name);
     })
 }

@@ -1,10 +1,12 @@
-pub const HALOUMI_KEY: &str = "haloumi";
 pub const KIND_KEY: &str = "kind";
 pub const FIELD_KEY: &str = "field";
 pub const EXPRESSION_KEY: &str = "expression";
 pub const ROTATION_KEY: &str = "rotation";
 pub const NEW_KEY: &str = "new";
-pub const HALOUMI_INTEGRATION: &str = "haloumi_integration";
+pub const CELL_KEY: &str = "cell";
+pub const DEFAULT_CELL_TYPE: &str = "crate::circuit::Cell";
+pub const DEFAULT_ERROR_TYPE: &str = "crate::plonk::Error";
+pub const HALOUMI_INTEGRATION: &str = "haloumi-integration";
 pub const SELECTOR_KEY: &str = "selector";
 pub const FIXED_QUERY_KEY: &str = "fixed_query";
 pub const ADVICE_QUERY_KEY: &str = "advice_query";

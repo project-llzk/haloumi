@@ -1,4 +1,6 @@
-use crate::keys::{HALOUMI_INTEGRATION, HALOUMI_KEY};
+use crate::keys::HALOUMI_INTEGRATION;
+use proc_macro_crate::{FoundCrate, crate_name};
+use proc_macro2::Span;
 use quote::format_ident;
 use syn::{DeriveInput, Ident, parse::Parse, parse_str};
 
@@ -30,6 +32,16 @@ pub fn get_attr<T: Parse>(input: &DeriveInput, key: &str) -> syn::Result<T> {
     })
 }
 
-pub fn get_haloumi_integration_module(input: &DeriveInput) -> syn::Result<Ident> {
-    find_attr_or(input, HALOUMI_KEY, format_ident!("{HALOUMI_INTEGRATION}"))
+pub fn get_haloumi_integration_module() -> syn::Result<Ident> {
+    crate_name(HALOUMI_INTEGRATION)
+        .map(|c| {
+            format_ident!(
+                "{}",
+                match &c {
+                    FoundCrate::Itself => "crate",
+                    FoundCrate::Name(name) => name,
+                }
+            )
+        })
+        .map_err(|err| syn::Error::new(Span::call_site(), format!("{err}")))
 }

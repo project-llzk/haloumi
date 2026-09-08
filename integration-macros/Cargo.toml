@@ -17,6 +17,7 @@ proc-macro2 = "1.0"
 quote = "1.0"
 syn = { version = "3.0", features = ["full", "extra-traits"] }
 log = "0.4"
+proc-macro-crate = "3.5"
 
 [dev-dependencies]
 macrotest = "1.2"

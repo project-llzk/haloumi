@@ -13,5 +13,9 @@ keywords = {workspace = true}
 
 [dependencies]
 ff.workspace = true
-haloumi-core = { path = "../core", version = "0.5.5"}
+num-bigint.workspace = true
+thiserror.workspace = true
+num-traits = "0.2"
+haloumi-core = { path = "../core" }
+haloumi-ir = { path = "../ir" }
 haloumi-integration-macros = { path = "../integration-macros" }

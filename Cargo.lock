@@ -843,6 +843,10 @@ dependencies = [
  "ff",
  "haloumi-core",
  "haloumi-integration-macros",
+ "haloumi-ir",
+ "num-bigint 0.4.6",
+ "num-traits",
+ "thiserror",
 ]
 
 [[package]]
@@ -853,6 +857,7 @@ dependencies = [
  "macro_expand",
  "macrotest",
  "prettyplease",
+ "proc-macro-crate",
  "proc-macro2",
  "quote",
  "rstest",

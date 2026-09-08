@@ -12,7 +12,7 @@ use crate::{
 
 /// Internal implementation of [`super::derive_expression_traits`].
 pub fn derive_expression_traits_impl(input: DeriveInput) -> syn::Result<TokenStream> {
-    let module = get_haloumi_integration_module(&input)?;
+    let module = get_haloumi_integration_module()?;
     let field = find_attr_or_code::<syn::Path>(&input, FIELD_KEY, "ff::Field")?;
     let selector = find_attr_or_code::<syn::Path>(&input, SELECTOR_KEY, "crate::plonk::Selector")?;
     let fixed_query =

@@ -21,7 +21,7 @@ macro_rules! __impl_from_region_index_for_haloumi_region_index {
 macro_rules! __impl_from_cell_for_haloumi_cell {
     ($cell:ty) => {
         impl From<$cell> for $crate::core::table::Cell {
-            fn from(idx: $cell) -> Self {
+            fn from(cell: $cell) -> Self {
                 Self {
                     region_index: cell.region_index.into(),
                     row_offset: cell.row_offset,

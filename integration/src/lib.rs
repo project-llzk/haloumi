@@ -51,6 +51,46 @@ pub trait Types<F: Field> {
     type Rational;
 }
 
+/// Creates a type that implements the [`Types`] trait.
+#[macro_export]
+macro_rules! __impl_types_trait {
+    ($name:ident,
+     $field:path,
+     $instance_col:ty,
+     $advice_col:ty,
+     $cell:ty,
+     $($assigned_cell:ident)::+,
+     $($region:ident)::+,
+     $error:ty,
+     $region_index:ty,
+     $($expr:ident)::+,
+     $($rational:ident)::+) => {
+        #[doc = concat!("Implementation of [`Types`](", stringify!($crate), "::Types).")]
+        #[derive(Debug)]
+        pub struct $name;
+
+        impl<F: $field> $crate::Types<F> for $name {
+            type InstanceCol = $instance_col;
+
+            type AdviceCol = $advice_col;
+
+            type Cell = $cell;
+
+            type AssignedCell<V> = $($assigned_cell)::+<V, F>;
+
+            type Region<'a> = $($region)::+<'a, F>;
+
+            type Error = $error;
+
+            type RegionIndex = $region_index;
+
+            type Expression = $($expr)::+<F>;
+
+            type Rational = $($rational)::+<F>;
+        }
+    };
+}
+
 /// Parses a value of F from the given string.
 pub fn parse_field<F: PrimeField>(s: &str) -> Result<F, Error> {
     if s.is_empty() {

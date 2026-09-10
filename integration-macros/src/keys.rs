@@ -4,6 +4,7 @@ pub const EXPRESSION_KEY: &str = "expression";
 pub const ROTATION_KEY: &str = "rotation";
 pub const NEW_KEY: &str = "new";
 pub const CELL_KEY: &str = "cell";
+pub const ERROR_KEY: &str = "error";
 pub const DEFAULT_CELL_TYPE: &str = "crate::circuit::Cell";
 pub const DEFAULT_ERROR_TYPE: &str = "crate::plonk::Error";
 pub const HALOUMI_INTEGRATION: &str = "haloumi-integration";

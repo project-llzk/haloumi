@@ -22,6 +22,18 @@ macro_rules! auto_conf_impl {
     };
 }
 
+/// Creates an implementation of [`AutoConfigure`] for a root type.
+#[macro_export]
+macro_rules! __impl_root_auto_configure_impl {
+    ($ty:ty, $method:ident, $($cs:ident)::+, $field:path) => {
+        impl<F: $field> $crate::circuit::config::AutoConfigure<$($cs)::+<F>, $ty> for $ty {
+            fn configure(meta: &mut $($cs)::+<F>) -> $ty {
+                meta.$method()
+            }
+        }
+    };
+}
+
 impl<CS, T, const N: usize> AutoConfigure<CS> for [T; N]
 where
     T: AutoConfigure<CS>,

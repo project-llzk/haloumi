@@ -105,3 +105,11 @@ pub fn require_group_hooks(attr: TokenStream, item: TokenStream) -> TokenStream 
         parse_macro_input!(attr as Hooks)
     ))
 }
+
+/// Derive macro for the `RegionsGroupHooks` trait.
+#[proc_macro_derive(RegionsGroupHooks, attributes(error, root, delegate, cell))]
+pub fn derive_region_group_hooks(input: TokenStream) -> TokenStream {
+    unwrap_result!(trait_ext::derive_region_group_hooks_impl(
+        parse_macro_input!(input as DeriveInput)
+    ))
+}

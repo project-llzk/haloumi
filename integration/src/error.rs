@@ -59,6 +59,24 @@ impl From<&'static str> for Error {
 unsafe impl Send for Error {}
 unsafe impl Sync for Error {}
 
+/// This macro implements the conversion between the error types in Halo2 and Haloumi.
+#[macro_export]
+macro_rules! __impl_into_and_from_error {
+    ($error:ty, $factory:expr) => {
+        impl From<$error> for $crate::error::Error {
+            fn from(value: $error) -> Self {
+                Self::Plonk(std::sync::Arc::new(value))
+            }
+        }
+
+        impl From<$crate::error::Error> for $error {
+            fn from(value: $crate::error::Error) -> Self {
+                ($factory)(value)
+            }
+        }
+    };
+}
+
 /// Macro for creating [`Error::UnexpectedElements`] errors.
 ///
 /// The macro accepts a comparison expression between two values (expected and actual) and an

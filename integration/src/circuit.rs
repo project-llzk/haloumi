@@ -33,7 +33,7 @@ where
 }
 
 /// Adaptor trait for integrating chips with the extractor.
-pub trait CircuitInitialization<L> {
+pub trait ExtraibleChip<L> {
     /// Configuration of the circuit.
     type Config: Clone + std::fmt::Debug;
     /// Arguments required by the circuit.

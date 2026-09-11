@@ -14,6 +14,7 @@ members = [
   "extractor-runner",
   "integration",
   "integration-macros",
+  "inject",
   "support/midnight",
   "support/mdnt-test-circuits",
 ]

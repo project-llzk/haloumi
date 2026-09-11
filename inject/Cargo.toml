@@ -1,0 +1,35 @@
+[package]
+name = "haloumi-inject"
+description = "Injection utilities for hot-patching crates."
+categories = {workspace = true}
+version = {workspace = true}
+authors = {workspace = true}
+edition = {workspace = true}
+rust-version = {workspace = true}
+readme = "README.md"
+repository = {workspace = true}
+license-file = {workspace = true}
+keywords = {workspace = true}
+
+[dependencies]
+# ff.workspace = true
+log.workspace = true
+# num-bigint.workspace = true
+thiserror.workspace = true
+cargo_toml = "1"
+serde = {version = "1", features = ["derive"]}
+toml = {version = "1", features = ["serde"]}
+syn = { version = "3.0", features = ["full", "extra-traits"] }
+prettyplease = "0.3"
+semver = "1.0"
+# quote = "1.0"
+# num-traits = "0.2"
+# haloumi-core = { path = "../core" }
+# haloumi-ir = { path = "../ir" }
+# haloumi-integration-macros = { path = "../integration-macros" }
+
+[dev-dependencies]
+tempfile = "3.27"
+simplelog = {version = "0.12", features = ["test"] }
+similar-asserts.workspace = true
+rstest = "0.27"

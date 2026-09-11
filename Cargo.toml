@@ -11,6 +11,7 @@ members = [
   "driver",
   "integration",
   "integration-macros",
+  "inject",
   "support/midnight",
   "support/mdnt-test-circuits",
 ]

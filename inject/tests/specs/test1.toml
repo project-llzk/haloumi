@@ -1,0 +1,21 @@
+[targets]
+test1 = "0.5"
+
+[dependencies.haloumi]
+version = "*"
+package = "haloumi-integration"
+
+[[patch.append]]
+path = "src/lib.rs"
+content = "haloumi::__mock_impl!()"
+
+[[patch.derive]]
+path = "src/foo.rs"
+type = "Foo"
+trait = "Debug"
+
+[[patch.derive]]
+path = "src/bar.rs"
+type = "Bar"
+trait = "haloumi::MockTrait"
+attributes = ["foo(123)", "#[bar = \"baz\"]"]

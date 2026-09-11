@@ -67,7 +67,10 @@ pub fn derive_gate_info(input: TokenStream) -> TokenStream {
 }
 
 /// Derive macro for the `ConstraintSystemInfo` trait.
-#[proc_macro_derive(ConstraintSystemInfo, attributes(field, expression))]
+#[proc_macro_derive(
+    ConstraintSystemInfo,
+    attributes(field, expression, instance, advice, fixed, any)
+)]
 pub fn derive_constraint_system_info(input: TokenStream) -> TokenStream {
     unwrap_result!(info_traits::derive_constraint_system_info_impl(
         parse_macro_input!(input as DeriveInput)

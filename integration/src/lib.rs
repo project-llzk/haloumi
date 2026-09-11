@@ -15,6 +15,7 @@ pub mod error;
 pub mod expressions;
 pub mod groups;
 pub mod info_traits;
+pub mod layouter;
 pub mod table;
 
 /// Re-export of the core crate for simplifying dependency management in downstream clients.

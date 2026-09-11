@@ -1,0 +1,23 @@
+[package]
+name = "haloumi-extractor"
+description = "Haloumi's extraction core runtime."
+categories = {workspace = true}
+version = {workspace = true}
+authors = {workspace = true}
+edition = {workspace = true}
+rust-version = {workspace = true}
+readme = "README.md"
+repository = {workspace = true}
+license-file = {workspace = true}
+keywords = {workspace = true}
+
+[dependencies]
+haloumi-ir-gen = { path = "../ir-gen/" }
+haloumi-synthesis = { path = "../synthesis/" }
+haloumi-core = { path = "../core/" }
+haloumi-integration = { path = "../integration/" }
+haloumi-driver = { path = "../driver/", package = "haloumi" }
+ff.workspace = true
+thiserror.workspace = true
+log.workspace = true
+anyhow = "1"

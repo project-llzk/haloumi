@@ -29,6 +29,12 @@ macro_rules! __impl_from_cell_for_haloumi_cell {
                 }
             }
         }
+
+        impl From<$crate::core::table::Cell> for $cell {
+            fn from(cell: $crate::core::table::Cell) -> Self {
+                todo!()
+            }
+        }
     };
 }
 

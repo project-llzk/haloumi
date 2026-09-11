@@ -77,9 +77,13 @@ macro_rules! __impl_gate_info_for_gate {
 /// Implements the [`::core::info_traits::ConstraintSystemInfo`] trait.
 #[macro_export]
 macro_rules! __impl_constraint_system_info_for_constraint_system {
-    ($($cs:ident)::+, $field:path, $($expr:ident)::+) => {
+    ($($cs:ident)::+, $field:path, $($expr:ident)::+, $instance_col:ty, $advice_col:ty, $fixed_col:ty, $any_col:ty) => {
         impl<F: $field> $crate::core::info_traits::ConstraintSystemInfo<F> for $($cs)::+<F> {
             type Polynomial = $($expr)::+<F>;
+            type InstanceCol = $instance_col;
+            type AdviceCol = $advice_col;
+            type FixedCol = $fixed_col;
+            type AnyCol = $any_col;
 
             fn gates(&self) -> Vec<&dyn $crate::core::info_traits::GateInfo<Self::Polynomial>> {
                 self.gates
@@ -100,6 +104,19 @@ macro_rules! __impl_constraint_system_info_for_constraint_system {
                     })
                     .collect()
             }
+
+            fn constants(&self) -> &[Self::FixedCol] {
+                self.constants().as_slice()
+            }
+
+            fn enable_constant(&mut self, col: Self::FixedCol) {
+                self.enable_constant(col);
+            }
+
+            fn enable_equality(&mut self, col: impl Into<Self::AnyCol>) {
+                self.enable_equality(col)
+            }
         }
     };
+
 }

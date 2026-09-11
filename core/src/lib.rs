@@ -3,6 +3,7 @@
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]
 
+pub mod auto_conf;
 pub mod cmp;
 pub mod constraints;
 pub mod eqv;
@@ -11,6 +12,7 @@ pub mod expressions;
 pub mod felt;
 pub mod groups;
 pub mod info_traits;
+pub mod layouter;
 pub mod lookups;
 pub mod query;
 pub mod slot;

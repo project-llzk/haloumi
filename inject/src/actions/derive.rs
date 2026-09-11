@@ -30,7 +30,7 @@ impl InjectAction for DeriveAction<'_> {
         let mut item =
             DeriveItem::find(file.items.iter_mut(), &Vec::from_iter(target_type.segments))
                 .ok_or_else(|| {
-                    Error::DeriveTargetNotFound(format!("{}", self.derive.target_type_as_str()))
+                    Error::DeriveTargetNotFound(self.derive.target_type_as_str().to_owned())
                 })?;
         let attributes = item.attributes();
         attributes.push(parse_quote! { #[derive(#target_trait)] });

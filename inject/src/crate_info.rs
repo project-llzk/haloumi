@@ -84,14 +84,14 @@ fn copy_files_rec(base: &Path, dest: &Path, current: ReadDir) -> Result<(), Erro
         let entry = entry?;
 
         let full_path = entry.path();
-        let rel_path = full_path.strip_prefix(&base)?;
+        let rel_path = full_path.strip_prefix(base)?;
         let dest_path = dest.join(rel_path);
         log::debug!("{} -> {}", full_path.display(), dest_path.display());
         let file_type = entry.file_type()?;
         if file_type.is_dir() {
             std::fs::create_dir_all(dest_path)?;
             let dir = std::fs::read_dir(full_path)?;
-            copy_files_rec(&base, &dest, dir)?;
+            copy_files_rec(base, dest, dir)?;
         } else if file_type.is_file() {
             std::fs::copy(full_path, dest_path)?;
         } else {
@@ -175,7 +175,7 @@ impl CrateMut {
             .iter()
             .try_for_each(|(path, contents)| {
                 let full_path = base_path.join(path);
-                std::fs::write(full_path, prettyplease::unparse(&contents))
+                std::fs::write(full_path, prettyplease::unparse(contents))
             })?;
         Ok(())
     }

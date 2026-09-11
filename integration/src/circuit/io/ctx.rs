@@ -266,7 +266,7 @@ impl<'i, 's, F: Field, H: Types<F>> ICtx<'i, 's, F, H> {
     }
 
     /// Assigns the next input to a cell.
-    pub fn assign_next<V, R>(
+    pub fn assign_next<V>(
         &mut self,
         layouter: &mut impl LayoutAdaptor<F, H>,
     ) -> Result<H::AssignedCell<V>, H::Error>

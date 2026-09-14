@@ -13,6 +13,7 @@ use crate::error::Error;
 pub mod circuit;
 pub mod error;
 pub mod expressions;
+pub mod extractor;
 pub mod groups;
 pub mod info_traits;
 pub mod layouter;

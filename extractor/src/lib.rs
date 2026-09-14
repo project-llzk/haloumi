@@ -17,19 +17,24 @@ use crate::{circuit::CircuitImpl, error::Error};
 mod circuit;
 pub mod error;
 
+/// Re-export of the inventory crate.
+pub mod inventory {
+    pub use ::inventory::*;
+}
+
 /// Output produced by a harness function.
 pub type Output = ResolvedIRCircuit;
 
 /// Type representing the harness logic.
-pub type Harness = fn(&Extractor) -> anyhow::Result<Output>;
+pub type HarnessFn = fn(&Extractor) -> anyhow::Result<Output>;
 
 /// Entry in the harness table.
 #[derive(Copy, Clone, Debug)]
-pub struct Entry(&'static str, Harness);
+pub struct Harness(&'static str, HarnessFn);
 
-impl Entry {
+impl Harness {
     /// Creates a new entry
-    pub const fn new(name: &'static str, harness: Harness) -> Self {
+    pub const fn new(name: &'static str, harness: HarnessFn) -> Self {
         Self(name, harness)
     }
 
@@ -39,9 +44,19 @@ impl Entry {
     }
 
     /// Returns the harness function.
-    pub fn harness(&self) -> Harness {
+    pub fn harness(&self) -> HarnessFn {
         self.1
     }
+}
+
+::inventory::collect!(Harness);
+
+/// Registers a harness in the registry.
+#[macro_export]
+macro_rules! register_harness {
+    ($name:literal, $harness:path) => {
+        $crate::inventory::submit!($crate::Harness::new($name, $harness));
+    };
 }
 
 /// Information required for executing a harness.
@@ -131,5 +146,18 @@ impl<'s> Extractor<'s> {
 
     fn allow_injected_ir_for_outputs(&self) -> bool {
         self.allow_injected_ir_for_outputs
+    }
+}
+
+/// Entry-point for the extractor tool.
+pub struct ExtractorMain {}
+
+impl ExtractorMain {
+    /// Runs the extraction logic.
+    pub fn run<I>(_harnesses: impl Fn() -> I)
+    where
+        I: Iterator<Item = &'static Harness>,
+    {
+        todo!()
     }
 }

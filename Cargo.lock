@@ -853,6 +853,7 @@ dependencies = [
  "haloumi-integration",
  "haloumi-ir-gen",
  "haloumi-synthesis",
+ "inventory",
  "log",
  "thiserror",
 ]
@@ -899,7 +900,7 @@ dependencies = [
  "proc-macro-crate",
  "proc-macro2",
  "quote",
- "rstest 0.26.1",
+ "rstest 0.27.0",
  "similar-asserts",
  "simplelog",
  "syn 3.0.5",
@@ -1078,6 +1079,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "636d4b0f6a39fd684effe2a73f5310df16a3fa7954c26d36833e98f44d1977a2"
 dependencies = [
  "hashbrown 0.15.5",
+]
+
+[[package]]
+name = "inventory"
+version = "0.3.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4f0c30c76f2f4ccee3fe55a2435f691ca00c0e4bd87abe4f4a851b1d4dac39b"
+dependencies = [
+ "rustversion",
 ]
 
 [[package]]

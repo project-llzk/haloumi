@@ -21,3 +21,4 @@ ff.workspace = true
 thiserror.workspace = true
 log.workspace = true
 anyhow = "1"
+inventory = "0.3"

@@ -6,7 +6,7 @@ use std::{
     str::FromStr,
 };
 
-use crate::core::table::DecomposeIn;
+use crate::{circuit::io::layouter::AdviceCopy, core::table::DecomposeIn};
 use ff::{Field, PrimeField};
 
 use crate::{
@@ -64,6 +64,7 @@ pub trait LayoutHelper<F: Field, T: Types<F>> {
     ) -> Result<T::AssignedCell<V>, T::Error>
     where
         V: Clone,
+        T::AssignedCell<V>: AdviceCopy<V, F, T>,
         T::Rational: for<'v> From<&'v V>;
 
     /// Enters the scope of a region.

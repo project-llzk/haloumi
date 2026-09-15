@@ -170,8 +170,10 @@ pub struct ExtractorMain {}
 impl ExtractorMain {
     /// Runs the extraction logic.
     pub fn run(harnesses: impl Iterator<Item = &'static Harness>) {
+        let extractor = Extractor::new(&[], false, false, false);
         for harness in harnesses {
             println!("{}", harness.name());
+            let _ = (harness.harness())(&extractor);
         }
     }
 }

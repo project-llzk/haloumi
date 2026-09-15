@@ -4,7 +4,10 @@
 #![deny(missing_docs)]
 
 use ff::{Field, PrimeField};
-use haloumi_core::{layouter::RegionAdaptor, table::FromCell};
+use haloumi_core::{
+    layouter::{FromRegionAdaptor, RegionAdaptor},
+    table::FromCell,
+};
 pub use haloumi_integration_macros::*;
 use num_bigint::{BigInt, BigUint};
 use num_traits::{Num as _, Signed as _};
@@ -52,9 +55,9 @@ pub trait Types<F: Field>: Sized {
     /// Type for a cell.
     type Cell: std::fmt::Debug + Copy + Clone + DecomposeIn<Self::Cell> + Into<Cell> + From<Cell>;
     /// Type for an assigned cell.
-    type AssignedCell<V>: FromCell + AdviceCopy<V, F, Self>;
+    type AssignedCell<V>: FromCell;
     /// Region type.
-    type Region<'a>: for<'l> From<RegionAdaptor<'l, F, Self::Error>>;
+    type Region<'a>: FromRegionAdaptor<'a, F, Self::Error>;
     /// Error type.
     type Error: Into<Error> + From<Error> + std::error::Error + Send + Sync + 'static;
     /// Region index type
@@ -90,7 +93,7 @@ macro_rules! __impl_types_trait {
 
             type Cell = $cell;
 
-            type AssignedCell<V> = $($assigned_cell)::+<V, F>;
+            type AssignedCell<V> = $($assigned_cell)::+<V, F> ;
 
             type Region<'a> = $($region)::+<'a, F>;
 

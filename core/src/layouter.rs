@@ -17,6 +17,12 @@ impl<F: Field, E> std::fmt::Debug for RegionAdaptor<'_, F, E> {
     }
 }
 
+/// Bespoke conversion trait from a [`RegionAdaptor`].
+pub trait FromRegionAdaptor<'a, F: Field, E> {
+    /// Creates an instance of self from a region adaptor.
+    fn from_region_adaptor(adaptor: &'a mut RegionAdaptor<'_, F, E>) -> Self;
+}
+
 /// Wrapper around a table layouter intended for conversion between halo2 and haloumi.
 pub struct TableAdaptor<'l, F: Field, E>(pub &'l mut dyn TableLayouter<F, E>);
 

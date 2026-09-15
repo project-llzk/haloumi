@@ -43,10 +43,10 @@ macro_rules! __impl_from_cell_for_haloumi_cell {
 macro_rules! __impl_from_cell_for_asigned_cell {
     ($($assigned_cell:ident)::+, $field:path) => {
         impl<F: $field, V> $crate::core::table::FromCell for $($assigned_cell)::+<V, F> {
-            fn from(cell: $crate::core::table::Cell) -> Self {
+            fn from_cell(cell: $crate::core::table::Cell) -> Self {
                 Self {
                     value: Default::default(),
-                    cell,
+                    cell: cell.into(),
                     _marker: Default::default(),
                 }
             }
@@ -63,6 +63,15 @@ macro_rules! __impl_column_support {
         {
             fn from(value: $($column)::+<F>) -> Self {
                 Self::new(value.index, value.column_type.into())
+            }
+        }
+
+        impl<F: $crate::core::table::ColumnType + Into<T>, T: $column_trait> From<$crate::core::table::Column<F>>
+            for $($column)::+<T>
+        {
+            fn from(value: $crate::core::table::Column<F>) -> Self {
+                todo!()
+                //Self::new(value.index, value.column_type.into())
             }
         }
 
@@ -101,8 +110,25 @@ macro_rules! __impl_column_support {
             }
         }
 
+        impl From<$crate::core::table::Any> for $any {
+            fn from(value: $crate::core::table::Any) -> Self {
+                use $crate::core::table::Any::*;
+                match value {
+                    Advice => Self::Advice(Default::default()),
+                    Fixed => Self::Fixed,
+                    Instance => Self::Instance,
+                }
+            }
+        }
+
         impl From<$instance> for $crate::core::query::Instance {
             fn from(_: $instance) -> Self {
+                Self
+            }
+        }
+
+        impl From<$crate::core::query::Instance> for $instance {
+            fn from(_: $crate::core::query::Instance) -> Self {
                 Self
             }
         }
@@ -113,9 +139,21 @@ macro_rules! __impl_column_support {
             }
         }
 
+        impl From<$crate::core::query::Instance> for $any {
+            fn from(_: $crate::core::query::Instance) -> Self {
+                Self::Instance
+            }
+        }
+
         impl From<$advice> for $crate::core::query::Advice {
             fn from(_: $advice) -> Self {
                 Self
+            }
+        }
+
+        impl From<$crate::core::query::Advice> for $advice {
+            fn from(_: $crate::core::query::Advice) -> Self {
+                Default::default()
             }
         }
 
@@ -125,13 +163,32 @@ macro_rules! __impl_column_support {
             }
         }
 
+        impl From<$crate::core::query::Advice> for $any {
+            fn from(_: $crate::core::query::Advice) -> Self {
+                Self::Advice(Default::default())
+            }
+        }
+
         impl From<$fixed> for $crate::core::query::Fixed {
             fn from(_: $fixed) -> Self {
                 Self
             }
         }
+
+        impl From<$crate::core::query::Fixed> for $fixed {
+            fn from(_: $crate::core::query::Fixed) -> Self {
+                Self
+            }
+        }
+
         impl From<$fixed> for $crate::core::table::Any {
             fn from(_: $fixed) -> Self {
+                Self::Fixed
+            }
+        }
+
+        impl From<$crate::core::query::Fixed> for $any {
+            fn from(_: $crate::core::query::Fixed) -> Self {
                 Self::Fixed
             }
         }

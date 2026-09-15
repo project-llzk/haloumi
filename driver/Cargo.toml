@@ -40,6 +40,6 @@ mlir-testutils.workspace = true
 llzk.workspace = true
 
 [features]
-default = [ "picus-backend"]
+default = ["llzk-backend", "picus-backend"]
 llzk-backend = ["dep:haloumi-llzk"]
 picus-backend = ["dep:haloumi-picus"]

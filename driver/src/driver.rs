@@ -33,12 +33,10 @@ impl Driver {
     }
 
     /// Synthesizes a circuit .
-    pub fn synthesize<F, C>(
-        &mut self,
-        circuit: &C,
-    ) -> Result<SynthesizedCircuit<F, <C::CS as ConstraintSystemInfo<F>>::Polynomial>>
+    pub fn synthesize<F, C, CS, E>(&mut self, circuit: &C) -> Result<SynthesizedCircuit<F, E>>
     where
-        C: CircuitSynthesis<F>,
+        C: for<'s> CircuitSynthesis<'s, F, CS = CS>,
+        CS: ConstraintSystemInfo<F, Polynomial = E> + Default + 'static,
         F: PrimeField,
     {
         Ok(self.synthesis.synthesize(circuit)?)

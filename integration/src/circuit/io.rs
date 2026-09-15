@@ -3,6 +3,7 @@
 use num_bigint::BigUint;
 
 pub mod ctx;
+pub mod layouter;
 pub mod load;
 pub mod store;
 

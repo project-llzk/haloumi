@@ -11,7 +11,10 @@ use haloumi_integration::{
     Types,
     circuit::{
         AbstractCircuitIO, ExtraibleChip,
-        io::ctx::{Cell, InputDescr, OutputDescr},
+        io::{
+            CellReprSize,
+            ctx::{Cell, InputDescr, OutputDescr},
+        },
     },
 };
 
@@ -105,14 +108,23 @@ impl IOConfig {
         F: PrimeField,
         E: Types<F>,
         E::AdviceCol: From<Column<Advice>>,
-        E::InstanceCol: From<Cell<Column<Instance>>>,
+        E::InstanceCol: From<Column<Instance>>,
     {
-        self.input
-            .descrs(|cell, col| InputDescr::new(cell.into(), col.into()))
+        self.input.descrs::<Instance, _>(|cell, col| {
+            InputDescr::new(Cell::new(cell.col().into(), cell.row()), col.into())
+        })
     }
 
-    fn outputs<F: PrimeField, E: Types<F>>(&self) -> impl Iterator<Item = OutputDescr<F, E>> {
-        self.output.descrs(OutputDescr::new)
+    fn outputs<F, E>(&self) -> impl Iterator<Item = OutputDescr<F, E>>
+    where
+        F: PrimeField,
+        E: Types<F>,
+        E::AdviceCol: From<Column<Advice>>,
+        E::InstanceCol: From<Column<Instance>>,
+    {
+        self.output.descrs::<Instance, _>(|cell, col| {
+            OutputDescr::new(Cell::new(cell.col().into(), cell.row()), col.into())
+        })
     }
 }
 
@@ -142,14 +154,17 @@ impl Constants {
 }
 
 /// Configuration for a circuit.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Config<C: AbstractCircuitIO> {
     pub io: IOConfig,
     pub chip: ChipConfig<C>,
     pub constants: Constants,
 }
 
-impl<C: AbstractCircuitIO> Config<C> {
+impl<C> Config<C>
+where
+    C: AbstractCircuitIO,
+{
     pub fn configure<L, F: Field, CS: ConstraintSystemInfo<F>>(meta: &mut CS) -> Self
     where
         F: PrimeField,
@@ -169,5 +184,33 @@ impl<C: AbstractCircuitIO> Config<C> {
             chip: ChipConfig::configure::<CS, L, F>(meta),
             constants: Constants::configure(meta),
         }
+    }
+
+    pub fn inputs<F, E>(&self) -> Vec<InputDescr<F, E>>
+    where
+        F: PrimeField,
+        E: Types<F>,
+        E::AdviceCol: From<Column<Advice>>,
+        E::InstanceCol: From<Column<Instance>>,
+    {
+        self.io.inputs().take(C::Input::SIZE).collect()
+    }
+
+    pub fn outputs<F, E>(&self) -> Vec<OutputDescr<F, E>>
+    where
+        F: PrimeField,
+        E: Types<F>,
+        E::AdviceCol: From<Column<Advice>>,
+        E::InstanceCol: From<Column<Instance>>,
+    {
+        self.io.outputs().take(C::Output::SIZE).collect()
+    }
+
+    pub fn input_instance(&self) -> Column<Instance> {
+        self.io.input.instance
+    }
+
+    pub fn output_instance(&self) -> Column<Instance> {
+        self.io.output.instance
     }
 }

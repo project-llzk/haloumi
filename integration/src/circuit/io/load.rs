@@ -9,7 +9,7 @@ use crate::{
     Types,
     circuit::io::{
         CellReprSize,
-        ctx::{ICtx, LayoutAdaptor},
+        ctx::{ICtx, LayoutHelper},
     },
     ir::inject::InjectedIR,
 };
@@ -20,7 +20,7 @@ pub trait LoadFromCells<F: Field, C, Ts: Types<F>, L>: Sized + CellReprSize {
     fn load(
         ctx: &mut ICtx<F, Ts>,
         chip: &C,
-        layouter: &mut impl LayoutAdaptor<F, Ts, Adaptee = L>,
+        layouter: &mut impl LayoutHelper<F, Ts, Adaptee = L>,
         injected_ir: &mut InjectedIR<Ts::RegionIndex, Ts::Expression>,
     ) -> Result<Self, Ts::Error>;
 
@@ -29,7 +29,7 @@ pub trait LoadFromCells<F: Field, C, Ts: Types<F>, L>: Sized + CellReprSize {
         n: usize,
         ctx: &mut ICtx<F, Ts>,
         chip: &C,
-        layouter: &mut impl LayoutAdaptor<F, Ts, Adaptee = L>,
+        layouter: &mut impl LayoutHelper<F, Ts, Adaptee = L>,
         injected_ir: &mut InjectedIR<Ts::RegionIndex, Ts::Expression>,
     ) -> Result<Vec<Self>, Ts::Error> {
         std::iter::repeat_with(|| Self::load(ctx, chip, layouter, injected_ir))
@@ -44,7 +44,7 @@ impl<const N: usize, F: PrimeField, C, Ts: Types<F>, L, T: LoadFromCells<F, C, T
     fn load(
         ctx: &mut ICtx<F, Ts>,
         chip: &C,
-        layouter: &mut impl LayoutAdaptor<F, Ts, Adaptee = L>,
+        layouter: &mut impl LayoutHelper<F, Ts, Adaptee = L>,
         injected_ir: &mut InjectedIR<Ts::RegionIndex, Ts::Expression>,
     ) -> Result<Self, Ts::Error> {
         let mut out: [MaybeUninit<T>; N] = [const { MaybeUninit::uninit() }; N];
@@ -61,7 +61,7 @@ macro_rules! load_const {
             fn load(
                 ctx: &mut ICtx<F, Ts>,
                 _chip: &C,
-                _layouter: &mut impl LayoutAdaptor<F, Ts, Adaptee = L>,
+                _layouter: &mut impl LayoutHelper<F, Ts, Adaptee = L>,
                 _injected_ir: &mut InjectedIR<Ts::RegionIndex, Ts::Expression>,
             ) -> Result<Self, Ts::Error> {
                 Ok(ctx.primitive_constant()?)
@@ -81,7 +81,7 @@ macro_rules! load_tuple {
             fn load(
                 _: &mut ICtx<F, Ts>,
                 _: &C,
-                _: &mut impl LayoutAdaptor<F, Ts, Adaptee = L>,
+                _: &mut impl LayoutHelper<F, Ts, Adaptee = L>,
                 _: &mut InjectedIR<Ts::RegionIndex, Ts::Expression>,
             ) -> Result<Self, Ts::Error> {
                 Ok(())
@@ -104,7 +104,7 @@ macro_rules! load_tuple {
             fn load(
                 ctx: &mut ICtx<F, Ts>,
                 chip: &C,
-                layouter: &mut impl LayoutAdaptor<F, Ts, Adaptee=L>,
+                layouter: &mut impl LayoutHelper<F, Ts, Adaptee=L>,
                 injected_ir: &mut InjectedIR<Ts::RegionIndex,Ts::Expression>,
             ) -> Result<Self, Ts::Error>
             {

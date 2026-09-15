@@ -5,6 +5,7 @@ pub mod io;
 
 use ff::PrimeField;
 use haloumi_core::{
+    groups::RegionsGroupHooks,
     layouter::{LayoutAdaptor, Layouter},
     table::RegionIndex,
 };
@@ -90,6 +91,10 @@ pub trait AbstractCircuit<F: PrimeField>: AbstractCircuitIO {
     type Error;
     /// Expression type.
     type Expression;
+    /// Cell type used by the circuit implementation.
+    type Cell;
+    /// Region index type.
+    type RegionIndex;
 
     /// Runs the circuit's main logic.
     fn synthesize<L>(
@@ -97,10 +102,10 @@ pub trait AbstractCircuit<F: PrimeField>: AbstractCircuitIO {
         chip: &Self::Chip,
         layouter: &mut LayoutAdaptor<L>,
         input: Self::Input,
-        injected_ir: &mut InjectedIR<RegionIndex, Self::Expression>,
+        injected_ir: &mut InjectedIR<Self::RegionIndex, Self::Expression>,
     ) -> Result<Self::Output, Self::Error>
     where
-        L: Layouter<F, Self::Error>;
+        L: Layouter<F, Self::Error> + RegionsGroupHooks<F, Self::Cell, Error = Self::Error>;
 }
 
 ///// Main trait for defining harness that return a value.

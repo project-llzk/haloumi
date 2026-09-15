@@ -4,9 +4,15 @@
 #![deny(missing_docs)]
 
 use ff::PrimeField;
-use haloumi_core::info_traits::ConstraintSystemInfo;
+use haloumi_core::{
+    expressions::{EvaluableExpr, ExprBuilder, ExpressionInfo},
+    info_traits::ConstraintSystemInfo,
+};
 use haloumi_driver::driver::Driver;
-use haloumi_integration::circuit::{AbstractCircuitIO, ChipArgs};
+use haloumi_integration::{
+    Types,
+    circuit::{AbstractCircuitIO, ChipArgs},
+};
 use haloumi_ir_gen::{
     IRGenParams, circuit::resolved::ResolvedIRCircuit, lookups::callbacks::LookupCallbacks,
 };
@@ -14,12 +20,16 @@ use haloumi_synthesis::CircuitSynthesis;
 
 use crate::{circuit::CircuitImpl, error::Error};
 
-mod circuit;
+pub mod circuit;
 pub mod error;
 
 /// Re-export of the inventory crate.
 pub mod inventory {
     pub use ::inventory::*;
+}
+/// Re-export of the anyhow crate.
+pub mod anyhow {
+    pub use ::anyhow::*;
 }
 
 /// Output produced by a harness function.
@@ -85,17 +95,19 @@ impl<'s> Extractor<'s> {
     }
 
     /// Extracts the circuit to IR using the driver.
-    pub fn extract_circuit<'c, F, C, M, CS>(
+    pub fn extract_circuit<'c, F, C, M, T, E, CS>(
         &self,
-        circuit: CircuitImpl<'c, F, C, CS, M>,
+        circuit: CircuitImpl<'c, F, C, CS, T, M>,
         lookups: Option<&dyn LookupCallbacks<F, CS::Polynomial>>,
     ) -> Result<ResolvedIRCircuit, Error>
     where
         F: PrimeField + Ord,
         C: AbstractCircuitIO + ChipArgs,
-        CircuitImpl<'c, F, C, CS, M>: CircuitSynthesis<F, CS = CS>, //<CircuitImpl<'c, F, C, M> as Circuit<F>>::Config: AbstractCircuitConfig,
-        CS: ConstraintSystemInfo<F>,
+        T: Types<F, Expression = E> + std::fmt::Debug,
+        CircuitImpl<'c, F, C, CS, T, M>: for<'a> CircuitSynthesis<'a, F, CS = CS>,
+        CS: ConstraintSystemInfo<F, Polynomial = T::Expression> + Default + 'static,
         <CS as ConstraintSystemInfo<F>>::Polynomial: std::fmt::Debug,
+        E: EvaluableExpr<F> + Clone + ExpressionInfo + ExprBuilder<F>,
     {
         let mut driver = Driver::default();
         let syn = driver.synthesize(&circuit)?; //.context("Synthesis failed")?;
@@ -140,24 +152,26 @@ impl<'s> Extractor<'s> {
         Ok(resolved)
     }
 
-    fn constants(&self) -> &[String] {
+    /// Returns the constants supplied to the extractor.
+    pub fn constants(&self) -> &[String] {
         self.constants
     }
 
-    fn allow_injected_ir_for_outputs(&self) -> bool {
+    /// Returns whether IR injection is enabled while loading outputs.
+    pub fn allow_injected_ir_for_outputs(&self) -> bool {
         self.allow_injected_ir_for_outputs
     }
 }
 
 /// Entry-point for the extractor tool.
+#[derive(Debug)]
 pub struct ExtractorMain {}
 
 impl ExtractorMain {
     /// Runs the extraction logic.
-    pub fn run<I>(_harnesses: impl Fn() -> I)
-    where
-        I: Iterator<Item = &'static Harness>,
-    {
-        todo!()
+    pub fn run(harnesses: impl Iterator<Item = &'static Harness>) {
+        for harness in harnesses {
+            println!("{}", harness.name());
+        }
     }
 }

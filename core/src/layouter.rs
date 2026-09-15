@@ -36,10 +36,10 @@ where
 {
     type Error = L::Error;
 
-    type RootHook = L::RootHook;
+    type RootHook = Self;
 
     fn get_root_hook(&mut self) -> &mut Self::RootHook {
-        self.0.get_root_hook()
+        self
     }
 
     fn push_group<N, NR, K>(&mut self, name: N, key: K)

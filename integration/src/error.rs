@@ -1,7 +1,11 @@
 //! Error type for the support crate.
 
-use std::{num::ParseIntError, str::ParseBoolError, sync::Arc};
+use std::{fmt, num::ParseIntError, str::ParseBoolError, sync::Arc};
 
+use haloumi_core::{
+    query::Fixed,
+    table::{Any, Column},
+};
 use num_bigint::{BigInt, ParseBigIntError, TryFromBigIntError};
 use thiserror::Error;
 
@@ -48,6 +52,25 @@ pub enum Error {
         /// The number of elements.
         actual: usize,
     },
+    /// This is an error that could occur during table synthesis.
+    #[error(transparent)]
+    TableError(#[from] TableError),
+    /// Circuit synthesis requires global constants, but circuit configuration
+    /// did not call [`ConstraintSystem::enable_constant`] on fixed columns
+    /// with sufficient space.
+    ///
+    /// [`ConstraintSystem::enable_constant`]: crate::plonk::ConstraintSystem::enable_constant
+    #[error("Too few fixed columns are enabled for global constants usage")]
+    NotEnoughColumnsForConstants,
+    /// Raised when the default value is missing while synthesizing a table.
+    #[error("Unknown default value")]
+    MissingDefaultValue,
+    /// Raised when a table value is missing while synthesizing a table.
+    #[error("Unknown table value")]
+    MissingTableValue,
+    /// Raised when an unknown fixed value is assigned to a fixed cell.
+    #[error("Unknown fixed value assigned to cell ({0}, {1})")]
+    MissingFixedValue(usize, usize),
 }
 
 impl From<&'static str> for Error {
@@ -75,6 +98,23 @@ macro_rules! __impl_into_and_from_error {
             }
         }
     };
+}
+
+/// This is an error that could occur during table synthesis.
+#[derive(Debug, Error)]
+pub enum TableError {
+    /// A `TableColumn` has not been assigned.
+    #[error("{0:?} not fully assigned. Help: assign a value at offset 0.")]
+    ColumnNotAssigned(Column<Fixed>),
+    /// A Table has columns of uneven lengths.
+    #[error("{0:?} has length {1} while {2:?} has length {3}")]
+    UnevenColumnLengths(Column<Fixed>, usize, Column<Fixed>, usize),
+    /// Attempt to assign a used `TableColumn`
+    #[error("{0:?} has already been used")]
+    UsedColumn(Column<Fixed>),
+    /// Attempt to overwrite a default value
+    #[error("Attempted to overwrite default value {1} with {2} in {0:?}")]
+    OverwriteDefault(Column<Fixed>, String, String),
 }
 
 /// Macro for creating [`Error::UnexpectedElements`] errors.

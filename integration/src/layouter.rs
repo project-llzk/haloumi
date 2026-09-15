@@ -6,9 +6,8 @@ macro_rules! __impl_layouter_adaptor {
     ($($layouter:ident)::+, $($region_layouter:ident)::+, $($table_layouter:ident)::+, $field:path, $error:ty, $($region:ident)::+, $($table:ident)::+, $($value:ident)::+, $cell:ty, $instance_col:ty, $challenge:ty) => {
         impl<F, L> $($layouter)::+<F> for $crate::core::layouter::LayoutAdaptor<'_, L> where
             F: $field,
-            L: $crate::core::layouter::Layouter<F, $error> + $crate::core::groups::RegionsGroupHooks<F, $cell, Error = $error, RootHook = <L as $crate::core::layouter::Layouter<F, $error>>::Root>,
-            <L as $crate::core::layouter::Layouter<F, $error>>::Root: $($layouter)::+<F> {
-            type Root = <L as $crate::core::layouter::Layouter<F, $error>>::Root;
+            L: $crate::core::layouter::Layouter<F, $error> + $crate::core::groups::RegionsGroupHooks<F, $cell, Error = $error> {
+            type Root = Self;
 
             fn assign_region<A, AR, N, NR>(&mut self, name: N, mut assignment: A) -> Result<AR, $error>
             where
@@ -45,7 +44,7 @@ macro_rules! __impl_layouter_adaptor {
                 match self.0.get_challenge(challenge) { Some(v) => $($value)::+::known(v), None => $($value)::+::unknown() }
             }
 
-            fn get_root(&mut self) -> &mut Self::Root { self.0.get_root() }
+            fn get_root(&mut self) -> &mut Self::Root { self }
 
             fn push_namespace<NR, N>(&mut self, name_fn: N)
             where

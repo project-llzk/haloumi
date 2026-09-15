@@ -183,6 +183,15 @@ pub struct Cell {
     pub column: Column<Any>,
 }
 
+/// Bespoke conversion trait from a [`Cell`].
+///
+/// Meant for avoiding the generality that `From<Cell>` would introduce
+/// into an integrated Halo2 implementation.
+pub trait FromCell {
+    /// Creates an instance of self from a cell.
+    fn from_cell(cell: Cell) -> Self;
+}
+
 /// Replacement type for Halo2's `Rotation` type.
 pub type Rotation = i32;
 

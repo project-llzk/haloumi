@@ -43,12 +43,13 @@ impl SynthesisUser {
     }
 
     /// Synthesizes a circuit .
-    pub fn synthesize<F, C>(
+    pub fn synthesize<F, C, CS, E>(
         &mut self,
         circuit: &C,
-    ) -> Result<SynthesizedCircuit<F, <C::CS as ConstraintSystemInfo<F>>::Polynomial>, Error>
+    ) -> Result<SynthesizedCircuit<F, E>, Error>
     where
-        C: CircuitSynthesis<F>,
+        C: for<'s> CircuitSynthesis<'s, F, CS = CS>,
+        CS: ConstraintSystemInfo<F, Polynomial = E> + Default + 'static,
         F: PrimeField,
     {
         let mut cs = C::CS::default();
@@ -82,7 +83,7 @@ impl SynthesisUser {
 /// defined in this crate with the types defined by Halo2. Since many Halo2 based projects fork the
 /// library this trait allows for swapping the concrete implementation of Halo2 without having to
 /// change the codebase of this crate.
-pub trait CircuitSynthesis<F: Field> {
+pub trait CircuitSynthesis<'s, F: Field> {
     /// The type of the circuit.
     type Circuit;
     /// Should be the same type as the circuit config.
@@ -109,7 +110,7 @@ pub trait CircuitSynthesis<F: Field> {
     fn synthesize(
         circuit: &Self::Circuit,
         config: Self::Config,
-        synthesizer: &mut Synthesizer<F>,
+        synthesizer: &'s mut Synthesizer<F>,
         cs: &Self::CS,
     ) -> Result<(), Self::Error>;
 }

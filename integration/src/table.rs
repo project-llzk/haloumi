@@ -38,6 +38,22 @@ macro_rules! __impl_from_cell_for_haloumi_cell {
     };
 }
 
+/// Implements `FromCell` for [`::core::table::Cell`].
+#[macro_export]
+macro_rules! __impl_from_cell_for_asigned_cell {
+    ($($assigned_cell:ident)::+, $field:path) => {
+        impl<F: $field, V> $crate::core::table::FromCell for $($assigned_cell)::+<V, F> {
+            fn from(cell: $crate::core::table::Cell) -> Self {
+                Self {
+                    value: Default::default(),
+                    cell,
+                    _marker: Default::default(),
+                }
+            }
+        }
+    };
+}
+
 /// Implements the required traits for integrating with [`::core::table::Column`].
 #[macro_export]
 macro_rules! __impl_column_support {

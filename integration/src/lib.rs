@@ -4,11 +4,19 @@
 #![deny(missing_docs)]
 
 use ff::{Field, PrimeField};
+use haloumi_core::{layouter::RegionAdaptor, table::FromCell};
 pub use haloumi_integration_macros::*;
 use num_bigint::{BigInt, BigUint};
 use num_traits::{Num as _, Signed as _};
 
-use crate::error::Error;
+use crate::{
+    circuit::io::layouter::AdviceCopy,
+    core::{
+        query::{Advice, Instance},
+        table::{Cell, Column, DecomposeIn},
+    },
+    error::Error,
+};
 
 pub mod circuit;
 pub mod error;
@@ -32,21 +40,25 @@ pub mod ir {
 /// An implementation of halo2 compatible with this crate must have
 /// some type that implements this trait s.t. it can be passed to traits
 /// and types in this crate.
-pub trait Types<F: Field> {
+pub trait Types<F: Field>: Sized {
     /// Type for instance columns.
-    type InstanceCol: std::fmt::Debug + Copy + Clone;
+    type InstanceCol: std::fmt::Debug
+        + Copy
+        + Clone
+        + Into<Column<Instance>>
+        + From<Column<Instance>>;
     /// Type for advice columns.
-    type AdviceCol: std::fmt::Debug + Copy + Clone;
+    type AdviceCol: std::fmt::Debug + Copy + Clone + Into<Column<Advice>> + From<Column<Advice>>;
     /// Type for a cell.
-    type Cell: std::fmt::Debug + Copy + Clone + core::table::DecomposeIn<Self::Cell>;
+    type Cell: std::fmt::Debug + Copy + Clone + DecomposeIn<Self::Cell> + Into<Cell> + From<Cell>;
     /// Type for an assigned cell.
-    type AssignedCell<V>;
+    type AssignedCell<V>: FromCell + AdviceCopy<V, F, Self>;
     /// Region type.
-    type Region<'a>;
+    type Region<'a>: for<'l> From<RegionAdaptor<'l, F, Self::Error>>;
     /// Error type.
-    type Error: Into<Error> + From<Error>;
+    type Error: Into<Error> + From<Error> + std::error::Error + Send + Sync + 'static;
     /// Region index type
-    type RegionIndex: std::hash::Hash + Copy + Eq;
+    type RegionIndex: std::hash::Hash + Copy + Eq + std::ops::Deref<Target = usize>;
     /// Expression type
     type Expression;
     /// Associated type for Rational.

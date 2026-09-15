@@ -3,6 +3,7 @@
 use std::{
     cmp,
     collections::{HashMap, HashSet},
+    hash::Hash,
     marker::PhantomData,
 };
 
@@ -58,7 +59,10 @@ impl<'s, F: Field, E> ExtractionLayouter<'s, F, E> {
     }
 }
 
-impl<F: Field, E> RegionsGroupHooks<F, Cell> for ExtractionLayouter<'_, F, E> {
+impl<F: Field, E, C> RegionsGroupHooks<F, C> for ExtractionLayouter<'_, F, E>
+where
+    C: Copy + Eq + Hash + Into<Cell>,
+{
     type Error = E;
     type RootHook = Self;
 
@@ -80,17 +84,17 @@ impl<F: Field, E> RegionsGroupHooks<F, Cell> for ExtractionLayouter<'_, F, E> {
             .enter_group(name, *GroupKeyInstance::from(key));
     }
 
-    fn pop_group(&mut self, meta: RegionsGroup<Cell>) {
+    fn pop_group(&mut self, meta: RegionsGroup<C>) {
         log::debug!("{}> Popping group", "-".repeat(self.group_depth));
         log::debug!(
             "{}>   Inputs:  {:?}",
             "-".repeat(self.group_depth),
-            Vec::from_iter(meta.inputs().map(CellDbg))
+            Vec::from_iter(meta.inputs().map(|cell| CellDbg(cell.into()))),
         );
         log::debug!(
             "{}>   Outputs: {:?}",
             "-".repeat(self.group_depth),
-            Vec::from_iter(meta.outputs().map(CellDbg))
+            Vec::from_iter(meta.outputs().map(|cell| CellDbg(cell.into()))),
         );
         self.group_depth -= 1;
         self.synthesizer.exit_group(meta)

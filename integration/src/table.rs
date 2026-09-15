@@ -32,7 +32,11 @@ macro_rules! __impl_from_cell_for_haloumi_cell {
 
         impl From<$crate::core::table::Cell> for $cell {
             fn from(cell: $crate::core::table::Cell) -> Self {
-                todo!()
+                Self {
+                    region_index: (*cell.region_index).into(),
+                    row_offset: cell.row_offset,
+                    column: cell.column.into(),
+                }
             }
         }
     };
@@ -70,8 +74,10 @@ macro_rules! __impl_column_support {
             for $($column)::+<T>
         {
             fn from(value: $crate::core::table::Column<F>) -> Self {
-                todo!()
-                //Self::new(value.index, value.column_type.into())
+                Self {
+                    index: value.index(),
+                    column_type: (*value.column_type()).into(),
+                }
             }
         }
 

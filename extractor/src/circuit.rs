@@ -243,6 +243,8 @@ where
     T: Types<F, Expression = E> + std::fmt::Debug,
     F: PrimeField,
     CS: ConstraintSystemInfo<F, Polynomial = E> + std::default::Default + 'static,
+    CS::InstanceCol: Into<Column<haloumi_core::query::Instance>>,
+    CS::AdviceCol: Into<Column<haloumi_core::query::Advice>>,
     CS::FixedCol: Into<Column<Fixed>>,
     C: AbstractCircuit<
             F,
@@ -260,8 +262,10 @@ where
             Args = C::Args,
             Config = C::Config,
             ConfigCols = C::ConfigCols,
+            CS = CS,
             Error = T::Error,
         >,
+    C::ConfigCols: haloumi_core::auto_conf::AutoConfigure<CS>,
     E: Clone + ExpressionInfo + EvaluableExpr<F>,
     ExtractionLayouter<'s, F, T::Error>: RegionsGroupHooks<F, C::Cell, Error = T::Error>,
 {
@@ -275,8 +279,11 @@ where
     }
 
     fn configure(cs: &mut Self::CS) -> Self::Config {
-        let _ = cs;
-        todo!()
+        Self::Config::configure::<
+            LayoutAdaptor<'_, ExtractionLayouter<'s, F, T::Error>>,
+            F,
+            CS,
+        >(cs)
     }
 
     fn advice_io(_: &Self::Config) -> Result<AdviceIO, SynError> {

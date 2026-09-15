@@ -193,9 +193,7 @@ macro_rules! __impl_from_region_adaptor {
      $field:path,
      $error:ty
     ) => {
-        impl<'a, F: $field> $crate::core::layouter::FromRegionAdaptor<'a, F, $error> for $($region)::+<'a, F> where
-            $crate::core::layouter::RegionAdaptor<'_, F, $error>: $($region_layouter)::+<F>
-        {
+        impl<'a, F: $field> $crate::core::layouter::FromRegionAdaptor<'a, F, $error> for $($region)::+<'a, F> {
             fn from_region_adaptor(adaptor: &'a mut $crate::core::layouter::RegionAdaptor<'_, F, $error>) -> Self {
                 Self::from(adaptor as &mut dyn $($region_layouter)::+<F>)
             }

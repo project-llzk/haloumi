@@ -6,7 +6,7 @@ use crate::{
     Types,
     circuit::io::{
         CellReprSize,
-        ctx::{LayoutAdaptor, OCtx},
+        ctx::{LayoutHelper, OCtx},
     },
     ir::inject::InjectedIR,
 };
@@ -18,7 +18,7 @@ pub trait StoreIntoCells<F: Field, C, Ts: Types<F>, L>: CellReprSize {
         self,
         ctx: &mut OCtx<F, Ts>,
         chip: &C,
-        layouter: &mut impl LayoutAdaptor<F, Ts, Adaptee = L>,
+        layouter: &mut impl LayoutHelper<F, Ts, Adaptee = L>,
         injected_ir: &mut InjectedIR<Ts::RegionIndex, Ts::Expression>,
     ) -> Result<(), Ts::Error>;
 }
@@ -30,7 +30,7 @@ impl<const N: usize, F: PrimeField, C, Ts: Types<F>, L, T: StoreIntoCells<F, C, 
         self,
         ctx: &mut OCtx<F, Ts>,
         chip: &C,
-        layouter: &mut impl LayoutAdaptor<F, Ts, Adaptee = L>,
+        layouter: &mut impl LayoutHelper<F, Ts, Adaptee = L>,
         injected_ir: &mut InjectedIR<Ts::RegionIndex, Ts::Expression>,
     ) -> Result<(), Ts::Error> {
         self.into_iter()
@@ -55,7 +55,7 @@ macro_rules! store_tuple {
                 self,
                 ctx: &mut OCtx<F, Ts>,
                 chip: &C,
-                layouter: &mut impl LayoutAdaptor<F, Ts, Adaptee = L>,
+                layouter: &mut impl LayoutHelper<F, Ts, Adaptee = L>,
                 injected_ir: &mut InjectedIR<Ts::RegionIndex, Ts::Expression>,
             ) -> Result<(), Ts::Error> {
                 // Call fields by index
@@ -81,7 +81,7 @@ macro_rules! store_tuple {
                 self,
                 _: &mut OCtx<F, Ts>,
                 _: &C,
-                _: &mut impl LayoutAdaptor<F, Ts, Adaptee = L>,
+                _: &mut impl LayoutHelper<F, Ts, Adaptee = L>,
                 _: &mut InjectedIR<Ts::RegionIndex, Ts::Expression>,
             ) -> Result<(), Ts::Error> {
                 Ok(())
@@ -103,7 +103,7 @@ pub trait StoreIntoCellsDyn<F: Field, C, Ts: Types<F>, L> {
         self,
         ctx: &mut OCtx<F, Ts>,
         chip: &C,
-        layouter: &mut impl LayoutAdaptor<F, Ts, Adaptee = L>,
+        layouter: &mut impl LayoutHelper<F, Ts, Adaptee = L>,
         injected_ir: &mut InjectedIR<Ts::RegionIndex, Ts::Expression>,
     ) -> Result<(), Ts::Error>;
 }
@@ -118,7 +118,7 @@ where
         self,
         ctx: &mut OCtx<F, Ts>,
         chip: &C,
-        layouter: &mut impl LayoutAdaptor<F, Ts, Adaptee = L>,
+        layouter: &mut impl LayoutHelper<F, Ts, Adaptee = L>,
         injected_ir: &mut InjectedIR<<Ts as Types<F>>::RegionIndex, <Ts as Types<F>>::Expression>,
     ) -> Result<(), <Ts as Types<F>>::Error> {
         self.store(ctx, chip, layouter, injected_ir)
@@ -135,7 +135,7 @@ where
         self,
         ctx: &mut OCtx<F, Ts>,
         chip: &C,
-        layouter: &mut impl LayoutAdaptor<F, Ts, Adaptee = L>,
+        layouter: &mut impl LayoutHelper<F, Ts, Adaptee = L>,
         injected_ir: &mut InjectedIR<<Ts as Types<F>>::RegionIndex, <Ts as Types<F>>::Expression>,
     ) -> Result<(), <Ts as Types<F>>::Error> {
         self.into_iter()
@@ -153,7 +153,7 @@ where
         self,
         ctx: &mut OCtx<F, Ts>,
         chip: &C,
-        layouter: &mut impl LayoutAdaptor<F, Ts, Adaptee = L>,
+        layouter: &mut impl LayoutHelper<F, Ts, Adaptee = L>,
         injected_ir: &mut InjectedIR<<Ts as Types<F>>::RegionIndex, <Ts as Types<F>>::Expression>,
     ) -> Result<(), <Ts as Types<F>>::Error> {
         self.into_iter()
@@ -172,7 +172,7 @@ where
         self,
         ctx: &mut OCtx<F, Ts>,
         chip: &C,
-        layouter: &mut impl LayoutAdaptor<F, Ts, Adaptee = L>,
+        layouter: &mut impl LayoutHelper<F, Ts, Adaptee = L>,
         injected_ir: &mut InjectedIR<<Ts as Types<F>>::RegionIndex, <Ts as Types<F>>::Expression>,
     ) -> Result<(), <Ts as Types<F>>::Error> {
         self?.store_dyn(ctx, chip, layouter, injected_ir)

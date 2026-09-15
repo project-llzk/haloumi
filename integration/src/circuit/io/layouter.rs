@@ -2,7 +2,7 @@
 
 use ff::Field;
 use haloumi_core::{
-    layouter::{LayoutAdaptor, Layouter},
+    layouter::{FromRegionAdaptor, LayoutAdaptor, Layouter, RegionAdaptor},
     query::{Advice, Instance},
     table::{Cell, Column, FromCell},
 };
@@ -119,8 +119,9 @@ where
     ) -> Result<T::AssignedCell<V>, T::Error>
     where
         V: Clone,
+        T::AssignedCell<V>: AdviceCopy<V, F, T>,
     {
-        ac.copy_advice(region, advice_col, advice_row)
+        ac.copy_advice_helper(region, advice_col, advice_row)
     }
 
     fn region<A, AR, N, NR>(&mut self, name: N, mut assignment: A) -> Result<AR, T::Error>
@@ -129,9 +130,9 @@ where
         N: Fn() -> NR,
         NR: Into<String>,
     {
-        self.layouter
-            .0
-            .assign_region(name, |adaptor| assignment(adaptor.into()))
+        self.layouter.0.assign_region(name, |mut adaptor| {
+            assignment(from_region_adaptor(&mut adaptor))
+        })
     }
 }
 
@@ -142,7 +143,7 @@ where
     T: Types<F, AssignedCell<V> = Self>,
 {
     /// Performs the copy operation.
-    fn copy_advice(
+    fn copy_advice_helper(
         &self,
         region: &mut T::Region<'_>,
         advice_col: T::AdviceCol,
@@ -153,9 +154,12 @@ where
 /// Implements [`AdviceCopy`] for an assigned cell type.
 #[macro_export]
 macro_rules! __impl_advice_copy_for_assigned_cell {
-    ($($assigned_cell:ident)::+, $field:path, $($types:ident)::+, $($region:ident)::+, $advice_col:ty, $error:ty) => {
-        impl<F: $field, V> $crate::circuit::io::layouter<V, F, $($types)::+<F>> for $($assigned_cell)::+<V, F> {
-            fn copy_advice(
+    ($($assigned_cell:ident)::+, $field:path, $types:ty, $($region:ident)::+, $advice_col:ty, $error:ty, $($rational:ident)::+) => {
+        impl<F: $field, V: Clone> $crate::circuit::io::layouter::AdviceCopy<V, F, $types> for $($assigned_cell)::+<V, F>
+        where
+            for<'v> $($rational)::+<F>: From<&'v V>,
+        {
+            fn copy_advice_helper(
                 &self,
                 region: &mut $($region)::+<'_, F>,
                 advice_col: $advice_col,
@@ -167,10 +171,19 @@ macro_rules! __impl_advice_copy_for_assigned_cell {
     };
 }
 
-/// This helper is to keep the syntax of its users a bit more terse.
+/// Helper for keeping the syntax of its users a bit more terse.
 fn from_cell_helper<T>(cell: Cell) -> T
 where
     T: FromCell,
 {
     T::from_cell(cell)
+}
+
+/// Helper for keeping the syntax of its users a bit more terse.
+fn from_region_adaptor<'a, T, F, E>(adaptor: &'a mut RegionAdaptor<'_, F, E>) -> T
+where
+    T: FromRegionAdaptor<'a, F, E>,
+    F: Field,
+{
+    T::from_region_adaptor(adaptor)
 }

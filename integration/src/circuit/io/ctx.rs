@@ -14,7 +14,7 @@ use crate::{
 };
 
 /// Adaptor trait that defines the required behavior from a Layouter.
-pub trait LayoutAdaptor<F: Field, Ts: Types<F>> {
+pub trait LayoutHelper<F: Field, T: Types<F>> {
     /// Adapted type
     type Adaptee;
 
@@ -29,47 +29,47 @@ pub trait LayoutAdaptor<F: Field, Ts: Types<F>> {
     /// The left hand side cell could be any cell and the right hand side is an instance cell.
     fn constrain_instance(
         &mut self,
-        cell: Ts::Cell,
-        instance_col: Ts::InstanceCol,
+        cell: T::Cell,
+        instance_col: T::InstanceCol,
         instance_row: usize,
-    ) -> Result<(), Ts::Error>;
+    ) -> Result<(), T::Error>;
 
     /// Constraints an advice cell to a constant value.
     fn constrain_advice_constant(
         &mut self,
-        advice_col: Ts::AdviceCol,
+        advice_col: T::AdviceCol,
         advice_row: usize,
         constant: F,
-    ) -> Result<Ts::Cell, Ts::Error>;
+    ) -> Result<T::Cell, T::Error>;
 
     /// Assigns an advice cell from an instance cell.
     fn assign_advice_from_instance<V>(
         &mut self,
-        advice_col: Ts::AdviceCol,
+        advice_col: T::AdviceCol,
         advice_row: usize,
-        instance_col: Ts::InstanceCol,
+        instance_col: T::InstanceCol,
         instance_row: usize,
-    ) -> Result<Ts::AssignedCell<V>, Ts::Error>
+    ) -> Result<T::AssignedCell<V>, T::Error>
     where
         V: Clone,
-        Ts::Rational: for<'v> From<&'v V>;
+        T::Rational: for<'v> From<&'v V>;
 
     /// Copies the cell's contents into the given advice cell.
     fn copy_advice<V>(
         &mut self,
-        ac: &Ts::AssignedCell<V>,
-        region: &mut Ts::Region<'_>,
-        advice_col: Ts::AdviceCol,
+        ac: &T::AssignedCell<V>,
+        region: &mut T::Region<'_>,
+        advice_col: T::AdviceCol,
         advice_row: usize,
-    ) -> Result<Ts::AssignedCell<V>, Ts::Error>
+    ) -> Result<T::AssignedCell<V>, T::Error>
     where
         V: Clone,
-        Ts::Rational: for<'v> From<&'v V>;
+        T::Rational: for<'v> From<&'v V>;
 
     /// Enters the scope of a region.
-    fn region<A, AR, N, NR>(&mut self, name: N, assignment: A) -> Result<AR, Ts::Error>
+    fn region<A, AR, N, NR>(&mut self, name: N, assignment: A) -> Result<AR, T::Error>
     where
-        A: FnMut(Ts::Region<'_>) -> Result<AR, Ts::Error>,
+        A: FnMut(T::Region<'_>) -> Result<AR, T::Error>,
         N: Fn() -> NR,
         NR: Into<String>;
 }
@@ -185,7 +185,7 @@ impl<F: Field, Ts: Types<F>> OutputDescr<F, Ts> {
         }
     }
 
-    fn set_to_zero(&self, layouter: &mut impl LayoutAdaptor<F, Ts>) -> Result<(), Ts::Error> {
+    fn set_to_zero(&self, layouter: &mut impl LayoutHelper<F, Ts>) -> Result<(), Ts::Error> {
         let helper_cell =
             layouter.constrain_advice_constant(self.helper.col, self.helper.row, F::ZERO)?;
         layouter.constrain_instance(helper_cell, self.cell.col, self.cell.row)?;
@@ -195,7 +195,7 @@ impl<F: Field, Ts: Types<F>> OutputDescr<F, Ts> {
     fn assign(
         &self,
         cell: Ts::Cell,
-        layouter: &mut impl LayoutAdaptor<F, Ts>,
+        layouter: &mut impl LayoutHelper<F, Ts>,
     ) -> Result<(), Ts::Error> {
         layouter.constrain_instance(cell, self.cell.col(), self.cell.row())?;
         Ok(())
@@ -268,7 +268,7 @@ impl<'i, 's, F: Field, H: Types<F>> ICtx<'i, 's, F, H> {
     /// Assigns the next input to a cell.
     pub fn assign_next<V>(
         &mut self,
-        layouter: &mut impl LayoutAdaptor<F, H>,
+        layouter: &mut impl LayoutHelper<F, H>,
     ) -> Result<H::AssignedCell<V>, H::Error>
     where
         V: Clone,
@@ -282,7 +282,7 @@ impl<'i, 's, F: Field, H: Types<F>> ICtx<'i, 's, F, H> {
     pub fn load<T, C, L>(
         &mut self,
         chip: &C,
-        layouter: &mut impl LayoutAdaptor<F, H, Adaptee = L>,
+        layouter: &mut impl LayoutHelper<F, H, Adaptee = L>,
         injected_ir: &mut InjectedIR<H::RegionIndex, H::Expression>,
     ) -> Result<T, H::Error>
     where
@@ -332,7 +332,7 @@ impl<'o, F: Field, H: Types<F>> OCtx<'o, F, H> {
     /// Sets the next output to zero.
     pub fn set_next_to_zero(
         &mut self,
-        layouter: &mut impl LayoutAdaptor<F, H>,
+        layouter: &mut impl LayoutHelper<F, H>,
     ) -> Result<(), H::Error> {
         self.next()?.set_to_zero(layouter)
     }
@@ -341,7 +341,7 @@ impl<'o, F: Field, H: Types<F>> OCtx<'o, F, H> {
     pub fn assign_next(
         &mut self,
         value: impl DecomposeIn<H::Cell>,
-        layouter: &mut impl LayoutAdaptor<F, H>,
+        layouter: &mut impl LayoutHelper<F, H>,
     ) -> Result<(), H::Error> {
         for cell in value.cells() {
             self.next()?.assign(cell, layouter)?;

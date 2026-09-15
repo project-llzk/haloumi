@@ -237,7 +237,7 @@ where
     }
 }
 
-impl<'l, 's: 'l, F, C, CS, I, O, T, E> CircuitSynthesis<'s, F>
+impl<'s, F, C, CS, I, O, T, E> CircuitSynthesis<'s, F>
     for CircuitImpl<'_, F, C, CS, T, Function>
 where
     T: Types<F, Expression = E> + std::fmt::Debug,
@@ -255,7 +255,7 @@ where
         > + ChipArgs,
     I: CellReprSize + LoadFromCells<F, C::Chip, T, ExtractionLayouter<'s, F, T::Error>>,
     O: CellReprSize + StoreIntoCells<F, C::Chip, T, ExtractionLayouter<'s, F, T::Error>>,
-    C::Chip: ExtraibleChip<
+    C::Chip: for<'l> ExtraibleChip<
             LayoutAdaptor<'l, ExtractionLayouter<'s, F, T::Error>>,
             Args = C::Args,
             Config = C::Config,

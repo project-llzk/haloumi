@@ -109,7 +109,10 @@ macro_rules! __impl_types_trait {
 }
 
 /// Parses a value of F from the given string.
-pub fn parse_field<F: PrimeField>(s: &str) -> Result<F, Error> {
+pub fn parse_field<F: PrimeField>(mut s: &str) -> Result<F, Error> {
+    while s.len() > 1 && s.starts_with('0') {
+        s = &s[1..];
+    }
     if s.is_empty() {
         return Err(Error::FieldParsingError);
     }

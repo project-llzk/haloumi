@@ -97,11 +97,11 @@ impl<F: Field> GateRewritePattern<F, _Expression<F>> for DummyPattern {
 pub struct GC;
 
 impl<F: Field> GateCallbacks<F, _Expression<F>> for GC {
-    fn patterns(&self) -> Vec<Box<dyn GateRewritePattern<F, _Expression<F>>>>
+    fn patterns(&self) -> &[&dyn GateRewritePattern<F, _Expression<F>>]
     where
         F: Field,
     {
-        vec![Box::new(DummyPattern)]
+        &[&DummyPattern]
     }
 }
 

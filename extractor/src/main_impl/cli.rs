@@ -1,0 +1,166 @@
+use log::Level;
+use std::{
+    fs::File,
+    io::BufReader,
+    path::{Path, PathBuf},
+};
+
+use crate::{
+    error::Error,
+    main_impl::{
+        Action, FailMode, OutputFormat, constants::parse_constants_file, logging::LoggingConfig,
+        picus::PicusConfig, prelude::Preludes,
+    },
+};
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+pub struct Cli {
+    //#[arg(value_enum)]
+    //instructions: Vec<Instructions>,
+    //#[arg(long, value_enum)]
+    //chip: Option<Chip>,
+    //#[arg(long, value_delimiter = ',')]
+    //ignore_chips: Vec<Chip>,
+    #[arg(long, value_delimiter = ',')]
+    format: Vec<OutputFormat>,
+    //#[arg(long, value_enum)]
+    //r#type: Option<Type>,
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+    #[arg(long, value_delimiter = ',')]
+    constants: Vec<String>,
+    #[arg(long)]
+    constants_file: Option<PathBuf>,
+    //#[arg(long, value_delimiter = ',')]
+    //method_whitelist: Vec<String>,
+    //#[arg(long, value_delimiter = ',')]
+    //method_blacklist: Vec<String>,
+    #[arg(long)]
+    pub log: Option<PathBuf>,
+    #[arg(long, default_value_t = Level::Info)]
+    pub log_level: Level,
+    //#[arg(long)]
+    //pub disable_decomposition_rewrite: bool,
+    #[arg(long)]
+    pub debug_comments: bool,
+    #[arg(long)]
+    pub picus_no_opt: bool,
+    #[arg(long)]
+    pub no_opt: bool,
+    #[arg(long)]
+    pub fail_fast: bool,
+    #[arg(long)]
+    pub prelude: Option<Preludes>,
+    #[arg(long)]
+    pub dump_ir: bool,
+    #[arg(long)]
+    pub list: bool,
+    #[arg(long)]
+    pub allow_injected_ir_for_outputs: bool,
+}
+
+impl Cli {
+    pub fn logging(&self) -> Option<LoggingConfig> {
+        self.log
+            .as_deref()
+            .map(|path| LoggingConfig::new(path, self.log_level))
+    }
+
+    pub fn fail_mode(&self) -> FailMode {
+        if self.fail_fast {
+            FailMode::Fast
+        } else {
+            FailMode::Continue
+        }
+    }
+
+    pub fn setup(&mut self) -> std::result::Result<(), Error> {
+        match (self.constants.is_empty(), self.constants_file.as_ref()) {
+            (false, Some(_)) => return Err(Error::ConstantsConfigErr),
+            (true, Some(path)) => {
+                let f = File::open(path)?;
+                let reader = BufReader::new(f);
+                self.constants = parse_constants_file(reader)?
+            }
+            (true, None) => {
+                log::warn!("No constants provided! Some circuits may fail to extract due to this.");
+            }
+            (false, None) => {} // Don't do anything
+        }
+        Ok(())
+    }
+
+    //fn instructions(&self) -> &[Instructions] {
+    //    &self.instructions
+    //}
+
+    //fn chip(&self) -> Option<Chip> {
+    //    self.chip
+    //}
+
+    //fn ignore_chips(&self) -> &[Chip] {
+    //    &self.ignore_chips
+    //}
+
+    //fn r#type(&self) -> Option<Type> {
+    //    self.r#type
+    //}
+
+    //fn method_whitelist(&self) -> &[String] {
+    //    &self.method_whitelist
+    //}
+
+    //fn method_blacklist(&self) -> &[String] {
+    //    &self.method_blacklist
+    //}
+
+    pub fn constants(&self) -> &[String] {
+        &self.constants
+    }
+
+    pub fn output(&self) -> Option<&Path> {
+        self.output.as_deref()
+    }
+
+    pub fn prelude(&self) -> Option<Preludes> {
+        self.prelude
+    }
+
+    pub fn picus_config(&self) -> PicusConfig {
+        PicusConfig::new(!(self.picus_no_opt || self.no_opt), self.prelude)
+    }
+
+    pub fn dump_ir(&self) -> bool {
+        self.dump_ir
+    }
+
+    pub fn action(&self) -> Action {
+        if self.list {
+            Action::List
+        } else {
+            Action::Extract
+        }
+    }
+
+    pub fn formats(&self) -> &[OutputFormat] {
+        if self.format.is_empty() {
+            return &[OutputFormat::Picus, OutputFormat::Llzk];
+        }
+        &self.format
+    }
+
+    //fn harness_config(&self) -> HarnessConfig {
+    //    HarnessConfig::new(
+    //        &self.constants,
+    //        self.debug_comments,
+    //        !self.disable_decomposition_rewrite,
+    //        self.allow_injected_ir_for_outputs,
+    //    )
+    //}
+
+    pub fn optimize_ir(&self) -> bool {
+        !self.no_opt
+    }
+}

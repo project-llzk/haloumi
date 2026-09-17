@@ -86,28 +86,33 @@ pub trait GateRewritePattern<F, E> {
 }
 
 /// A set of rewrite patterns.
-pub(crate) struct RewritePatternSet<F, E>(Vec<Box<dyn GateRewritePattern<F, E>>>);
+pub(crate) struct RewritePatternSet<'p, F, E> {
+    user_patterns: Vec<&'p dyn GateRewritePattern<F, E>>,
+    fallback: Box<dyn GateRewritePattern<F, E>>,
+}
 
-impl<F, E> RewritePatternSet<F, E> {
+impl<'p, F, E> RewritePatternSet<'p, F, E> {
+    /// Creates a new pattern set.
+    pub fn new(fallback: impl GateRewritePattern<F, E> + 'static) -> Self {
+        Self {
+            user_patterns: Default::default(),
+            fallback: Box::new(fallback),
+        }
+    }
+
     /// Adds a pattern to the set.
-    pub fn add(&mut self, p: impl GateRewritePattern<F, E> + 'static) {
-        self.0.push(Box::new(p))
+    pub fn add(&mut self, p: &'p (dyn GateRewritePattern<F, E> + 'static)) {
+        self.user_patterns.push(p)
     }
 }
 
-impl<F, E> Default for RewritePatternSet<F, E> {
-    fn default() -> Self {
-        Self(Default::default())
+impl<'p, F, E> Extend<&'p dyn GateRewritePattern<F, E>> for RewritePatternSet<'p, F, E> {
+    fn extend<T: IntoIterator<Item = &'p dyn GateRewritePattern<F, E>>>(&mut self, iter: T) {
+        self.user_patterns.extend(iter)
     }
 }
 
-impl<F, E> Extend<Box<dyn GateRewritePattern<F, E>>> for RewritePatternSet<F, E> {
-    fn extend<T: IntoIterator<Item = Box<dyn GateRewritePattern<F, E>>>>(&mut self, iter: T) {
-        self.0.extend(iter)
-    }
-}
-
-impl<F, E> GateRewritePattern<F, E> for RewritePatternSet<F, E> {
+impl<F, E> GateRewritePattern<F, E> for RewritePatternSet<'_, F, E> {
     fn match_and_rewrite<'syn>(
         &self,
         gate: GateScope<'syn, '_, F, E>,
@@ -122,7 +127,7 @@ impl<F, E> GateRewritePattern<F, E> for RewritePatternSet<F, E> {
             gate.region_name()
         );
 
-        for pattern in self.0.iter() {
+        for pattern in self.user_patterns.iter() {
             log::debug!("Starting pattern");
             match pattern.match_and_rewrite(gate)? {
                 Some(r) => {
@@ -135,6 +140,6 @@ impl<F, E> GateRewritePattern<F, E> for RewritePatternSet<F, E> {
             }
         }
 
-        Ok(None)
+        self.fallback.match_and_rewrite(gate)
     }
 }

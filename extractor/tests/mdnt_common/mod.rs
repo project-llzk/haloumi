@@ -20,19 +20,20 @@ pub fn clean_string(s: &str) -> String {
 
 macro_rules! extract {
     ($circuit:expr, $lookups:expr, $canonicalize:expr) => {{
-        let extractor =
-            haloumi_extractor::Extractor::new(&[], false, false, false).with_sort_injected_ir();
-        let circuit = haloumi_extractor::circuit::CircuitImpl::<
-            halo2curves::bn256::Fr,
-            _,
-            midnight_proofs::plonk::ConstraintSystem<halo2curves::bn256::Fr>,
-            midnight_proofs::ExtractionSupport,
-            haloumi_extractor::circuit::Function,
-        >::new(
-            $circuit,
-            extractor.constants(),
-            extractor.allow_injected_ir_for_outputs(),
-        );
+        let cfg = haloumi_extractor::extractor::ExtractorCfg::default();
+        let extractor = haloumi_extractor::extractor::Extractor::new(&cfg).with_sort_injected_ir();
+        let circuit = extractor.make_circuit($circuit);
+        //let circuit = haloumi_extractor::circuit::CircuitImpl::<
+        //    halo2curves::bn256::Fr,
+        //    _,
+        //    midnight_proofs::plonk::ConstraintSystem<halo2curves::bn256::Fr>,
+        //    midnight_proofs::ExtractionSupport,
+        //    haloumi_extractor::circuit::Function,
+        //>::new(
+        //    $circuit,
+        //    extractor.constants(),
+        //    extractor.allow_injected_ir_for_outputs(),
+        //);
         let mut resolved = extractor.extract_circuit(circuit, $lookups).unwrap();
         if $canonicalize {
             resolved.constant_fold().unwrap();

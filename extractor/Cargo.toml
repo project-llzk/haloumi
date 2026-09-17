@@ -20,8 +20,12 @@ haloumi-driver = { path = "../driver/", package = "haloumi" }
 ff.workspace = true
 thiserror.workspace = true
 log.workspace = true
+simplelog = "0.12"
+env_logger = "0.11"
+multi_log = "0.1"
 anyhow = "1"
 inventory = "0.3"
+clap = {version = "4.6", features = ["derive"]}
 
 [dev-dependencies]
 haloumi-mdnt-test-circuits = { path = "../support/mdnt-test-circuits", features = ["extraction"] }

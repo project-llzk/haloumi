@@ -34,7 +34,7 @@ use haloumi_synthesis::{
     synthesizer::Synthesizer,
 };
 
-use crate::circuit::layouter::ExtractionLayouter;
+use crate::{circuit::layouter::ExtractionLayouter, extractor::InjectedIRPolicy};
 
 mod configuration;
 mod layouter;
@@ -62,7 +62,7 @@ where
 {
     abstract_circuit: C,
     constants: &'a [String],
-    allow_injected_ir_for_outputs: bool,
+    injected_ir_policy: InjectedIRPolicy,
     injected_ir: RefCell<InjectedIR<T::RegionIndex, CS::Polynomial>>,
     _marker: PhantomData<(M, CS, T)>,
 }
@@ -75,15 +75,15 @@ where
     E: Clone + ExpressionInfo + EvaluableExpr<F>,
 {
     /// Creates a circuit scaffold with the extraction settings supplied by its harness.
-    pub fn new(
+    pub(crate) fn new(
         abstract_circuit: C,
         constants: &'a [String],
-        allow_injected_ir_for_outputs: bool,
+        injected_ir_policy: InjectedIRPolicy,
     ) -> Self {
         Self {
             abstract_circuit,
             constants,
-            allow_injected_ir_for_outputs,
+            injected_ir_policy,
             injected_ir: Default::default(),
             _marker: PhantomData,
         }
@@ -233,10 +233,9 @@ where
             ),
             chip,
             &mut layouter,
-            if self.allow_injected_ir_for_outputs {
-                &mut injected_ir
-            } else {
-                &mut dummy_injected_ir
+            match self.injected_ir_policy {
+                InjectedIRPolicy::AllowAll => &mut injected_ir,
+                InjectedIRPolicy::DisallowForOutputs => &mut dummy_injected_ir,
             },
         )?;
         Ok(())

@@ -11,12 +11,13 @@ basic_test! {
     "fibonacci_opt",
 }
 
-basic_test! {
-    fibonacci_grouped_circuit,
-    GroupedFibonacciCircuitSynthesis::default(),
-    "fibonacci_grouped",
-    "fibonacci_grouped_opt",
-}
+// These do not work anymore because the group support does not work anymore in vanilla Halo2
+//basic_test! {
+//    fibonacci_grouped_circuit,
+//    GroupedFibonacciCircuitSynthesis::default(),
+//    "fibonacci_grouped",
+//    "fibonacci_grouped_opt",
+//}
 
 synthesis_impl!(
     FibonacciCircuitSynthesis,
@@ -25,9 +26,9 @@ synthesis_impl!(
     [2]
 );
 
-synthesis_impl!(
-    GroupedFibonacciCircuitSynthesis,
-    fibonacci::grouped::FibonacciCircuit<Fr>,
-    [0, 1],
-    [2, 3]
-);
+//synthesis_impl!(
+//    GroupedFibonacciCircuitSynthesis,
+//    fibonacci::grouped::FibonacciCircuit<Fr>,
+//    [0, 1],
+//    [2, 3]
+//);

@@ -939,10 +939,9 @@ mod tests {
     ) {
         let _ = TestLogger::init(LevelFilter::Debug, Config::default());
         let context = LlzkContext::new();
-        let state: LlzkCodegenState = LlzkParams::new(&context)
-            .with_top_level(cfg.struct_name)
-            .no_optimize()
-            .into();
+        let mut params = LlzkParams::new(&context);
+        params.with_top_level(cfg.struct_name).no_optimize();
+        let state: LlzkCodegenState = params.into();
         let codegen = LlzkCodegen::initialize(&state);
         let advice_io = cfg.advice_io();
         let instance_io = cfg.instance_io();

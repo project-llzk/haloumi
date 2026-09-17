@@ -3,6 +3,7 @@
 use std::{borrow::Cow, fs::File, io::Write as _, path::Path, process::exit};
 
 use clap::Parser;
+use haloumi_driver::backends::llzk::{LlzkParams, llzk::prelude::LlzkContext};
 use haloumi_driver::backends::picus::PicusParamsBuilder;
 use haloumi_ir_gen::circuit::resolved::ResolvedIRCircuit;
 
@@ -13,6 +14,7 @@ use crate::{
     main_impl::{
         app_error::AppError,
         cli::Cli,
+        llzk::{LlzkConfig, write_llzk_output},
         picus::{PicusConfig, write_picus_output},
     },
 };
@@ -20,6 +22,7 @@ use crate::{
 pub mod app_error;
 mod cli;
 mod constants;
+mod llzk;
 mod logging;
 mod picus;
 mod prelude;
@@ -54,7 +57,7 @@ pub struct ExtractorMain {
 
 impl ExtractorMain {
     /// Runs the extraction logic.
-    pub fn run(&self, harnesses: impl Iterator<Item = &'static Harness>) {
+    pub fn run(harnesses: impl Iterator<Item = &'static Harness>) {
         let main = match ExtractorMain::new() {
             Ok(main) => main,
             Err(err) => {
@@ -107,11 +110,12 @@ impl ExtractorMain {
     fn extract(&self, harnesses: impl Iterator<Item = &'static Harness>) -> Result<(), Error> {
         let extractor = Extractor::new(&self.extractor_cfg);
         let picus_config = self.cli.picus_config();
+        let llzk_config = self.cli.llzk_config();
         let output_base = self.output_base()?;
         let mut summary = Summary::default();
         for h in harnesses {
             self.handle_extract_result(
-                || self.extract_one(h, &extractor, &output_base, &picus_config),
+                || self.extract_one(h, &extractor, &output_base, &picus_config, &llzk_config),
                 &mut summary,
             )?;
         }
@@ -130,6 +134,7 @@ impl ExtractorMain {
         extractor: &Extractor,
         output_base: &Path,
         picus_config: &PicusConfig,
+        llzk_config: &LlzkConfig,
     ) -> Result<(), Error> {
         let name = harness.name();
         log::info!("Extracting harness {name}");
@@ -152,7 +157,18 @@ impl ExtractorMain {
                     PicusParamsBuilder::new(),
                 )
                 .map_err(AppError::picus(name))?,
-                OutputFormat::Llzk => todo!(),
+                OutputFormat::Llzk => {
+                    let field_name = self
+                        .cli
+                        .llzk_field_name
+                        .as_deref()
+                        .ok_or(Error::RequiredLlzkFieldName)?;
+                    let context = LlzkContext::new();
+                    let mut params = LlzkParams::new(&context);
+                    params.with_builtin_field(field_name);
+                    write_llzk_output(llzk_config, name, output_base, &ir, params)
+                        .map_err(AppError::llzk(name))?;
+                }
             }
         }
 

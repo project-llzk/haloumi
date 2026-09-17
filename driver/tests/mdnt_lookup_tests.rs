@@ -22,8 +22,11 @@ basic_test! {
     LookupCircuitSynthesis::default(),
     "lookup",
     "lookup_opt",
-    IRGenParams::new()
-                        .lookup_callbacks(&LookupCallbackHandler)
+    {
+        let mut params = IRGenParams::new();
+        params.lookup_callbacks(&LookupCallbackHandler);
+        params
+    }
 }
 
 basic_test! {
@@ -31,8 +34,11 @@ basic_test! {
     Lookup2x3CircuitSynthesis::default(),
     "lookup_2x3",
     "lookup_2x3_opt",
-    IRGenParams::new()
-                        .lookup_callbacks(&LookupCallbackHandler)
+    {
+        let mut params = IRGenParams::new();
+        params.lookup_callbacks(&LookupCallbackHandler);
+        params
+    }
 }
 
 basic_test! {
@@ -40,8 +46,11 @@ basic_test! {
     Lookup2x3FixedCircuitSynthesis::default(),
     "lookup_2x3",
     "lookup_2x3_opt",
-    IRGenParams::new()
-                        .lookup_callbacks(&LookupCallbackHandler)
+    {
+        let mut params = IRGenParams::new();
+        params.lookup_callbacks(&LookupCallbackHandler);
+        params
+    }
 }
 
 basic_test! {
@@ -49,8 +58,11 @@ basic_test! {
     Lookup2x3ZeroSelCircuitSynthesis::default(),
     "lookup_2x3",
     "lookup_2x3_opt",
-    IRGenParams::new()
-                        .lookup_callbacks(&LookupCallbackHandler)
+    {
+        let mut params = IRGenParams::new();
+        params.lookup_callbacks(&LookupCallbackHandler);
+        params
+    }
 }
 
 synthesis_impl!(LookupCircuitSynthesis, lookup::LookupCircuit<Fr>, [0], [1]);

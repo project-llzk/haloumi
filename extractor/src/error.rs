@@ -38,4 +38,7 @@ pub enum Error {
     /// Raised when an optimization pass fails.
     #[error("{0} pass failed")]
     Opt(&'static str),
+    /// Raised when LLZK output is emitted but the field name was not passed.
+    #[error("Pass the --llzk-field-name=<name> parameter when emitting LLZK IR")]
+    RequiredLlzkFieldName,
 }

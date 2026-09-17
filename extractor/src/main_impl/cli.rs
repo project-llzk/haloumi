@@ -8,8 +8,8 @@ use std::{
 use crate::{
     error::Error,
     main_impl::{
-        Action, FailMode, OutputFormat, constants::parse_constants_file, logging::LoggingConfig,
-        picus::PicusConfig, prelude::Preludes,
+        Action, FailMode, OutputFormat, constants::parse_constants_file, llzk::LlzkConfig,
+        logging::LoggingConfig, picus::PicusConfig, prelude::Preludes,
     },
 };
 use clap::Parser;
@@ -48,6 +48,8 @@ pub struct Cli {
     #[arg(long)]
     pub picus_no_opt: bool,
     #[arg(long)]
+    pub llzk_no_opt: bool,
+    #[arg(long)]
     pub no_opt: bool,
     #[arg(long)]
     pub fail_fast: bool,
@@ -59,6 +61,8 @@ pub struct Cli {
     pub list: bool,
     #[arg(long)]
     pub allow_injected_ir_for_outputs: bool,
+    #[arg(long)]
+    pub llzk_field_name: Option<String>,
 }
 
 impl Cli {
@@ -124,12 +128,12 @@ impl Cli {
         self.output.as_deref()
     }
 
-    pub fn prelude(&self) -> Option<Preludes> {
-        self.prelude
-    }
-
     pub fn picus_config(&self) -> PicusConfig {
         PicusConfig::new(!(self.picus_no_opt || self.no_opt), self.prelude)
+    }
+
+    pub fn llzk_config(&self) -> LlzkConfig {
+        LlzkConfig::new(!(self.llzk_no_opt || self.no_opt))
     }
 
     pub fn dump_ir(&self) -> bool {

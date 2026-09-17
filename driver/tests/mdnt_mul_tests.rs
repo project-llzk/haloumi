@@ -27,12 +27,13 @@ basic_test! {
     "mul_with_fixed_constraint_opt"
 }
 
-basic_test! {
-    recursive_groups,
-    RecursiveMulCircuitSynthesis::default(),
-    "recursive_groups",
-    "recursive_groups_opt"
-}
+// These do not work anymore because the group support does not work anymore in vanilla Halo2
+//basic_test! {
+//    recursive_groups,
+//    RecursiveMulCircuitSynthesis::default(),
+//    "recursive_groups",
+//    "recursive_groups_opt"
+//}
 
 // This test makes sure that the order in which input and output variables are printed is
 // the same as their declaration order.
@@ -43,40 +44,48 @@ basic_test! {
     "ten_plus_io_opt"
 }
 
-basic_test! {
-    grouped,
-    GroupedMulsCircuitSynthesis::default(),
-    "grouped_muls",
-    "grouped_muls_opt"
-}
+// These do not work anymore because the group support does not work anymore in vanilla Halo2
+//basic_test! {
+//    grouped,
+//    GroupedMulsCircuitSynthesis::default(),
+//    "grouped_muls",
+//    "grouped_muls_opt"
+//}
 
-basic_test! {
-    different_bodies,
-    DifferentBodiesCircuitSynthesis::default(),
-    "different_bodies",
-    "different_bodies_opt"
-}
+// These do not work anymore because the group support does not work anymore in vanilla Halo2
+//basic_test! {
+//    different_bodies,
+//    DifferentBodiesCircuitSynthesis::default(),
+//    "different_bodies",
+//    "different_bodies_opt"
+//}
 
-basic_test! {
-    same_body,
-    SameBodyCircuitSynthesis::default(),
-    "same_body",
-    "same_body_opt"
-}
+// These do not work anymore because the group support does not work anymore in vanilla Halo2
+//basic_test! {
+//    same_body,
+//    SameBodyCircuitSynthesis::default(),
+//    "same_body",
+//    "same_body_opt"
+//}
 
-basic_test! {
-    deep_callstack,
-    DeepCallstackCircuitSynthesis::default(),
-    "deep_callstack",
-    "deep_callstack_opt"
-}
+// These do not work anymore because the group support does not work anymore in vanilla Halo2
+//basic_test! {
+//    deep_callstack,
+//    DeepCallstackCircuitSynthesis::default(),
+//    "deep_callstack",
+//    "deep_callstack_opt"
+//}
 
 basic_test! {
     mul_rewriter,
     MulCircuitSynthesis::default(),
     "mul_with_rewriter",
     "mul_with_rewriter_opt",
-    IRGenParams::new().gate_callbacks(&mdnt_common::GC)
+    {
+        let mut params = IRGenParams::new();
+        params.gate_callbacks(&mdnt_common::GC);
+        params
+    }
 }
 
 mod mul_inject {

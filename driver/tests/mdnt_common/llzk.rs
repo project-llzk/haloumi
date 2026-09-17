@@ -13,17 +13,19 @@ mod inner {
 
     #[allow(dead_code)]
     pub fn llzk_params(ctx: &LlzkContext) -> LlzkParams<'_> {
-        LlzkParams::new(ctx)
-            .no_optimize()
+        let mut params = LlzkParams::new(ctx);
+        params.no_optimize()
             // The field is named `halo2curves::bn256` but LLZK uses the bn254 name instead.
-            .with_builtin_field("bn254")
+            .with_builtin_field("bn254");
+        params
     }
 
     #[allow(dead_code)]
     pub fn opt_llzk_params(ctx: &LlzkContext) -> LlzkParams<'_> {
-        LlzkParams::new(ctx)
-            // The field is named `halo2curves::bn256` but LLZK uses the bn254 name instead.
-            .with_builtin_field("bn254")
+        let mut params = LlzkParams::new(ctx);
+        // The field is named `halo2curves::bn256` but LLZK uses the bn254 name instead.
+        params.with_builtin_field("bn254");
+        params
     }
 
     #[allow(dead_code)]

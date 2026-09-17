@@ -163,7 +163,9 @@ mod tests {
         ($test_name:ident, $expected:literal, $io:expr $(,)?) => {
             #[rstest]
             fn $test_name(ctx: LlzkContext) {
-                let state: LlzkCodegenState = LlzkParams::new(&ctx).no_optimize().into();
+                let mut params = LlzkParams::new(&ctx);
+                params.no_optimize();
+                let state: LlzkCodegenState = params.into();
                 let codegen = LlzkCodegen::initialize(&state);
                 let (advice_io, instance_io) = $io;
                 let main = codegen

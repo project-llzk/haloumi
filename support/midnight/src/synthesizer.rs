@@ -8,7 +8,7 @@ use haloumi_core::synthesis::SynthesizerLike;
 use midnight_proofs::plonk::{Advice, Challenge, FloorPlanner};
 use midnight_proofs::{
     circuit::{
-        Value,
+        Cell, Value,
         groups::{GroupKey, GroupKeyInstance, RegionsGroup},
     },
     plonk::{Any, Assignment, Circuit, Column, Error, Fixed, Instance, Selector},
@@ -176,19 +176,19 @@ impl<F: Field, S: SynthesizerLike<F>> Assignment<F> for SynthesizerAssignment<'_
         Value::unknown()
     }
 
-    fn enter_group<NR, N, K>(&mut self, name: N, key: K)
-    where
-        NR: Into<String>,
-        N: FnOnce() -> NR,
-        K: GroupKey,
-    {
-        self.synthetizer
-            .enter_group(name().into(), *GroupKeyInstance::from(key));
-    }
-
-    fn exit_group(&mut self, meta: RegionsGroup) {
-        self.synthetizer.exit_group(_RegionsGroup::from(meta))
-    }
+    //fn enter_group<NR, N, K>(&mut self, name: N, key: K)
+    //where
+    //    NR: Into<String>,
+    //    N: FnOnce() -> NR,
+    //    K: GroupKey,
+    //{
+    //    self.synthetizer
+    //        .enter_group(name().into(), *GroupKeyInstance::from(key));
+    //}
+    //
+    //fn exit_group(&mut self, meta: RegionsGroup<Cell>) {
+    //    self.synthetizer.exit_group(_RegionsGroup::from(meta))
+    //}
 }
 
 struct ValueStealer<T> {

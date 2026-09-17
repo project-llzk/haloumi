@@ -4,11 +4,15 @@ use haloumi_llzk::LlzkParams;
 use llzk::prelude::{LlzkContext, OperationLike as _};
 
 pub fn llzk_params(ctx: &LlzkContext) -> LlzkParams<'_> {
-    LlzkParams::new(ctx).no_optimize().with_builtin_field("bn254")
+    let mut params = LlzkParams::new(ctx);
+    params.no_optimize().with_builtin_field("bn254");
+    params
 }
 
 pub fn opt_llzk_params(ctx: &LlzkContext) -> LlzkParams<'_> {
-    LlzkParams::new(ctx).with_builtin_field("bn254")
+    let mut params = LlzkParams::new(ctx);
+    params.with_builtin_field("bn254");
+    params
 }
 
 pub fn check_llzk(circuit: &ResolvedIRCircuit, params: LlzkParams, expected: &str) {

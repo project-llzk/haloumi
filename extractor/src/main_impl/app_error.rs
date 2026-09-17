@@ -9,6 +9,7 @@ enum AppErrorKind {
     OptFailed,
     IRDumpFailed,
     PicusWriteFailed,
+    LlzkWriteFailed,
 }
 
 /// Helper for creating errors related to the main tool.
@@ -46,6 +47,10 @@ impl AppError {
     pub(crate) fn picus<E: Into<anyhow::Error>>(name: &'static str) -> impl FnOnce(E) -> Self {
         Self::create(name, AppErrorKind::PicusWriteFailed)
     }
+
+    pub(crate) fn llzk<E: Into<anyhow::Error>>(name: &'static str) -> impl FnOnce(E) -> Self {
+        Self::create(name, AppErrorKind::LlzkWriteFailed)
+    }
 }
 
 impl fmt::Display for AppError {
@@ -67,6 +72,11 @@ impl fmt::Display for AppError {
             AppErrorKind::PicusWriteFailed => write!(
                 f,
                 "Failed to write Picus result of harness {}: {:?}",
+                self.name, self.err
+            ),
+            AppErrorKind::LlzkWriteFailed => write!(
+                f,
+                "Failed to write Llzk result of harness {}: {:?}",
                 self.name, self.err
             ),
         }

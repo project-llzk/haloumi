@@ -143,7 +143,7 @@ impl<F: Field, E: From<Error>> Layouter<F, E> for ExtractionLayouter<'_, F, E> {
         let mut region = ExtractionRegion::new(
             self.synthesizer,
             region_index.into(),
-            self.regions[region_index],
+            &self.regions,
             self.group_depth,
         );
         let result = assignment(RegionAdaptor(&mut region))?;
@@ -252,10 +252,10 @@ impl<F: Field, E: From<Error>> Layouter<F, E> for ExtractionLayouter<'_, F, E> {
 }
 
 #[derive(Debug)]
-struct ExtractionRegion<'s, F: Field, E> {
+struct ExtractionRegion<'s, 'r, F: Field, E> {
     synthesizer: &'s mut Synthesizer<F>,
     region_index: RegionIndex,
-    region_start: RegionStart,
+    regions: &'r [RegionStart],
     /// Stores the constants to be assigned, and the cells to which they are
     /// copied.
     constants: Vec<(F, Cell)>,
@@ -263,17 +263,17 @@ struct ExtractionRegion<'s, F: Field, E> {
     _error: PhantomData<E>,
 }
 
-impl<'s, F: Field, E> ExtractionRegion<'s, F, E> {
+impl<'s, 'r, F: Field, E> ExtractionRegion<'s, 'r, F, E> {
     fn new(
         synthesizer: &'s mut Synthesizer<F>,
         region_index: RegionIndex,
-        region_start: RegionStart,
+        regions: &'r [RegionStart],
         group_depth: usize,
     ) -> Self {
         Self {
             synthesizer,
             region_index,
-            region_start,
+            regions,
             constants: vec![],
             group_depth,
             _error: PhantomData,
@@ -281,11 +281,15 @@ impl<'s, F: Field, E> ExtractionRegion<'s, F, E> {
     }
 
     fn row(&self, offset: usize) -> usize {
-        *self.region_start + offset
+        self.row_at(self.region_index, offset)
+    }
+
+    fn row_at(&self, index: RegionIndex, offset: usize) -> usize {
+        *self.regions[*index] + offset
     }
 }
 
-impl<F: Field, E: From<Error>> RegionLayouter<F, E> for ExtractionRegion<'_, F, E> {
+impl<F: Field, E: From<Error>> RegionLayouter<F, E> for ExtractionRegion<'_, '_, F, E> {
     fn enable_selector(
         &mut self,
         annotation: &(dyn Fn() -> String + '_),
@@ -371,8 +375,12 @@ impl<F: Field, E: From<Error>> RegionLayouter<F, E> for ExtractionRegion<'_, F, 
         );
         let cell = self.assign_advice(annotation, advice, offset, &mut || None)?;
 
-        self.synthesizer
-            .copy(cell.column, self.row(cell.row_offset), instance, row);
+        self.synthesizer.copy(
+            cell.column,
+            self.row_at(cell.region_index, cell.row_offset),
+            instance,
+            row,
+        );
 
         Ok((cell, None))
     }
@@ -420,15 +428,15 @@ impl<F: Field, E: From<Error>> RegionLayouter<F, E> for ExtractionRegion<'_, F, 
             "{}> {:?}(={}) === {:?}(={})",
             "-".repeat(self.group_depth),
             CellDbg(left),
-            self.row(left.row_offset),
+            self.row_at(left.region_index, left.row_offset),
             CellDbg(right),
-            self.row(right.row_offset),
+            self.row_at(right.region_index, right.row_offset),
         );
         self.synthesizer.copy(
             left.column,
-            self.row(left.row_offset),
+            self.row_at(left.region_index, left.row_offset),
             right.column,
-            self.row(right.row_offset),
+            self.row_at(right.region_index, right.row_offset),
         );
 
         Ok(())

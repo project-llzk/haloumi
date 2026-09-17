@@ -144,3 +144,6 @@ impl<F: Field> Circuit<F> for MulCircuit<F> {
         Ok(())
     }
 }
+
+#[cfg(feature = "extraction")]
+crate::impl_standard_mul_fixture!(MulCircuit<F>);

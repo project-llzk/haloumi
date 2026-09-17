@@ -76,6 +76,8 @@ pub struct Extractor<'s> {
     debug_comments: bool,
     disable_decomposition_pattern: bool,
     allow_injected_ir_for_outputs: bool,
+    /// Used for generating the output of tests.
+    sort_injected_ir: bool,
 }
 
 impl<'s> Extractor<'s> {
@@ -91,7 +93,14 @@ impl<'s> Extractor<'s> {
             debug_comments,
             disable_decomposition_pattern,
             allow_injected_ir_for_outputs,
+            sort_injected_ir: false,
         }
+    }
+
+    /// Makes the extractor sort the injected IR.
+    pub fn with_sort_injected_ir(mut self) -> Self {
+        self.sort_injected_ir = true;
+        self
     }
 
     /// Extracts the circuit to IR using the driver.
@@ -137,7 +146,7 @@ impl<'s> Extractor<'s> {
         //}
 
         log::info!("Generated unresolved IR");
-        let injected = circuit.take_injected_ir();
+        let injected = circuit.take_injected_ir(self.sort_injected_ir);
         unresolved.inject_ir(injected, &syn)?;
         //.context("IR injection failed")?;
         log::info!("Injected additional IR");

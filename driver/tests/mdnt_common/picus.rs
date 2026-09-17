@@ -28,7 +28,7 @@ mod inner {
         canonicalize: bool,
     ) where
         F: PrimeField + std::cmp::Ord,
-        C: CircuitSynthesis<F, CS = ConstraintSystem<F>>,
+        C: for<'s> CircuitSynthesis<'s, F, CS = ConstraintSystem<F>>,
     {
         let mut driver = Driver::default();
         let resolved = common_lowering(circuit, &mut driver, ir_params, canonicalize);

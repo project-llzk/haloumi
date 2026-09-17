@@ -2,7 +2,7 @@ use ff::Field;
 use midnight_proofs::poly::Rotation;
 use midnight_proofs::{
     circuit::{AssignedCell, Layouter, SimpleFloorPlanner},
-    default_group_key,
+    circuit::groups::default_group_key,
     plonk::{Circuit, ConstraintSystem, Error},
 };
 use std::marker::PhantomData;
@@ -80,7 +80,7 @@ impl<F: Field> MulChip<F> {
             || "mul_many",
             default_group_key!(),
             |layouter, group| {
-                group.annotate_inputs(operands.iter().map(|op| op.cell()))?;
+                group.annotate_inputs(operands.iter().map(|op| op.cell()));
                 let lhs = &operands[0];
                 let rhs = self.mul_many(layouter, &operands[1..])?;
                 layouter.assign_region(
@@ -109,7 +109,7 @@ impl<F: Field> MulChip<F> {
                             0,
                             || a.value().copied() * b.value(),
                         )?;
-                        group.annotate_output(c.cell())?;
+                        group.annotate_output(c.cell());
                         Ok(c)
                     },
                 )
@@ -170,3 +170,26 @@ impl<F: Field> Circuit<F> for MulCircuit<F> {
         Ok(())
     }
 }
+
+#[cfg(feature = "extraction")]
+impl<F: ff::PrimeField> crate::extraction::ExtractableFixture<F> for MulCircuit<F> {
+    type Input = [AssignedCell<F, F>; N_INPUTS];
+    type Output = AssignedCell<F, F>;
+
+    fn synthesize_extraction<L>(
+        &self,
+        config: &Self::Config,
+        layouter: &mut haloumi_integration::core::layouter::LayoutAdaptor<L>,
+        input: Self::Input,
+        _: &mut haloumi_ir::inject::InjectedIR<midnight_proofs::circuit::RegionIndex, midnight_proofs::plonk::Expression<F>>,
+    ) -> Result<Self::Output, Error>
+    where
+        L: haloumi_integration::core::layouter::Layouter<F, Error>
+            + haloumi_integration::core::groups::RegionsGroupHooks<F, midnight_proofs::circuit::Cell, Error = Error>,
+    {
+        MulChip::construct(config.clone()).mul_many(layouter, &input)
+    }
+}
+
+#[cfg(feature = "extraction")]
+crate::impl_extractable_fixture!(MulCircuit<F>);

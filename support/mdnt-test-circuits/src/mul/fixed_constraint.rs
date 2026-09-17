@@ -175,3 +175,36 @@ impl<F: Field> Circuit<F> for MulWithFixedConstraintCircuit<F> {
         Ok(())
     }
 }
+
+#[cfg(feature = "extraction")]
+impl<F: ff::PrimeField> crate::extraction::ExtractableFixture<F>
+    for MulWithFixedConstraintCircuit<F>
+{
+    type Input = AssignedCell<F, F>;
+    type Output = AssignedCell<F, F>;
+
+    fn synthesize_extraction<L>(
+        &self,
+        config: &Self::Config,
+        layouter: &mut haloumi_integration::core::layouter::LayoutAdaptor<L>,
+        input: Self::Input,
+        _: &mut haloumi_ir::inject::InjectedIR<midnight_proofs::circuit::RegionIndex, Expression<F>>,
+    ) -> Result<Self::Output, Error>
+    where
+        L: haloumi_integration::core::layouter::Layouter<F, Error>
+            + haloumi_integration::core::groups::RegionsGroupHooks<F, midnight_proofs::circuit::Cell, Error = Error>,
+    {
+        layouter.assign_region(|| "first row", |mut region| {
+            config.selector.enable(&mut region, 0)?;
+            let fixed = region.assign_fixed(|| "-1", config.col_fixed, 0, || Value::known(-F::ONE))?;
+            let a = input.copy_advice(|| "a", &mut region, config.col_a, 0)?;
+            let b = region.assign_advice(|| "-1 * a", config.col_b, 0, || a.value().copied() * fixed.value())?;
+            let c = region.assign_advice(|| "a * b", config.col_c, 0, || a.value().copied() * b.value())?;
+            region.assign_advice_from_constant(|| "const", config.col_d, 0, F::ONE + F::ONE)?;
+            Ok(c)
+        })
+    }
+}
+
+#[cfg(feature = "extraction")]
+crate::impl_extractable_fixture!(MulWithFixedConstraintCircuit<F>);

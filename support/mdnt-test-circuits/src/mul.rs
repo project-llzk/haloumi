@@ -122,6 +122,39 @@ impl<F: Field> MulChip<F> {
         )
     }
 
+    #[cfg(feature = "extraction")]
+    pub fn assign_first_row_from_input(
+        &self,
+        mut layouter: impl Layouter<F>,
+        input: &AssignedCell<F, F>,
+    ) -> Result<AssignedCell<F, F>, Error> {
+        layouter.assign_region(
+            || "first row",
+            |mut region| {
+                self.config.selector.enable(&mut region, 0)?;
+                let fixed = region.assign_fixed(
+                    || "-1",
+                    self.config.col_fixed,
+                    0,
+                    || Value::known(-F::ONE),
+                )?;
+                let a = input.copy_advice(|| "a", &mut region, self.config.col_a, 0)?;
+                let b = region.assign_advice(
+                    || "-1 * a",
+                    self.config.col_b,
+                    0,
+                    || a.value().copied() * fixed.value(),
+                )?;
+                region.assign_advice(
+                    || "a * b",
+                    self.config.col_c,
+                    0,
+                    || a.value().copied() * b.value(),
+                )
+            },
+        )
+    }
+
     pub fn expose_public(
         &self,
         mut layouter: impl Layouter<F>,
@@ -161,3 +194,34 @@ impl<F: Field> Circuit<F> for MulCircuit<F> {
         Ok(())
     }
 }
+
+#[cfg(feature = "extraction")]
+impl<F: ff::PrimeField> crate::extraction::ExtractableFixture<F> for MulCircuit<F> {
+    type Input = AssignedCell<F, F>;
+    type Output = AssignedCell<F, F>;
+
+    fn synthesize_extraction<L>(
+        &self,
+        config: &Self::Config,
+        layouter: &mut haloumi_integration::core::layouter::LayoutAdaptor<L>,
+        input: Self::Input,
+        _: &mut haloumi_ir::inject::InjectedIR<
+            midnight_proofs::circuit::RegionIndex,
+            midnight_proofs::plonk::Expression<F>,
+        >,
+    ) -> Result<Self::Output, Error>
+    where
+        L: haloumi_integration::core::layouter::Layouter<F, Error>
+            + haloumi_integration::core::groups::RegionsGroupHooks<
+                F,
+                midnight_proofs::circuit::Cell,
+                Error = Error,
+            >,
+    {
+        MulChip::construct(config.clone())
+            .assign_first_row_from_input(layouter.namespace(|| "first row"), &input)
+    }
+}
+
+#[cfg(feature = "extraction")]
+crate::impl_extractable_fixture!(MulCircuit<F>);

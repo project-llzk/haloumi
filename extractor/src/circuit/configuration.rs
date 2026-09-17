@@ -156,8 +156,8 @@ impl Constants {
 /// Configuration for a circuit.
 #[derive(Clone, Debug)]
 pub struct Config<C: AbstractCircuitIO> {
-    pub io: IOConfig,
     pub chip: ChipConfig<C>,
+    pub io: IOConfig,
     pub constants: Constants,
 }
 
@@ -180,8 +180,8 @@ where
             C::Output::SIZE
         );
         Self {
-            io: IOConfig::configure(meta),
             chip: ChipConfig::configure::<CS, L, F>(meta),
+            io: IOConfig::configure(meta),
             constants: Constants::configure(meta),
         }
     }

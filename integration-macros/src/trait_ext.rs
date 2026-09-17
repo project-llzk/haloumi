@@ -46,6 +46,18 @@ pub fn derive_region_group_hooks_impl(input: DeriveInput) -> syn::Result<TokenSt
             if let Some(f) = fields_named.named.iter().find(is_root) {
                 emitter.set_root(f.ident.as_ref().unwrap(), require_mut_ref(&f.ty)?);
             }
+            //// Root floor-planner layouters conventionally keep their assignment
+            //// backend in a field named `cs`. Treat it as the group-hook delegate
+            //// when no explicit annotation was supplied.
+            //if emitter.delegate_expr.is_none() {
+            //    if let Some(f) = fields_named
+            //        .named
+            //        .iter()
+            //        .find(|f| f.ident.as_ref().is_some_and(|ident| ident == "cs"))
+            //    {
+            //        emitter.set_assignment_delegate(f.ident.as_ref().unwrap());
+            //    }
+            //}
         }
         syn::Fields::Unnamed(fields_unnamed) => {
             if let Some((n, f)) = fields_unnamed
@@ -84,6 +96,7 @@ struct Emitter<'i> {
     root_type: TokenStream,
     root_expr: TokenStream,
     delegate_expr: Option<TokenStream>,
+    //assignment_delegate_expr: Option<TokenStream>,
 }
 
 impl<'i> Emitter<'i> {
@@ -114,6 +127,11 @@ impl<'i> Emitter<'i> {
         self.bounds.push(quote! {#ty: #trait_name});
     }
 
+    //fn set_assignment_delegate(&mut self, name: impl ToTokens) {
+    //    assert!(self.delegate_expr.is_none());
+    //    self.assignment_delegate_expr = Some(name.to_token_stream());
+    //}
+
     fn set_root(&mut self, name: impl ToTokens, ty: &Type) {
         self.root_expr = quote! {self.#name.get_root_hook()};
         self.root_type = quote! {#ty::RootHook};
@@ -130,10 +148,16 @@ impl<'i> Emitter<'i> {
     }
 
     fn push_group_delegate_expr(&self) -> TokenStream {
+        //if let Some(delegate) = &self.assignment_delegate_expr {
+        //    return quote! { self.#delegate.enter_group(name, key); };
+        //}
         self.make_delegate_expr(quote! {push_group(name, key)})
     }
 
     fn pop_group_delegate_expr(&self) -> TokenStream {
+        //if let Some(delegate) = &self.assignment_delegate_expr {
+        //    return quote! { self.#delegate.exit_group(meta); };
+        //}
         self.make_delegate_expr(quote! {pop_group(meta)})
     }
 

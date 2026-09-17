@@ -32,8 +32,7 @@ pub fn synthesize_and_generate_ir<F, C>(
 ) -> ResolvedIRCircuit
 where
     F: PrimeField + std::cmp::Ord,
-    C: CircuitSynthesis<F>,
-    C: CircuitSynthesis<F, CS = ConstraintSystem<F>>,
+    C: for<'s> CircuitSynthesis<'s, F, CS = ConstraintSystem<F>>,
 {
     let syn = driver.synthesize(&circuit).unwrap();
     let unresolved = driver.generate_ir(&syn, params).unwrap();
@@ -51,7 +50,7 @@ fn common_lowering<F, C>(
 ) -> ResolvedIRCircuit
 where
     F: PrimeField + std::cmp::Ord,
-    C: CircuitSynthesis<F, CS = ConstraintSystem<F>>,
+    C: for<'s> CircuitSynthesis<'s, F, CS = ConstraintSystem<F>>,
 {
     let mut resolved = synthesize_and_generate_ir(driver, circuit, ir_params);
     if canonicalize {
@@ -111,7 +110,7 @@ macro_rules! synthesis_impl {
         #[derive(Default)]
         struct $name($circuit);
 
-        impl haloumi::synthesis::CircuitSynthesis<halo2curves::bn256::Fr> for $name {
+        impl<'s> haloumi::synthesis::CircuitSynthesis<'s, halo2curves::bn256::Fr> for $name {
             type Circuit = $circuit;
             type Config =
                 <$circuit as haloumi_midnight_integration::halo2_proofs::plonk::Circuit<
@@ -152,7 +151,7 @@ macro_rules! synthesis_impl {
             fn synthesize(
                 circuit: &Self::Circuit,
                 config: Self::Config,
-                synthesizer: &mut haloumi::synthesis::synthesizer::Synthesizer<
+                synthesizer: &'s mut haloumi::synthesis::synthesizer::Synthesizer<
                     halo2curves::bn256::Fr,
                 >,
                 cs: &Self::CS,

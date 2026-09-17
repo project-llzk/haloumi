@@ -848,14 +848,28 @@ version = "0.5.15"
 dependencies = [
  "anyhow",
  "ff",
+ "group",
+ "halo2curves 0.7.0",
  "haloumi",
  "haloumi-core",
  "haloumi-integration",
+ "haloumi-ir",
  "haloumi-ir-gen",
+ "haloumi-llzk",
+ "haloumi-mdnt-test-circuits",
+ "haloumi-midnight-integration",
+ "haloumi-picus",
  "haloumi-synthesis",
  "inventory",
+ "llzk",
  "log",
+ "midnight-proofs",
+ "mlir-testutils",
+ "paste",
+ "similar-asserts",
+ "simplelog",
  "thiserror",
+ "time",
 ]
 
 [[package]]
@@ -985,6 +999,8 @@ version = "0.5.15"
 dependencies = [
  "anyhow",
  "ff",
+ "haloumi-integration",
+ "haloumi-ir",
  "midnight-proofs",
 ]
 
@@ -1248,6 +1264,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "mdnt-groups-support"
+version = "0.2.15"
+dependencies = [
+ "haloumi-core",
+]
+
+[[package]]
+name = "mdnt-groups-support"
+version = "0.2.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68b9587b53bf46fee06eede45c2e0f560ea3176262b3e9bebd8698460e9892d3"
+
+[[package]]
+name = "mdnt-support"
+version = "0.2.15"
+dependencies = [
+ "ff",
+ "haloumi-integration",
+ "log",
+ "mdnt-groups-support 0.2.15 (registry+https://github.com/rust-lang/crates.io-index)",
+ "num-bigint 0.4.6",
+ "num-traits",
+ "thiserror",
+]
+
+[[package]]
 name = "melior"
 version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1282,7 +1324,6 @@ checksum = "88904434abc2901f197fe8cc55f0445e7ded921dba5911dad2e2b39b48e663c4"
 [[package]]
 name = "midnight-curves"
 version = "0.1.1"
-source = "git+https://github.com/Veridise/midnight-zk.git#20139c271e472fe86b96944543829c91724ac1c0"
 dependencies = [
  "bitvec",
  "blst",
@@ -1308,12 +1349,15 @@ dependencies = [
 [[package]]
 name = "midnight-proofs"
 version = "0.5.1"
-source = "git+https://github.com/Veridise/midnight-zk.git#20139c271e472fe86b96944543829c91724ac1c0"
 dependencies = [
  "blake2b_simd",
  "ff",
  "getrandom 0.2.17",
  "group",
+ "haloumi-core",
+ "haloumi-integration",
+ "mdnt-groups-support 0.2.15",
+ "mdnt-support",
  "midnight-curves",
  "num-bigint 0.4.6",
  "rand_chacha",

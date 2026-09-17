@@ -1,6 +1,6 @@
 use ff::Field;
 use midnight_proofs::circuit::{AssignedCell, Layouter, SimpleFloorPlanner, Value};
-use midnight_proofs::default_group_key;
+use midnight_proofs::circuit::groups::default_group_key;
 use midnight_proofs::plonk::{
     Advice, Circuit, Column, ConstraintSystem, Constraints, Error, Fixed, Instance, Selector,
 };
@@ -183,9 +183,9 @@ impl<F: Field> MulChip<F> {
             // Defined here to get always the same key.
             default_group_key!(),
             |layouter, group| {
-                group.annotate_input(input.cell())?;
+                group.annotate_input(input.cell());
                 let prev_c = self.assign_first_row(layouter, input, selector)?;
-                group.annotate_output(prev_c.cell())?;
+                group.annotate_output(prev_c.cell());
                 Ok(prev_c)
             },
         )
@@ -224,3 +224,18 @@ impl<F: Field> Circuit<F> for MulCircuit<F> {
         Ok(())
     }
 }
+
+#[cfg(feature = "extraction")]
+impl<F: ff::PrimeField> crate::extraction::ExtractableFixture<F> for MulCircuit<F> {
+    type Input = AssignedCell<F, F>;
+    type Output = AssignedCell<F, F>;
+    fn synthesize_extraction<L>(&self, config: &Self::Config, layouter: &mut haloumi_integration::core::layouter::LayoutAdaptor<L>, input: Self::Input, _: &mut haloumi_ir::inject::InjectedIR<midnight_proofs::circuit::RegionIndex, midnight_proofs::plonk::Expression<F>>) -> Result<Self::Output, Error>
+    where L: haloumi_integration::core::layouter::Layouter<F, Error> + haloumi_integration::core::groups::RegionsGroupHooks<F, midnight_proofs::circuit::Cell, Error = Error> {
+        let chip = MulChip::construct(config.clone());
+        let c = chip.call_group(layouter, &input, config.selector)?;
+        let c = chip.call_group(layouter, &c, config.selector)?;
+        chip.call_group(layouter, &c, config.selector2)
+    }
+}
+#[cfg(feature = "extraction")]
+crate::impl_extractable_fixture!(MulCircuit<F>);

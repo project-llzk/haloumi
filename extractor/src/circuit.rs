@@ -92,8 +92,10 @@ where
     /// Consumes the circuit wrapper and returns the extra IR added during synthesis.
     pub fn take_injected_ir<'ir>(
         self,
+        sorted: bool,
     ) -> Vec<(RegionIndex, IRStmt<ExpressionInRow<'ir, CS::Polynomial, F>>)> {
-        self.injected_ir
+        let mut ir = self
+            .injected_ir
             .into_inner()
             .into_iter()
             .map(|(idx, ir)| {
@@ -106,7 +108,11 @@ where
                     .into(),
                 )
             })
-            .collect()
+            .collect::<Vec<(RegionIndex, IRStmt<_>)>>();
+        if sorted {
+            ir.sort_by(|&(lhs, _), &(rhs, _)| (*lhs).cmp(&*rhs));
+        }
+        ir
     }
 
     fn create_chip<'l, L: 'l>(&self, config: &Config<C>) -> C::Chip
@@ -237,8 +243,7 @@ where
     }
 }
 
-impl<'s, F, C, CS, I, O, T, E> CircuitSynthesis<'s, F>
-    for CircuitImpl<'_, F, C, CS, T, Function>
+impl<'s, F, C, CS, I, O, T, E> CircuitSynthesis<'s, F> for CircuitImpl<'_, F, C, CS, T, Function>
 where
     T: Types<F, Expression = E> + std::fmt::Debug,
     F: PrimeField,
@@ -279,11 +284,7 @@ where
     }
 
     fn configure(cs: &mut Self::CS) -> Self::Config {
-        Self::Config::configure::<
-            LayoutAdaptor<'_, ExtractionLayouter<'s, F, T::Error>>,
-            F,
-            CS,
-        >(cs)
+        Self::Config::configure::<LayoutAdaptor<'_, ExtractionLayouter<'s, F, T::Error>>, F, CS>(cs)
     }
 
     fn advice_io(_: &Self::Config) -> Result<AdviceIO, SynError> {

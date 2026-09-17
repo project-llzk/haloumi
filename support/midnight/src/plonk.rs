@@ -6,6 +6,7 @@ use crate::{
 };
 use ff::Field;
 use haloumi_core::{
+    auto_conf::AutoConfigure,
     expressions::{EvalExpression, EvaluableExpr, ExprBuilder, ExpressionInfo, ExpressionTypes},
     info_traits::{
         ChallengeInfo, ConstraintSystemInfo, CreateQuery, GateInfo, QueryInfo, SelectorInfo,
@@ -151,6 +152,7 @@ pub struct ConstraintSystem<F: Field> {
     cs: midnight_proofs::plonk::ConstraintSystem<F>,
     gates: Option<Vec<_Gate<F>>>,
     lookups: Option<Vec<(String, Vec<_Expression<F>>, Vec<_Expression<F>>)>>,
+    constants: Vec<_Column<_Fixed>>,
 }
 
 impl<F: Field> ConstraintSystem<F> {
@@ -167,6 +169,10 @@ impl<F: Field> ConstraintSystem<F> {
 
 impl<F: Field> ConstraintSystemInfo<F> for ConstraintSystem<F> {
     type Polynomial = _Expression<F>;
+    type InstanceCol = _Column<_Instance>;
+    type AdviceCol = _Column<_Advice>;
+    type FixedCol = _Column<_Fixed>;
+    type AnyCol = _Column<_Any>;
 
     fn synthesis_completed(&mut self) {
         let _ = self
@@ -213,6 +219,57 @@ impl<F: Field> ConstraintSystemInfo<F> for ConstraintSystem<F> {
                 table: table.as_slice(),
             })
             .collect()
+    }
+
+    fn constants(&self) -> &[Self::FixedCol] {
+        &self.constants
+    }
+
+    fn enable_constant(&mut self, col: Self::FixedCol) {
+        self.cs.enable_constant(col.0);
+        if !self.constants.iter().any(|constant| constant.0 == col.0) {
+            self.constants.push(col);
+        }
+    }
+
+    fn enable_equality(&mut self, col: impl Into<Self::AnyCol>) {
+        self.cs.enable_equality(col.into().0);
+    }
+}
+
+impl From<_Column<_Instance>> for _Column<_Any> {
+    fn from(value: _Column<_Instance>) -> Self {
+        Self(value.0.into())
+    }
+}
+
+impl From<_Column<_Advice>> for _Column<_Any> {
+    fn from(value: _Column<_Advice>) -> Self {
+        Self(value.0.into())
+    }
+}
+
+impl From<_Column<_Fixed>> for _Column<_Any> {
+    fn from(value: _Column<_Fixed>) -> Self {
+        Self(value.0.into())
+    }
+}
+
+impl<F: Field> AutoConfigure<ConstraintSystem<F>> for _Column<_Instance> {
+    fn configure(meta: &mut ConstraintSystem<F>) -> Self {
+        meta.cs.instance_column().into()
+    }
+}
+
+impl<F: Field> AutoConfigure<ConstraintSystem<F>> for _Column<_Advice> {
+    fn configure(meta: &mut ConstraintSystem<F>) -> Self {
+        meta.cs.advice_column().into()
+    }
+}
+
+impl<F: Field> AutoConfigure<ConstraintSystem<F>> for _Column<_Fixed> {
+    fn configure(meta: &mut ConstraintSystem<F>) -> Self {
+        meta.cs.fixed_column().into()
     }
 }
 

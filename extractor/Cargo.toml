@@ -22,3 +22,25 @@ thiserror.workspace = true
 log.workspace = true
 anyhow = "1"
 inventory = "0.3"
+
+[dev-dependencies]
+haloumi-mdnt-test-circuits = { path = "../support/mdnt-test-circuits", features = ["extraction"] }
+midnight-proofs = { workspace = true, features = ["extraction"] }
+haloumi-midnight-integration = { path = "../support/midnight" }
+haloumi-picus = { path = "../picus" }
+haloumi-llzk = { path = "../llzk" }
+haloumi-ir = { path = "../ir" }
+haloumi-ir-gen = { path = "../ir-gen" }
+halo2curves.workspace = true
+group = "0.13"
+simplelog = { version = "0.12", features = ["test"] }
+time = "0.3.45"
+paste = "1"
+similar-asserts.workspace = true
+mlir-testutils.workspace = true
+llzk.workspace = true
+
+[features]
+default = ["llzk-backend", "picus-backend"]
+llzk-backend = []
+picus-backend = []

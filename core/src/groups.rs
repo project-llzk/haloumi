@@ -74,7 +74,7 @@ pub type DefaultKey = SourceLocKey;
 #[macro_export]
 macro_rules! default_group_key {
     () => {
-        $crate::circuit::groups::DefaultKey {
+        $crate::groups::DefaultKey {
             file: std::file!(),
             line: std::line!(),
             column: std::column!(),

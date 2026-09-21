@@ -1253,6 +1253,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "inject-tester"
+version = "0.5.15"
+dependencies = [
+ "anyhow",
+ "clap",
+ "haloumi-inject",
+ "tempfile",
+]
+
+[[package]]
 name = "internment"
 version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"

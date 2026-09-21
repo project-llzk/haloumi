@@ -1,0 +1,20 @@
+[package]
+name = "inject-tester"
+description = "Developer tool for testing haloumi-inject specifications."
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+license-file.workspace = true
+categories.workspace = true
+keywords.workspace = true
+publish = false
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4.6", features = ["derive"] }
+haloumi-inject = { path = "../inject" }
+
+[dev-dependencies]
+tempfile = "3.27"

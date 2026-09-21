@@ -1,6 +1,6 @@
 //! Main entrypoint of the extractor tool.
 
-use std::{borrow::Cow, fs::File, io::Write as _, path::Path, process::exit};
+use std::{borrow::Cow, path::Path, process::exit};
 
 use clap::Parser;
 use haloumi_driver::backends::llzk::{LlzkParams, llzk::prelude::LlzkContext};
@@ -15,6 +15,7 @@ use crate::{
     main_impl::{
         app_error::AppError,
         cli::Cli,
+        ir::write_ir_output,
         llzk::{LlzkConfig, write_llzk_output},
         picus::{PicusConfig, write_picus_output},
     },
@@ -23,6 +24,7 @@ use crate::{
 pub mod app_error;
 mod cli;
 mod constants;
+mod ir;
 mod llzk;
 mod logging;
 mod picus;
@@ -40,6 +42,7 @@ enum FailMode {
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, clap::ValueEnum)]
 enum OutputFormat {
+    Ir,
     Picus,
     Llzk,
 }
@@ -145,16 +148,14 @@ impl ExtractorMain {
         if self.cli.optimize_ir() {
             self.optimize_ir(&mut ir).map_err(AppError::opt(name))?;
         }
-        if self.cli.dump_ir() {
-            self.dump_ir(name, output_base, &ir)
-                .map_err(AppError::ir_dump(name))?;
-        }
         for format in self.cli.formats() {
             match format {
+                OutputFormat::Ir => write_ir_output(name, output_base.join("ir"), &ir)
+                    .map_err(AppError::ir(name))?,
                 OutputFormat::Picus => write_picus_output(
                     picus_config,
                     name,
-                    output_base,
+                    output_base.join("picus"),
                     &ir,
                     PicusParamsBuilder::new(),
                 )
@@ -168,28 +169,12 @@ impl ExtractorMain {
                     let context = LlzkContext::new();
                     let mut params = LlzkParams::new(&context);
                     params.with_builtin_field(field_name);
-                    write_llzk_output(llzk_config, name, output_base, &ir, params)
+                    write_llzk_output(llzk_config, name, output_base.join("llzk"), &ir, params)
                         .map_err(AppError::llzk(name))?;
                 }
             }
         }
 
-        Ok(())
-    }
-
-    fn dump_ir(
-        &self,
-        name: &'static str,
-        output_base: impl AsRef<Path>,
-        ir: &ResolvedIRCircuit,
-    ) -> Result<(), Error> {
-        let output_dir = output_base.as_ref().join(name);
-        std::fs::create_dir_all(&output_dir)?;
-
-        let output_path = output_dir.join("dump.ir");
-        let mut output_file = File::create(&output_path)?;
-        writeln!(output_file, "{}", ir.display())?;
-        log::info!("Saved IR dump output in {}", output_path.display());
         Ok(())
     }
 

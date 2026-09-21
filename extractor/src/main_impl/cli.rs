@@ -56,8 +56,6 @@ pub struct Cli {
     #[arg(long)]
     pub prelude: Option<Preludes>,
     #[arg(long)]
-    pub dump_ir: bool,
-    #[arg(long)]
     pub list: bool,
     #[arg(long)]
     pub allow_injected_ir_for_outputs: bool,
@@ -136,10 +134,6 @@ impl Cli {
         LlzkConfig::new(!(self.llzk_no_opt || self.no_opt))
     }
 
-    pub fn dump_ir(&self) -> bool {
-        self.dump_ir
-    }
-
     pub fn action(&self) -> Action {
         if self.list {
             Action::List
@@ -149,9 +143,6 @@ impl Cli {
     }
 
     pub fn formats(&self) -> &[OutputFormat] {
-        if self.format.is_empty() {
-            return &[OutputFormat::Picus, OutputFormat::Llzk];
-        }
         &self.format
     }
 
@@ -166,5 +157,22 @@ impl Cli {
 
     pub fn optimize_ir(&self) -> bool {
         !self.no_opt
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_ir_as_an_output_format() {
+        let cli = Cli::try_parse_from(["extractor", "--format", "ir"]).unwrap();
+        assert_eq!(cli.formats(), &[OutputFormat::Ir]);
+    }
+
+    #[test]
+    fn defaults_to_no_output_formats() {
+        let cli = Cli::try_parse_from(["extractor"]).unwrap();
+        assert!(cli.formats().is_empty());
     }
 }

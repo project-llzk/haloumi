@@ -1,0 +1,8 @@
+[package]
+name = "aliased-patch-root"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+patched = { package = "target-dependency", path = "dependency" }
+haloumi-extractor = { path = "extractor" }

@@ -12,6 +12,7 @@ members = [
   "integration",
   "integration-macros",
   "inject",
+  "cli",
   "extractor",
   "support/midnight",
   "support/mdnt-test-circuits",

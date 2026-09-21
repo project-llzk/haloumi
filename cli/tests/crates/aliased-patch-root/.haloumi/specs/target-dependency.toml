@@ -1,0 +1,6 @@
+[targets]
+"target-dependency" = "0.1.0"
+
+[[patch.append]]
+path = "src/lib.rs"
+content = "pub const PATCHED: bool = true"

@@ -7,7 +7,7 @@ use std::fmt;
 enum AppErrorKind {
     HarnessFailed,
     OptFailed,
-    IRDumpFailed,
+    IrWriteFailed,
     PicusWriteFailed,
     LlzkWriteFailed,
 }
@@ -40,8 +40,8 @@ impl AppError {
         Self::create(name, AppErrorKind::OptFailed)
     }
 
-    pub(crate) fn ir_dump<E: Into<anyhow::Error>>(name: &'static str) -> impl FnOnce(E) -> Self {
-        Self::create(name, AppErrorKind::IRDumpFailed)
+    pub(crate) fn ir<E: Into<anyhow::Error>>(name: &'static str) -> impl FnOnce(E) -> Self {
+        Self::create(name, AppErrorKind::IrWriteFailed)
     }
 
     pub(crate) fn picus<E: Into<anyhow::Error>>(name: &'static str) -> impl FnOnce(E) -> Self {
@@ -64,9 +64,9 @@ impl fmt::Display for AppError {
                 "IR optimization pass failed for harness {}: {:?}",
                 self.name, self.err
             ),
-            AppErrorKind::IRDumpFailed => write!(
+            AppErrorKind::IrWriteFailed => write!(
                 f,
-                "Failed to write IR dump of harness {}: {:?}",
+                "Failed to write IR of harness {}: {:?}",
                 self.name, self.err
             ),
             AppErrorKind::PicusWriteFailed => write!(

@@ -33,6 +33,11 @@ pub enum SpecMatch<'a> {
 }
 
 impl SpecRegistry {
+    /// Creates a registry with no specifications.
+    pub fn empty() -> Self {
+        Self { specs: Vec::new() }
+    }
+
     /// Loads all the specifications found in the given path.
     ///
     /// If the path is a file, loads a single specification.

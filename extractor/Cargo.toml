@@ -16,7 +16,7 @@ haloumi-ir-gen = { path = "../ir-gen/" }
 haloumi-synthesis = { path = "../synthesis/" }
 haloumi-core = { path = "../core/" }
 haloumi-integration = { path = "../integration/" }
-haloumi-driver = { path = "../driver/", package = "haloumi" }
+haloumi-driver = { path = "../driver/" }
 ff.workspace = true
 thiserror.workspace = true
 log.workspace = true

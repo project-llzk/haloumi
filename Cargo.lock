@@ -887,35 +887,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "haloumi"
-version = "0.5.15"
-dependencies = [
- "anyhow",
- "ff",
- "group",
- "halo2curves 0.7.0",
- "haloumi-core",
- "haloumi-ir",
- "haloumi-ir-gen",
- "haloumi-llzk",
- "haloumi-mdnt-test-circuits",
- "haloumi-midnight-integration",
- "haloumi-picus",
- "haloumi-synthesis",
- "llzk",
- "log",
- "mlir-testutils",
- "paste",
- "quickcheck",
- "quickcheck_macros",
- "rstest 0.26.1",
- "similar-asserts",
- "simplelog",
- "thiserror",
- "time",
-]
-
-[[package]]
 name = "haloumi-backend"
 version = "0.5.15"
 dependencies = [
@@ -948,6 +919,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "haloumi-driver"
+version = "0.5.15"
+dependencies = [
+ "anyhow",
+ "ff",
+ "group",
+ "halo2curves 0.7.0",
+ "haloumi-core",
+ "haloumi-ir",
+ "haloumi-ir-gen",
+ "haloumi-llzk",
+ "haloumi-mdnt-test-circuits",
+ "haloumi-midnight-integration",
+ "haloumi-picus",
+ "haloumi-synthesis",
+ "llzk",
+ "log",
+ "mlir-testutils",
+ "paste",
+ "quickcheck",
+ "quickcheck_macros",
+ "rstest 0.26.1",
+ "similar-asserts",
+ "simplelog",
+ "thiserror",
+ "time",
+]
+
+[[package]]
 name = "haloumi-extractor"
 version = "0.5.15"
 dependencies = [
@@ -957,8 +957,8 @@ dependencies = [
  "ff",
  "group",
  "halo2curves 0.7.0",
- "haloumi",
  "haloumi-core",
+ "haloumi-driver",
  "haloumi-integration",
  "haloumi-ir",
  "haloumi-ir-gen",

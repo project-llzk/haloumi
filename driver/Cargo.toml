@@ -1,5 +1,5 @@
 [package]
-name = "haloumi"
+name = "haloumi-driver"
 description = "Entrypoint crate for the Haloumi framework."
 version.workspace = true
 authors.workspace = true

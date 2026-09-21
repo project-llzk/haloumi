@@ -1,0 +1,8 @@
+[backends.ir]
+
+[extractor]
+name = "custom-extractor"
+dependency = { package = "haloumi-extractor", path = "extractor" }
+
+[extractor.dependencies]
+support = { path = "support" }

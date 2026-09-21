@@ -7,6 +7,7 @@ use haloumi_driver::backends::llzk::{LlzkParams, llzk::prelude::LlzkContext};
 use haloumi_driver::backends::picus::PicusParamsBuilder;
 use haloumi_ir_gen::circuit::resolved::ResolvedIRCircuit;
 
+use crate::main_impl::logging::setup_logging;
 use crate::{
     Harness,
     error::Error,
@@ -75,6 +76,7 @@ impl ExtractorMain {
     fn new() -> Result<Self, Error> {
         let mut cli = Cli::parse();
         cli.setup()?;
+        setup_logging(cli.logging())?;
 
         let mut extractor_cfg = ExtractorCfg::new();
         extractor_cfg.set_constants(cli.constants().to_vec());

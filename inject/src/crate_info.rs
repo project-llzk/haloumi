@@ -187,6 +187,38 @@ pub struct CrateMut {
     rust_files_cache: HashMap<PathBuf, syn::File>,
 }
 
+/// A Rust source file that has been parsed successfully.
+#[derive(Debug)]
+pub struct RustFile {
+    file: syn::File,
+}
+
+impl RustFile {
+    /// Creates an empty Rust source file.
+    pub fn new() -> Self {
+        Self {
+            file: syn::parse_file("").expect("an empty Rust source file is valid"),
+        }
+    }
+
+    /// Parses Rust source into a source file.
+    pub fn parse_str(contents: &str) -> Result<Self, Error> {
+        Ok(Self {
+            file: syn::parse_file(contents)?,
+        })
+    }
+
+    fn into_inner(self) -> syn::File {
+        self.file
+    }
+}
+
+impl Default for RustFile {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CrateMut {
     /// Opens a crate at the given location.
     ///
@@ -260,7 +292,7 @@ impl CrateMut {
     pub fn create_rust_file(
         &mut self,
         path: impl AsRef<Path>,
-        contents: impl AsRef<str>,
+        file: RustFile,
     ) -> Result<(), Error> {
         let path = path.as_ref();
         if path.is_absolute() || path.components().any(|component| matches!(component, Component::ParentDir)) {
@@ -269,8 +301,7 @@ impl CrateMut {
         if self.base_path().join(path).exists() || self.rust_files_cache.contains_key(path) {
             return Err(Error::GeneratedFileExists(path.to_path_buf()));
         }
-        let file = syn::parse_file(contents.as_ref())?;
-        self.rust_files_cache.insert(path.to_path_buf(), file);
+        self.rust_files_cache.insert(path.to_path_buf(), file.into_inner());
         Ok(())
     }
 
@@ -312,5 +343,35 @@ impl Deref for CrateMut {
 
     fn deref(&self) -> &Self::Target {
         &self.crt
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_creates_an_empty_file() {
+        let file = RustFile::new();
+        assert!(file.file.attrs.is_empty());
+        assert!(file.file.items.is_empty());
+    }
+
+    #[test]
+    fn default_creates_an_empty_file() {
+        let file = RustFile::default();
+        assert!(file.file.attrs.is_empty());
+        assert!(file.file.items.is_empty());
+    }
+
+    #[test]
+    fn parse_str_accepts_valid_rust() {
+        let file = RustFile::parse_str("pub fn fixture() {}\n").unwrap();
+        assert_eq!(file.file.items.len(), 1);
+    }
+
+    #[test]
+    fn parse_str_rejects_invalid_rust() {
+        assert!(matches!(RustFile::parse_str("fn {"), Err(Error::Parsing(_))));
     }
 }

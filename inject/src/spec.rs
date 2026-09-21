@@ -21,6 +21,17 @@ pub struct SpecRegistry {
     specs: Vec<Spec>,
 }
 
+/// The result of looking up specifications for one resolved Cargo package.
+#[derive(Debug)]
+pub enum SpecMatch<'a> {
+    /// No registered specification targets the package.
+    None,
+    /// Exactly one specification targets the package.
+    One(&'a Spec),
+    /// More than one specification targets the package.
+    Ambiguous(Vec<&'a Spec>),
+}
+
 impl SpecRegistry {
     /// Loads all the specifications found in the given path.
     ///
@@ -34,12 +45,14 @@ impl SpecRegistry {
         } else if path.as_ref().is_dir() {
             for entry in std::fs::read_dir(path)? {
                 let entry = entry?;
-                if entry.file_type()?.is_file() {
+                if entry.file_type()?.is_file()
+                    && entry.path().extension().is_some_and(|extension| extension == "toml")
+                {
                     specs.push(Spec::from_path(entry.path())?);
                 }
             }
         } else {
-            return Err(Error::UnsupportedFileType);
+            return Err(Error::UnsupportedFileType(path.as_ref().to_path_buf()));
         }
 
         Ok(Self { specs })
@@ -48,6 +61,20 @@ impl SpecRegistry {
     /// Returns the registered specifications.
     pub fn specs(&self) -> &[Spec] {
         &self.specs
+    }
+
+    /// Finds specifications targeting the supplied resolved package name and version.
+    pub fn find_matching(&self, name: &str, version: &SemVer) -> SpecMatch<'_> {
+        let matches = self
+            .specs
+            .iter()
+            .filter(|spec| spec.valid_target(name, version))
+            .collect::<Vec<_>>();
+        match matches.as_slice() {
+            [] => SpecMatch::None,
+            [spec] => SpecMatch::One(spec),
+            _ => SpecMatch::Ambiguous(matches),
+        }
     }
 }
 

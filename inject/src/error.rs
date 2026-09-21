@@ -38,7 +38,16 @@ pub enum Error {
     /// Raised if an injected dependency is already in a crate's manifest.
     #[error("Dependency '{0}' is already in the manifest")]
     DuplicateDep(String),
-    /// Raised if encountered an unsupported file type during IO operations.
-    #[error("Unsupported file type")]
-    UnsupportedFileType,
+    /// Raised if encountered an unsupported filesystem object during copying.
+    #[error("Unsupported filesystem object at '{0}'")]
+    UnsupportedFileType(std::path::PathBuf),
+    /// Raised when a requested manifest dependency does not exist.
+    #[error("Dependency '{0}' was not found in the manifest")]
+    DependencyNotFound(String),
+    /// Raised when a generated source file would overwrite an existing file.
+    #[error("Refusing to overwrite existing generated file '{0}'")]
+    GeneratedFileExists(std::path::PathBuf),
+    /// Raised when a generated source file path is not contained in the crate.
+    #[error("Generated file path '{0}' must be relative to the crate and may not contain '..'")]
+    InvalidCrateRelativePath(std::path::PathBuf),
 }

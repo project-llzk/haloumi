@@ -1,12 +1,11 @@
 //! Types for working with Rust crates in the filesystem.
 
 use crate::error::Error;
-use cargo_toml::{Dependency, Manifest, Package, SemVer};
+use cargo_toml::{Dependency, DepsSet, Manifest, Package, SemVer};
 use std::{
     collections::{HashMap, btree_map, hash_map::Entry},
-    fs::ReadDir,
     ops::Deref,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 /// Represents a Rust crate located in a directory.
@@ -67,20 +66,77 @@ impl Crate {
         );
         let dest = dest.as_ref();
 
+        self.warn_manifest_overrides();
+
         if !dest.is_dir() {
             log::debug!("Creating dest directory...");
             std::fs::create_dir_all(dest)?;
         }
 
-        let dir = std::fs::read_dir(self.base_path())?;
-        copy_files_rec(self.base_path(), dest, dir)?;
+        copy_files_rec(self.base_path(), dest, self.base_path())?;
+        std::fs::write(
+            dest.join("Cargo.toml"),
+            toml::to_string_pretty(&self.standalone_manifest())?,
+        )?;
 
         CrateMut::open(dest)
     }
+
+    fn standalone_manifest(&self) -> Manifest {
+        let mut manifest = self.manifest.clone();
+        self.rebase_relative_path_dependencies(&mut manifest);
+        self.detach_from_workspace(&mut manifest);
+        manifest
+    }
+
+    fn rebase_relative_path_dependencies(&self, manifest: &mut Manifest) {
+        Self::rebase_dependencies(&mut manifest.dependencies, self.base_path());
+        Self::rebase_dependencies(&mut manifest.build_dependencies, self.base_path());
+        Self::rebase_dependencies(&mut manifest.dev_dependencies, self.base_path());
+        for target in manifest.target.values_mut() {
+            Self::rebase_dependencies(&mut target.dependencies, self.base_path());
+            Self::rebase_dependencies(&mut target.build_dependencies, self.base_path());
+            Self::rebase_dependencies(&mut target.dev_dependencies, self.base_path());
+        }
+    }
+
+    fn rebase_dependencies(dependencies: &mut DepsSet, base_path: &Path) {
+        for dependency in dependencies.values_mut() {
+            if let Dependency::Detailed(detail) = dependency
+                && let Some(path) = detail.path.as_mut()
+                && Path::new(path).is_relative()
+            {
+                *path = base_path.join(&path).display().to_string();
+            }
+        }
+    }
+
+    fn detach_from_workspace(&self, manifest: &mut Manifest) {
+        if let Some(package) = &mut manifest.package {
+            package.workspace = None;
+        }
+        manifest.workspace = None;
+    }
+
+    #[expect(deprecated, reason = "[replace] manifests remain supported for copied crates")]
+    fn warn_manifest_overrides(&self) {
+        if !self.manifest.patch.is_empty() {
+            log::warn!(
+                "Copied crate '{}' contains [patch] overrides; they are preserved and may affect dependency resolution",
+                self.base_path().display()
+            );
+        }
+        if !self.manifest.replace.is_empty() {
+            log::warn!(
+                "Copied crate '{}' contains deprecated [replace] overrides; they are preserved and may affect dependency resolution",
+                self.base_path().display()
+            );
+        }
+    }
 }
 
-fn copy_files_rec(base: &Path, dest: &Path, current: ReadDir) -> Result<(), Error> {
-    for entry in current {
+fn copy_files_rec(base: &Path, dest: &Path, current: &Path) -> Result<(), Error> {
+    for entry in std::fs::read_dir(current)? {
         let entry = entry?;
 
         let full_path = entry.path();
@@ -88,15 +144,35 @@ fn copy_files_rec(base: &Path, dest: &Path, current: ReadDir) -> Result<(), Erro
         let dest_path = dest.join(rel_path);
         log::debug!("{} -> {}", full_path.display(), dest_path.display());
         let file_type = entry.file_type()?;
-        if file_type.is_dir() {
+        if file_type.is_dir() && rel_path == Path::new("target") {
+            log::debug!("Skipping generated directory '{}'", full_path.display());
+        } else if file_type.is_dir() {
             std::fs::create_dir_all(dest_path)?;
-            let dir = std::fs::read_dir(full_path)?;
-            copy_files_rec(base, dest, dir)?;
+            copy_files_rec(base, dest, &full_path)?;
         } else if file_type.is_file() {
             std::fs::copy(full_path, dest_path)?;
+        } else if file_type.is_symlink() {
+            copy_symlink(&full_path, &dest_path)?;
         } else {
-            return Err(Error::UnsupportedFileType);
+            return Err(Error::UnsupportedFileType(full_path));
         }
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn copy_symlink(source: &Path, dest: &Path) -> Result<(), Error> {
+    std::os::unix::fs::symlink(std::fs::read_link(source)?, dest)?;
+    Ok(())
+}
+
+#[cfg(windows)]
+fn copy_symlink(source: &Path, dest: &Path) -> Result<(), Error> {
+    let target = std::fs::read_link(source)?;
+    if source.metadata()?.is_dir() {
+        std::os::windows::fs::symlink_dir(target, dest)?;
+    } else {
+        std::os::windows::fs::symlink_file(target, dest)?;
     }
     Ok(())
 }
@@ -151,6 +227,53 @@ impl CrateMut {
         }
     }
 
+    /// Replaces a named normal dependency with a local path dependency.
+    ///
+    /// Existing dependency options such as package rename, version requirement, features,
+    /// optionality, and default-feature selection are retained where Cargo permits them.
+    pub fn replace_dependency_with_path(
+        &mut self,
+        name: &str,
+        path: impl AsRef<Path>,
+    ) -> Result<(), Error> {
+        let dependency = self
+            .crt
+            .manifest
+            .dependencies
+            .get_mut(name)
+            .ok_or_else(|| Error::DependencyNotFound(name.to_owned()))?;
+        let detail = dependency.try_detail_mut()?;
+        detail.path = Some(path.as_ref().display().to_string());
+        detail.registry = None;
+        detail.registry_index = None;
+        detail.git = None;
+        detail.branch = None;
+        detail.tag = None;
+        detail.rev = None;
+        Ok(())
+    }
+
+    /// Creates a new Rust source file relative to the copied crate.
+    ///
+    /// The source is parsed before staging and cannot overwrite either an existing file or a
+    /// previously staged file.
+    pub fn create_rust_file(
+        &mut self,
+        path: impl AsRef<Path>,
+        contents: impl AsRef<str>,
+    ) -> Result<(), Error> {
+        let path = path.as_ref();
+        if path.is_absolute() || path.components().any(|component| matches!(component, Component::ParentDir)) {
+            return Err(Error::InvalidCrateRelativePath(path.to_path_buf()));
+        }
+        if self.base_path().join(path).exists() || self.rust_files_cache.contains_key(path) {
+            return Err(Error::GeneratedFileExists(path.to_path_buf()));
+        }
+        let file = syn::parse_file(contents.as_ref())?;
+        self.rust_files_cache.insert(path.to_path_buf(), file);
+        Ok(())
+    }
+
     /// Commits the local edits to disk.
     ///
     /// Possible modifications are:
@@ -175,6 +298,9 @@ impl CrateMut {
             .iter()
             .try_for_each(|(path, contents)| {
                 let full_path = base_path.join(path);
+                if let Some(parent) = full_path.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
                 std::fs::write(full_path, prettyplease::unparse(contents))
             })?;
         Ok(())

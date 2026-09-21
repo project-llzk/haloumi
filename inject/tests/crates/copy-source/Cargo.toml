@@ -1,0 +1,6 @@
+[package]
+name = "copy-source"
+version = "1.0.0"
+
+[dependencies]
+copy-sibling = { path = "../copy-sibling" }

@@ -6,7 +6,7 @@
 use crate::{
     crate_info::{Crate, CrateMut},
     error::Error,
-    spec::{Spec, SpecRegistry},
+    spec::{Spec, SpecMatch, SpecRegistry},
 };
 use std::path::Path;
 
@@ -30,24 +30,19 @@ impl<'s, 'c> Injector<'s, 'c> {
     pub fn new(source: &'c Crate, registry: &'s SpecRegistry) -> Result<Self, Error> {
         let source_name = source.name()?;
         let source_version = source.version()?;
-        let usable_specs = registry
-            .specs()
-            .iter()
-            .filter(|spec| spec.valid_target(source_name, source_version))
-            .collect::<Vec<_>>();
-        match usable_specs.as_slice() {
-            [] => Err(Error::NoValidSpec(
+        match registry.find_matching(source_name, source_version) {
+            SpecMatch::None => Err(Error::NoValidSpec(
                 source_name.to_owned(),
                 source_version.clone(),
             )),
-            [spec] => Ok(Self {
+            SpecMatch::One(spec) => Ok(Self {
                 source,
-                spec: *spec,
+                spec,
             }),
-            other => Err(Error::TooManyValidSpec(
+            SpecMatch::Ambiguous(specs) => Err(Error::TooManyValidSpec(
                 source_name.to_owned(),
                 source_version.clone(),
-                other.len(),
+                specs.len(),
             )),
         }
     }

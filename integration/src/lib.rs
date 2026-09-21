@@ -38,6 +38,14 @@ pub mod core {
 pub mod ir {
     pub use haloumi_ir::*;
 }
+/// Re-export of the ir-gen crate for simplifying dependency management in downstream clients.
+pub mod ir_gen {
+    pub use haloumi_ir_gen::*;
+}
+/// Re-export of the synthesis crate for simplifying dependency management in downstream clients.
+pub mod synthesis {
+    pub use haloumi_synthesis::*;
+}
 
 /// This trait defines the halo2 types required by this crate.
 /// An implementation of halo2 compatible with this crate must have

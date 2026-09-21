@@ -1006,6 +1006,8 @@ dependencies = [
  "haloumi-core",
  "haloumi-integration-macros",
  "haloumi-ir",
+ "haloumi-ir-gen",
+ "haloumi-synthesis",
  "num-bigint 0.4.6",
  "num-traits",
  "rstest 0.26.1",

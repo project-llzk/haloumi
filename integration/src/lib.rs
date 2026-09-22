@@ -24,6 +24,7 @@ use crate::{
 pub mod circuit;
 pub mod error;
 pub mod expressions;
+#[cfg(feature = "extractor")]
 pub mod extractor;
 pub mod groups;
 pub mod info_traits;

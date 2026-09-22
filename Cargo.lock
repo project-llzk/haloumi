@@ -998,7 +998,6 @@ dependencies = [
 name = "haloumi-extractor"
 version = "0.5.15"
 dependencies = [
- "anyhow",
  "clap",
  "env_logger",
  "ff",
@@ -1014,7 +1013,6 @@ dependencies = [
  "haloumi-midnight-integration",
  "haloumi-picus",
  "haloumi-synthesis",
- "inventory",
  "llzk",
  "log",
  "midnight-proofs",
@@ -1049,12 +1047,14 @@ dependencies = [
 name = "haloumi-integration"
 version = "0.5.15"
 dependencies = [
+ "anyhow",
  "ff",
  "haloumi-core",
  "haloumi-integration-macros",
  "haloumi-ir",
  "haloumi-ir-gen",
  "haloumi-synthesis",
+ "inventory",
  "num-bigint 0.4.6",
  "num-traits",
  "rstest 0.27.0",

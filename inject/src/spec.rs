@@ -11,7 +11,10 @@ use serde::Deserialize;
 use syn::parse::Parser;
 
 use crate::{
-    actions::{InjectAction, add_dep::AddDepAction, append::AppendAction, derive::DeriveAction},
+    actions::{
+        InjectAction, add_dep::AddDepAction, append::AppendAction, attribute::AttributeAction,
+        derive::DeriveAction,
+    },
     error::Error,
 };
 
@@ -51,7 +54,10 @@ impl SpecRegistry {
             for entry in std::fs::read_dir(path)? {
                 let entry = entry?;
                 if entry.file_type()?.is_file()
-                    && entry.path().extension().is_some_and(|extension| extension == "toml")
+                    && entry
+                        .path()
+                        .extension()
+                        .is_some_and(|extension| extension == "toml")
                 {
                     specs.push(Spec::from_path(entry.path())?);
                 }
@@ -135,11 +141,20 @@ impl Spec {
         self.patch.iter().flat_map(|p| p.derive.as_ref()).flatten()
     }
 
+    /// Returns an iterator of attribute patches.
+    pub fn attributes(&self) -> impl Iterator<Item = &Attribute> {
+        self.patch
+            .iter()
+            .flat_map(|p| p.attribute.as_ref())
+            .flatten()
+    }
+
     /// Returns an iterator of inject actions.
     pub fn actions(&self) -> impl Iterator<Item = Box<dyn InjectAction + '_>> {
         self.dependencies()
             .map(|(name, dep)| AddDepAction::boxed(name, dep))
             .chain(self.derives().map(DeriveAction::boxed))
+            .chain(self.attributes().map(AttributeAction::boxed))
             .chain(self.appends().map(AppendAction::boxed))
     }
 }
@@ -151,6 +166,36 @@ pub struct Patches {
     append: Option<Vec<Append>>,
     /// List of derive actions.
     derive: Option<Vec<Derive>>,
+    /// List of attribute actions.
+    attribute: Option<Vec<Attribute>>,
+}
+
+/// Adds attributes to one path-addressable Rust AST node.
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct Attribute {
+    /// Path to the Rust file containing the target.
+    path: PathBuf,
+    /// Rust-style path identifying the target node.
+    target: String,
+    /// Attributes to append to the target node.
+    attributes: Vec<String>,
+}
+
+impl Attribute {
+    /// Returns the path to the Rust file containing the target.
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Returns the target path as written in the specification.
+    pub fn target(&self) -> &str {
+        &self.target
+    }
+
+    /// Returns the attributes to append to the target node.
+    pub fn attributes(&self) -> Result<Vec<syn::Attribute>, Error> {
+        parse_attributes(&self.attributes)
+    }
 }
 
 /// Append action
@@ -170,14 +215,25 @@ impl Append {
 
     /// Returns the contents that need to be appened to the file.
     ///
-    /// Each piece of content must be a valid top level item in a Rust file.
-    pub fn content(&self) -> Result<syn::Item, Error> {
-        let content = if self.content.ends_with(";") {
-            Cow::Borrowed(&self.content)
-        } else {
-            Cow::Owned(format!("{};", self.content))
-        };
-        Ok(syn::parse_str(&content)?)
+    /// Each piece of content must be a list of valid top level items in a Rust file.
+    pub fn content(&self) -> Result<Vec<syn::Item>, Error> {
+        let file: syn::File = syn::parse_str(&self.content)?;
+        if !file.attrs.is_empty() {
+            return Err(Error::ForeignElementInContent(
+                "Attributes are not allowed".into(),
+            ));
+        }
+        if file.frontmatter.is_some() {
+            return Err(Error::ForeignElementInContent(
+                "Frontmatter is not allowed".into(),
+            ));
+        }
+        if file.shebang.is_some() {
+            return Err(Error::ForeignElementInContent(
+                "Shebang is not allowed".into(),
+            ));
+        }
+        Ok(file.items)
     }
 }
 
@@ -192,8 +248,8 @@ pub struct Derive {
     /// Name of the trait (the derive macro) that will be derived.
     #[serde(rename = "trait")]
     trait_name: String,
-    /// Additional attributes that are appended to the `#[derive(...)]` macro.
-    attributes: Option<Vec<String>>,
+    /// Attributes to inject into the derived type and its children.
+    attributes: Option<DeriveAttributes>,
 }
 
 impl Derive {
@@ -222,27 +278,149 @@ impl Derive {
         Ok(syn::parse_str(&self.trait_name)?)
     }
 
-    /// Returns the additional attributes, if any.
-    ///
-    /// Each must be a valid Rust attribute.
-    pub fn attributes(&self) -> Result<Vec<syn::Attribute>, Error> {
-        Ok(self
-            .attributes
-            .iter()
-            .flatten()
-            .map(|attr| {
-                if attr.starts_with("#[") && attr.ends_with("]") {
-                    Cow::Borrowed(attr)
-                } else {
-                    Cow::Owned(format!("#[{attr}]"))
-                }
-            })
-            .map(|s| Ok(syn::Attribute::parse_outer.parse_str(&s)?))
-            .collect::<Result<Vec<Vec<_>>, Error>>()?
-            .into_iter()
-            .flatten()
-            .collect())
+    /// Returns the structured attributes to inject, if any.
+    pub fn attributes(&self) -> Option<&DeriveAttributes> {
+        self.attributes.as_ref()
     }
+}
+
+/// Attributes to inject into a derived item.
+///
+/// Field keys are field names for named fields and zero-based indices for tuple fields. Generic
+/// parameter keys use their Rust spelling, including the leading apostrophe for lifetimes.
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct DeriveAttributes {
+    /// Attributes for the derived struct, enum, or union itself.
+    #[serde(rename = "type")]
+    type_attributes: Option<Vec<String>>,
+    /// Attributes for generic type, lifetime, or const parameters.
+    params: Option<BTreeMap<String, Vec<String>>>,
+    /// Attributes for fields of a struct or union.
+    fields: Option<BTreeMap<String, Vec<String>>>,
+    /// Attributes for variants of an enum.
+    variants: Option<BTreeMap<String, VariantAttributes>>,
+}
+
+impl DeriveAttributes {
+    /// Returns the list of attributes that need to be added to the derived type.
+    pub fn type_attributes(&self) -> Result<Vec<syn::Attribute>, Error> {
+        parse_attributes(self.type_attributes.as_deref().unwrap_or(&[]))
+    }
+
+    /// Returns the mapping between the parameters of the type and the attributes that need to the
+    /// added to each.
+    pub fn params(&self) -> AttrsMap<'_> {
+        AttrsMap {
+            mapping: self.params.as_ref(),
+        }
+    }
+
+    /// Returns the mapping between the fields of a struct and the attributes that need to the
+    /// added to each.
+    pub fn fields(&self) -> AttrsMap<'_> {
+        AttrsMap {
+            mapping: self.fields.as_ref(),
+        }
+    }
+
+    /// Returns the mapping between the variants of an enum and the attributes that need to the
+    /// added to each.
+    pub fn variants(&self) -> Option<&BTreeMap<String, VariantAttributes>> {
+        self.variants.as_ref()
+    }
+}
+
+/// Attributes to inject into one enum variant.
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct VariantAttributes {
+    /// Attributes for the enum variant itself.
+    attributes: Option<Vec<String>>,
+    /// Attributes for the variant's fields.
+    fields: Option<BTreeMap<String, Vec<String>>>,
+}
+
+impl VariantAttributes {
+    /// Returns the list of attributes that need to be added to the variant.
+    pub fn attributes(&self) -> Result<Vec<syn::Attribute>, Error> {
+        parse_attributes(self.attributes.as_deref().unwrap_or(&[]))
+    }
+
+    /// Returns the mapping between the fields of the variant and the attributes that need to the
+    /// added to each.
+    pub fn fields(&self) -> AttrsMap<'_> {
+        AttrsMap {
+            mapping: self.fields.as_ref(),
+        }
+    }
+}
+
+/// Mapping between a key and a list of attributes.
+#[derive(Debug, Copy, Clone)]
+pub struct AttrsMap<'m> {
+    mapping: Option<&'m BTreeMap<String, Vec<String>>>,
+}
+
+impl AttrsMap<'_> {
+    /// Returns true if the mapping is empty.
+    pub fn is_empty(&self) -> bool {
+        self.mapping.is_none_or(|m| m.is_empty())
+    }
+}
+
+impl<'m> IntoIterator for AttrsMap<'m> {
+    type Item = (&'m str, Result<Vec<syn::Attribute>, Error>);
+
+    type IntoIter = AttrsMapIter<'m>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        match self.mapping {
+            Some(mapping) => AttrsMapIter {
+                mapping: Box::new(mapping.into_iter()),
+            },
+            None => AttrsMapIter {
+                mapping: Box::new(std::iter::empty()),
+            },
+        }
+    }
+}
+
+/// Iterator over a mapping of attributes.
+pub struct AttrsMapIter<'m> {
+    mapping: Box<dyn Iterator<Item = (&'m String, &'m Vec<String>)> + 'm>,
+}
+
+impl<'m> Iterator for AttrsMapIter<'m> {
+    type Item = (&'m str, Result<Vec<syn::Attribute>, Error>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.mapping
+            .next()
+            .map(|(name, attrs)| (name.as_str(), parse_attributes(attrs)))
+    }
+}
+
+impl std::fmt::Debug for AttrsMapIter<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AttrsMapIter").finish()
+    }
+}
+
+/// Parses shorthand or complete Rust outer attributes.
+pub(crate) fn parse_attributes(attributes: &[String]) -> Result<Vec<syn::Attribute>, Error> {
+    Ok(attributes
+        .iter()
+        .map(|attr| {
+            if attr.starts_with("#[") && attr.ends_with("]") {
+                Cow::Borrowed(attr)
+            } else {
+                Cow::Owned(format!("#[{attr}]"))
+            }
+        })
+        .map(|s| Ok(syn::Attribute::parse_outer.parse_str(&s)?))
+        .collect::<Result<Vec<Vec<_>>, Error>>()?
+        .into_iter()
+        .flatten()
+        .collect())
 }
 
 #[cfg(test)]
@@ -307,6 +485,7 @@ content = "__impl1!();"
                     content: String::from("__impl1!();"),
                 }]),
                 derive: None,
+                attribute: None,
             }),
         };
 
@@ -343,6 +522,7 @@ content = "__impl2!();"
                     },
                 ]),
                 derive: None,
+                attribute: None,
             }),
         };
 
@@ -372,6 +552,7 @@ trait = "Bar"
                     attributes: None,
                 }]),
                 append: None,
+                attribute: None,
             }),
         };
 
@@ -379,14 +560,60 @@ trait = "Bar"
     }
 
     #[test]
-    fn test_parsing_append_derive_with_attrs_spec() {
+    fn test_parsing_attribute_patch() {
+        let spec: Spec = toml::from_str(
+            r#"
+[[patch.attribute]]
+path = "foo.rs"
+target = "Foo::field"
+attributes = ["injected"]
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            spec,
+            Spec {
+                dependencies: None,
+                targets: None,
+                patch: Some(Patches {
+                    append: None,
+                    derive: None,
+                    attribute: Some(vec![Attribute {
+                        path: PathBuf::from("foo.rs"),
+                        target: String::from("Foo::field"),
+                        attributes: vec![String::from("injected")],
+                    }]),
+                }),
+            }
+        );
+    }
+
+    #[test]
+    fn test_parsing_derive_with_nested_attributes() {
         let spec: Spec = toml::from_str(
             r#"
 [[patch.derive]]
 path = "foo.rs"
 type = "Foo"
 trait = "Bar"
-attributes = ["baz()"]
+
+[patch.derive.attributes]
+type = ["baz()"]
+
+[patch.derive.attributes.params]
+T = ["generic_attr"]
+"'a" = ["lifetime_attr"]
+
+[patch.derive.attributes.fields]
+name = ["field_attr"]
+"0" = ["tuple_field_attr"]
+
+[patch.derive.attributes.variants.Baz]
+attributes = ["variant_attr"]
+
+[patch.derive.attributes.variants.Baz.fields]
+value = ["variant_field_attr"]
 "#,
         )
         .unwrap();
@@ -399,12 +626,56 @@ attributes = ["baz()"]
                     path: PathBuf::from("foo.rs"),
                     type_name: String::from("Foo"),
                     trait_name: String::from("Bar"),
-                    attributes: Some(vec![String::from("baz()")]),
+                    attributes: Some(DeriveAttributes {
+                        type_attributes: Some(vec![String::from("baz()")]),
+                        params: Some(BTreeMap::from([
+                            (String::from("T"), vec![String::from("generic_attr")]),
+                            (String::from("'a"), vec![String::from("lifetime_attr")]),
+                        ])),
+                        fields: Some(BTreeMap::from([
+                            (String::from("name"), vec![String::from("field_attr")]),
+                            (String::from("0"), vec![String::from("tuple_field_attr")]),
+                        ])),
+                        variants: Some(BTreeMap::from([(
+                            String::from("Baz"),
+                            VariantAttributes {
+                                attributes: Some(vec![String::from("variant_attr")]),
+                                fields: Some(BTreeMap::from([(
+                                    String::from("value"),
+                                    vec![String::from("variant_field_attr")],
+                                )])),
+                            },
+                        )])),
+                    }),
                 }]),
                 append: None,
+                attribute: None,
             }),
         };
 
         assert_eq!(spec, expected);
+    }
+
+    #[test]
+    fn test_parsing_derive_rejects_legacy_attribute_list() {
+        let spec = toml::from_str::<Spec>(
+            r#"
+[[patch.derive]]
+path = "foo.rs"
+type = "Foo"
+trait = "Bar"
+attributes = ["baz()"]
+"#,
+        );
+
+        assert!(spec.is_err());
+    }
+
+    #[test]
+    fn test_parsing_attribute_shorthand() {
+        assert!(parse_attributes(&[String::from("variant_attr")]).is_ok());
+        assert!(parse_attributes(&[String::from("default")]).is_ok());
+        assert!(parse_attributes(&[String::from("foo(123)")]).is_ok());
+        assert!(parse_attributes(&[String::from("#[bar = \"baz\"]")]).is_ok());
     }
 }

@@ -13,6 +13,8 @@ use std::path::Path;
 mod actions;
 pub mod crate_info;
 pub mod error;
+/// Rust-style AST target paths used by injection patches.
+pub(crate) mod rspath;
 pub mod spec;
 
 /// The injector coordinates the modification of a crate following a spec.
@@ -35,10 +37,7 @@ impl<'s, 'c> Injector<'s, 'c> {
                 source_name.to_owned(),
                 source_version.clone(),
             )),
-            SpecMatch::One(spec) => Ok(Self {
-                source,
-                spec,
-            }),
+            SpecMatch::One(spec) => Ok(Self { source, spec }),
             SpecMatch::Ambiguous(specs) => Err(Error::TooManyValidSpec(
                 source_name.to_owned(),
                 source_version.clone(),

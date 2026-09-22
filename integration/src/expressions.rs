@@ -72,7 +72,7 @@ macro_rules! __impl_expression_support {
             }
 
             fn challenge(
-                challenge: <Self as haloumi_core::expressions::ExpressionTypes>::Challenge,
+                challenge: <Self as $crate::core::expressions::ExpressionTypes>::Challenge,
             ) -> Self {
                 Self::Challenge(challenge)
             }

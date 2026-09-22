@@ -22,7 +22,7 @@ impl InjectAction for AppendAction<'_> {
     fn apply(&self, dest_crate: &mut CrateMut) -> Result<(), Error> {
         let file = dest_crate.open_rust_file(self.append.path())?;
         let contents = self.append.content()?;
-        file.items.push(contents);
+        file.items.extend(contents);
         Ok(())
     }
 }

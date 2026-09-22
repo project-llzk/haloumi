@@ -4,6 +4,7 @@ use crate::{crate_info::CrateMut, error::Error};
 
 pub mod add_dep;
 pub mod append;
+pub mod attribute;
 pub mod derive;
 
 /// An inject action performed by the injector.

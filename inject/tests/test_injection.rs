@@ -102,11 +102,23 @@ fn test_inject1(_setup: (), dest: DestFixture, specs: SpecRegistry) {
         "src/foo.rs",
         r#"
             #[derive(Debug)]
-            pub struct Foo {
-                a: usize,
+            #[type_attr]
+            pub struct Foo<#[lifetime_attr] 'a, #[type_param_attr] T, #[const_param_attr] const N: usize,> {
+                #[field_attr]
+                #[standalone_attr]
+                a: &'a T,
             }
 
             pub struct Bar;
+
+            #[derive(Debug)]
+            pub struct Tuple(#[tuple_field_attr] pub usize);
+
+            #[derive(Debug)]
+            pub union Union {
+                #[union_field_attr]
+                pub value: usize,
+            }
         "#,
     );
     dest.rust_file_contents_eq(
@@ -116,8 +128,18 @@ fn test_inject1(_setup: (), dest: DestFixture, specs: SpecRegistry) {
             #[foo(123)]
             #[bar = "baz"]
             pub enum Bar {
+                #[variant_attr]
                 X,
                 Y,
+            }
+
+            #[derive(Debug)]
+            pub enum Fields {
+                Tuple(#[tuple_variant_field_attr] usize),
+                Named {
+                    #[named_variant_field_attr]
+                    value: usize
+                },
             }
         "#,
     );

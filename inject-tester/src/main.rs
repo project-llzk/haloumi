@@ -17,6 +17,7 @@ struct Args {
 }
 
 fn main() -> anyhow::Result<()> {
+    env_logger::init();
     let args = Args::parse();
     let registry = SpecRegistry::load(&args.spec)?;
     let source = Crate::open(&args.source)?;

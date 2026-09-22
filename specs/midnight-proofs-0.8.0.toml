@@ -1,0 +1,298 @@
+[targets]
+midnight-proofs = ">= 0.8.0"
+
+[dependencies]
+haloumi-integration = { path = "/Users/foldr/code/veridise/llzk/haloumi/integration/"}
+
+###-------------------------------------------------------------------------------###
+### src/circuit/floor_planner/single_pass.rs
+###-------------------------------------------------------------------------------###
+
+[[patch.derive]]
+path = "src/circuit/floor_planner/single_pass.rs"
+type = "SingleChipLayouter"
+trait = "haloumi_integration::RegionsGroupHooks"
+
+###-------------------------------------------------------------------------------###
+### src/circuit/floor_planner/v1.rs
+###-------------------------------------------------------------------------------###
+
+[[patch.derive]]
+path = "src/circuit/floor_planner/v1.rs"
+type = "V1Pass"
+trait = "haloumi_integration::RegionsGroupHooks"
+
+###-------------------------------------------------------------------------------###
+### src/circuit/mod.rs
+###-------------------------------------------------------------------------------###
+
+[[patch.append]]
+path = "src/circuit/mod.rs"
+content = """
+haloumi_integration::__impl_from_region_index_for_haloumi_region_index!(RegionIndex);
+
+haloumi_integration::__impl_from_cell_for_haloumi_cell!(Cell);
+
+haloumi_integration::__impl_from_cell_for_asigned_cell!(AssignedCell, ff::Field);
+haloumi_integration::__impl_advice_copy_for_assigned_cell!(
+    AssignedCell,
+    ff::Field,
+    crate::ExtractionSupport,
+    Region,
+    Column<Advice>,
+    Error,
+    Rational
+);
+
+impl<V, F: ff::PrimeField> haloumi_integration::circuit::io::CellReprSize for AssignedCell<V, F> {
+    const SIZE: usize = 1;
+}
+
+
+impl<V, F, C, L> haloumi_integration::circuit::io::load::LoadFromCells<F, C, crate::ExtractionSupport, L>
+    for AssignedCell<V, F>
+where
+    F: ff::PrimeField,
+    V: Clone,
+    Rational<F>: for<'v> From<&'v V>,
+{
+    fn load(
+        ctx: &mut haloumi_integration::circuit::io::ctx::ICtx<F, crate::ExtractionSupport>,
+        _: &C,
+        layouter: &mut impl haloumi_integration::circuit::io::ctx::LayoutHelper<
+            F,
+            crate::ExtractionSupport,
+            Adaptee = L,
+        >,
+        _: &mut haloumi_integration::ir::inject::InjectedIR<
+            RegionIndex,
+            crate::plonk::Expression<F>,
+        >,
+    ) -> Result<Self, Error> {
+        ctx.assign_next(layouter)
+    }
+}
+
+impl<V, F: ff::PrimeField, C, L>
+    haloumi_integration::circuit::io::store::StoreIntoCells<F, C, crate::ExtractionSupport, L>
+    for AssignedCell<V, F>
+{
+    fn store(
+        self,
+        ctx: &mut haloumi_integration::circuit::io::ctx::OCtx<F, crate::ExtractionSupport>,
+        _: &C,
+        layouter: &mut impl haloumi_integration::circuit::io::ctx::LayoutHelper<
+            F,
+            crate::ExtractionSupport,
+            Adaptee = L,
+        >,
+        _: &mut haloumi_integration::ir::inject::InjectedIR<
+            RegionIndex,
+            crate::plonk::Expression<F>,
+        >,
+    ) -> Result<(), Error> {
+        ctx.assign_next(self, layouter)
+    }
+}
+
+
+haloumi_integration::__impl_from_region_adaptor!(Region, layouter::RegionLayouter, Field, Error);
+
+haloumi_integration::__impl_layouter_adaptor!(
+    Layouter,
+    layouter::RegionLayouter,
+    TableLayouter,
+    Field,
+    Error,
+    Region,
+    Table,
+    Value,
+    Cell,
+    Column<Instance>,
+    Challenge
+);
+haloumi_integration::__impl_region_layouter_adaptor!(
+    layouter::RegionLayouter,
+    Field,
+    Error,
+    Value,
+    Rational,
+    Cell,
+    Column<Instance>,
+    Column<Advice>,
+    Column<Fixed>,
+    Column<Any>,
+    Selector
+);
+haloumi_integration::__impl_table_layouter_adaptor!(
+    TableLayouter,
+    Field,
+    Error,
+    Value,
+    Rational,
+    TableColumn,
+);
+
+"""
+
+[[patch.derive]]
+path = "src/circuit/mod.rs"
+type = "Cell"
+trait = "haloumi_integration::DecomposeInCells"
+attributes.type = ["cell(Self)"]
+
+[[patch.derive]]
+path = "src/circuit/mod.rs"
+type = "AssignedCell"
+trait = "haloumi_integration::DecomposeInCells"
+attributes.fields.value = ["skip"]
+
+[[patch.attribute]]
+path = "src/circuit/mod.rs"
+target = "Layouter"
+attributes = ["haloumi_integration::require_group_hooks"]
+
+[[patch.derive]]
+path = "src/circuit/mod.rs"
+type = "NamespacedLayouter"
+trait = "haloumi_integration::RegionsGroupHooks"
+attributes.fields = { "0" = ["delegate", "root"] }
+
+###-------------------------------------------------------------------------------###
+### src/dev/tfp.rs
+###-------------------------------------------------------------------------------###
+
+[[patch.derive]]
+path = "src/dev/tfp.rs"
+type = "TracingLayouter"
+trait = "haloumi_integration::RegionsGroupHooks"
+attributes.fields.layouter = ["delegate"] 
+
+###-------------------------------------------------------------------------------###
+### src/plonk/circuit.rs
+###-------------------------------------------------------------------------------###
+
+[[patch.append]]
+path = "src/plonk/circuit.rs"
+content = """
+haloumi_integration::__impl_column_support!(ColumnType, Column, Any, Instance, Advice, Fixed);
+haloumi_integration::__impl_root_auto_configure_impl!(
+    Column<Fixed>,
+    fixed_column,
+    crate::plonk::ConstraintSystem,
+    ff::Field
+);
+haloumi_integration::__impl_root_auto_configure_impl!(
+    Column<Instance>,
+    instance_column,
+    crate::plonk::ConstraintSystem,
+    ff::Field
+);
+haloumi_integration::__impl_root_auto_configure_impl!(
+    Column<Advice>,
+    advice_column,
+    crate::plonk::ConstraintSystem,
+    ff::Field
+);
+haloumi_integration::__impl_root_auto_configure_impl!(
+    TableColumn,
+    lookup_table_column,
+    crate::plonk::ConstraintSystem,
+    ff::Field
+);
+"""
+
+[[patch.derive]]
+path = "src/plonk/circuit.rs"
+type = "Selector"
+trait = "haloumi_integration::SelectorInfo"
+
+[[patch.derive]]
+path = "src/plonk/circuit.rs"
+type = "FixedQuery"
+trait = "haloumi_integration::QueryInfo"
+attributes.type = ["kind(Fixed)"]
+
+[[patch.derive]]
+path = "src/plonk/circuit.rs"
+type = "FixedQuery"
+trait = "haloumi_integration::CreateQuery"
+attributes.type = ["new(Fixed)"]
+
+[[patch.derive]]
+path = "src/plonk/circuit.rs"
+type = "AdviceQuery"
+trait = "haloumi_integration::QueryInfo"
+attributes.type = ["kind(Advice)"]
+
+[[patch.derive]]
+path = "src/plonk/circuit.rs"
+type = "AdviceQuery"
+trait = "haloumi_integration::CreateQuery"
+attributes.type = ["new(Advice::default())"]
+
+[[patch.derive]]
+path = "src/plonk/circuit.rs"
+type = "InstanceQuery"
+trait = "haloumi_integration::QueryInfo"
+attributes.type = ["kind(Instance)"]
+
+[[patch.derive]]
+path = "src/plonk/circuit.rs"
+type = "InstanceQuery"
+trait = "haloumi_integration::CreateQuery"
+attributes.type = ["new(Instance)"]
+
+[[patch.derive]]
+path = "src/plonk/circuit.rs"
+type = "Challenge"
+trait = "haloumi_integration::ChallengeInfo"
+
+[[patch.derive]]
+path = "src/plonk/circuit.rs"
+type = "Expression"
+trait = "haloumi_integration::Expression"
+
+[[patch.derive]]
+path = "src/plonk/circuit.rs"
+type = "Gate"
+trait = "haloumi_integration::GateInfo"
+
+[[patch.derive]]
+path = "src/plonk/circuit.rs"
+type = "ConstraintSystem"
+trait = "haloumi_integration::ConstraintSystemInfo"
+
+###-------------------------------------------------------------------------------###
+### src/plonk/error.rs
+###-------------------------------------------------------------------------------###
+
+[[patch.append]]
+path = "src/plonk/error.rs"
+content = """
+haloumi_integration::__impl_into_and_from_error!(Error, |value| Self::Transcript(
+    std::io::Error::other(value)
+));
+"""
+
+###-------------------------------------------------------------------------------###
+### src/lib.rs
+###-------------------------------------------------------------------------------###
+
+[[patch.append]]
+path = "src/lib.rs"
+content = """
+haloumi_integration::__impl_types_trait!(
+    ExtractionSupport,
+    ff::Field,
+    crate::plonk::Column<crate::plonk::Instance>,
+    crate::plonk::Column<crate::plonk::Advice>,
+    crate::circuit::Cell,
+    crate::circuit::AssignedCell,
+    crate::circuit::Region,
+    crate::plonk::Error,
+    crate::circuit::RegionIndex,
+    crate::plonk::Expression,
+    crate::utils::rational::Rational
+);
+"""

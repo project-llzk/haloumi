@@ -164,7 +164,7 @@ impl Config {
         let extractor = source.and_then(|source| source.data.extractor.as_ref());
         let name = extractor
             .and_then(|value| value.name.clone())
-            .unwrap_or_else(|| "haloumi-extractor".into());
+            .unwrap_or_else(|| "haloumi-extractor-runner".into());
         let mut dependency = extractor
             .and_then(|value| value.dependency.clone())
             .unwrap_or_else(|| {

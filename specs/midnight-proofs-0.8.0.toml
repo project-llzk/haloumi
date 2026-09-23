@@ -44,12 +44,22 @@ haloumi_integration::__impl_advice_copy_for_assigned_cell!(
     Rational
 );
 
-impl<V, F: ff::PrimeField> haloumi_integration::circuit::io::CellReprSize for AssignedCell<V, F> {
+use haloumi_integration::core::table::CellReprSize;
+use haloumi_integration::extractor::core::io::{
+load::LoadFromCells,
+store::StoreIntoCells,
+ctx::input::ICtx,
+ctx::output::OCtx
+};
+use haloumi_integration::core::layouter::{LayoutAdaptor, Layouter as HaloumiLayouter};
+use haloumi_integration::ir::inject::InjectedIR;
+
+impl<V, F: ff::PrimeField> CellReprSize for AssignedCell<V, F> {
     const SIZE: usize = 1;
 }
 
 
-impl<V, F, C, L> haloumi_integration::circuit::io::load::LoadFromCells<F, C, crate::ExtractionSupport, L>
+impl<V, F, C> LoadFromCells<F, C, crate::ExtractionSupport>
     for AssignedCell<V, F>
 where
     F: ff::PrimeField,
@@ -57,14 +67,10 @@ where
     Rational<F>: for<'v> From<&'v V>,
 {
     fn load(
-        ctx: &mut haloumi_integration::circuit::io::ctx::ICtx<F, crate::ExtractionSupport>,
+        ctx: &mut ICtx<F, crate::ExtractionSupport>,
         _: &C,
-        layouter: &mut impl haloumi_integration::circuit::io::ctx::LayoutHelper<
-            F,
-            crate::ExtractionSupport,
-            Adaptee = L,
-        >,
-        _: &mut haloumi_integration::ir::inject::InjectedIR<
+        layouter: &mut LayoutAdaptor<'_, impl HaloumiLayouter<F, Error>>,
+        _: &mut InjectedIR<
             RegionIndex,
             crate::plonk::Expression<F>,
         >,
@@ -73,20 +79,15 @@ where
     }
 }
 
-impl<V, F: ff::PrimeField, C, L>
-    haloumi_integration::circuit::io::store::StoreIntoCells<F, C, crate::ExtractionSupport, L>
+impl<V, F: ff::PrimeField, C> StoreIntoCells<F, C, crate::ExtractionSupport>
     for AssignedCell<V, F>
 {
     fn store(
         self,
-        ctx: &mut haloumi_integration::circuit::io::ctx::OCtx<F, crate::ExtractionSupport>,
+        ctx: &mut OCtx<F, crate::ExtractionSupport>,
         _: &C,
-        layouter: &mut impl haloumi_integration::circuit::io::ctx::LayoutHelper<
-            F,
-            crate::ExtractionSupport,
-            Adaptee = L,
-        >,
-        _: &mut haloumi_integration::ir::inject::InjectedIR<
+        layouter: &mut LayoutAdaptor<'_, impl HaloumiLayouter<F, Error>>,
+        _: &mut InjectedIR<
             RegionIndex,
             crate::plonk::Expression<F>,
         >,

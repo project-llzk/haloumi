@@ -3,7 +3,10 @@
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]
 
-use std::ffi::{OsStr, OsString};
+use std::{
+    ffi::{OsStr, OsString},
+    path::PathBuf,
+};
 
 use clap::Parser;
 
@@ -15,6 +18,9 @@ use app::App;
 #[derive(Debug, Parser)]
 #[command(name = "cargo-haloumi", bin_name = "cargo-haloumi")]
 struct Args {
+    /// Root directory of the Cargo project to extract.
+    #[arg(long)]
+    root: Option<PathBuf>,
     /// Workspace package to extract.
     #[arg(short = 'p', long)]
     package: Option<String>,
@@ -37,11 +43,24 @@ enum Error {
 }
 
 fn main() {
-    let root = std::env::current_dir().expect("current directory must be available");
-    if let Err(error) = App::new(root, parse_args(std::env::args_os())).and_then(App::run) {
+    env_logger::init();
+    let args = parse_args(std::env::args_os());
+    if let Err(error) = resolve_root(&args)
+        .and_then(|root| App::new(root, args))
+        .and_then(App::run)
+    {
         eprintln!("cargo-haloumi: {error}");
         std::process::exit(1);
     }
+}
+
+fn resolve_root(args: &Args) -> Result<PathBuf, Error> {
+    let current = std::env::current_dir()?;
+    Ok(match &args.root {
+        Some(root) if root.is_absolute() => root.clone(),
+        Some(root) => current.join(root),
+        None => current,
+    })
 }
 
 fn parse_args(args: impl IntoIterator<Item = OsString>) -> Args {

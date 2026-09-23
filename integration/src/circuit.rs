@@ -1,112 +1,56 @@
 //! Integration of circuits with Haloumi.
 
 pub mod config;
-pub mod io;
 
-use ff::PrimeField;
-use haloumi_core::{
-    groups::RegionsGroupHooks,
-    layouter::{LayoutAdaptor, Layouter},
-    table::RegionIndex,
-};
-use haloumi_ir::inject::InjectedIR;
-
-use crate::circuit::{
-    config::AutoConfigure,
-    io::{CellReprSize, ctx::InputDescr},
-};
-
-/// Trait for configuring the arguments of a chip.
-///
-/// If the chip has no arguments the type should be `()`. In that case the type
-/// can implement [`NoChipArgs`] which will automatically implement this trait
-/// with that type.
-pub trait ChipArgs {
-    /// Type of the arguments taken by the chip.
-    type Args: Default;
-
-    /// Returns an instance of the arguments.
-    fn chip_args(&self) -> Self::Args {
-        Default::default()
-    }
+/// Implements [`AdviceCopy`] for an assigned cell type.
+#[macro_export]
+macro_rules! __impl_advice_copy_for_assigned_cell {
+    ($($assigned_cell:ident)::+, $field:path, $types:ty, $($region:ident)::+, $advice_col:ty, $error:ty, $($rational:ident)::+) => {
+        impl<F: $field, V: Clone> $crate::core::query::AdviceCopy<V, F, $types> for $($assigned_cell)::+<V, F>
+        where
+            for<'v> $($rational)::+<F>: From<&'v V>,
+        {
+            fn copy_advice_helper(
+                &self,
+                region: &mut $($region)::+<'_, F>,
+                advice_col: $advice_col,
+                advice_row: usize,
+            ) -> Result<Self, $error> {
+                self.copy_advice(|| "", region, advice_col, advice_row)
+            }
+        }
+    };
 }
 
-/// Trait for configuring [`ChipArgs`] for types that don't have arguments.
-///
-/// Sets the type of the arguments to `()`.
-pub trait NoChipArgs {}
+//pub mod io;
 
-impl<T> ChipArgs for T
-where
-    T: NoChipArgs,
-{
-    type Args = ();
-}
-
-/// Adaptor trait for integrating chips with the extractor.
-pub trait ExtraibleChip<L> {
-    /// Configuration of the circuit.
-    type Config: Clone + std::fmt::Debug;
-    /// Arguments required by the circuit.
-    type Args: Default;
-    /// Configuration columns of the circuit.
-    type ConfigCols: Clone + std::fmt::Debug + AutoConfigure<Self::CS>;
-    /// Constrait system.
-    type CS;
-    /// Error type.
-    type Error;
-
-    /// Creates a new instance of the chip.
-    fn new_chip(config: &Self::Config, args: Self::Args) -> Self;
-
-    /// Creates an instance of the chip's configuration.
-    fn configure_circuit(meta: &mut Self::CS, columns: &Self::ConfigCols) -> Self::Config;
-
-    /// Loads internal information of the chip.
-    fn load_chip(&self, layouter: &mut L, config: &Self::Config) -> Result<(), Self::Error>;
-}
-
-/// Super trait for extracting IO from an abstract circuit.
-pub trait AbstractCircuitIO {
-    /// Type that implements the main logic.
-    type Chip;
-    /// Input type of the chip.
-    type Input: CellReprSize;
-    /// Output type of the chip.
-    type Output: CellReprSize;
-    /// Configuration of the circuit.
-    type Config: Clone + std::fmt::Debug;
-    /// Configuration columns of the circuit.
-    type ConfigCols: Clone + std::fmt::Debug;
-}
-
-/// Main trait for defining harness that return a value.
-///
-/// The actual logic of the circuit is defined in an implementation of this trait with the circuit
-/// implementation struct acting as scaffolding and glue.
-///
-/// For harnesses that return `()` see [`AbstractUnitCircuit`].
-pub trait AbstractCircuit<F: PrimeField>: AbstractCircuitIO {
-    /// Error type.
-    type Error;
-    /// Expression type.
-    type Expression;
-    /// Cell type used by the circuit implementation.
-    type Cell;
-    /// Region index type.
-    type RegionIndex;
-
-    /// Runs the circuit's main logic.
-    fn synthesize<L>(
-        &self,
-        chip: &Self::Chip,
-        layouter: &mut LayoutAdaptor<L>,
-        input: Self::Input,
-        injected_ir: &mut InjectedIR<Self::RegionIndex, Self::Expression>,
-    ) -> Result<Self::Output, Self::Error>
-    where
-        L: Layouter<F, Self::Error> + RegionsGroupHooks<F, Self::Cell, Error = Self::Error>;
-}
+///// Main trait for defining harness that return a value.
+/////
+///// The actual logic of the circuit is defined in an implementation of this trait with the circuit
+///// implementation struct acting as scaffolding and glue.
+/////
+///// For harnesses that return `()` see [`AbstractUnitCircuit`].
+//pub trait AbstractCircuit<F: PrimeField>: AbstractCircuitIO {
+//    /// Error type.
+//    type Error;
+//    /// Expression type.
+//    type Expression;
+//    /// Cell type used by the circuit implementation.
+//    type Cell;
+//    /// Region index type.
+//    type RegionIndex;
+//
+//    /// Runs the circuit's main logic.
+//    fn synthesize<L>(
+//        &self,
+//        chip: &Self::Chip,
+//        layouter: &mut LayoutAdaptor<L>,
+//        input: Self::Input,
+//        injected_ir: &mut InjectedIR<Self::RegionIndex, Self::Expression>,
+//    ) -> Result<Self::Output, Self::Error>
+//    where
+//        L: Layouter<F, Self::Error> + RegionsGroupHooks<F, Self::Cell, Error = Self::Error>;
+//}
 
 ///// Main trait for defining harness that return a value.
 /////

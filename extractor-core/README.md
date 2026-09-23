@@ -1,0 +1,3 @@
+# haloumi-extractor-core
+
+TODO

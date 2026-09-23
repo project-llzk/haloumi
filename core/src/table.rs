@@ -5,6 +5,7 @@
 use std::{marker::PhantomData, ops::Deref};
 
 use ff::Field;
+use num_bigint::BigUint;
 use thiserror::Error;
 
 use crate::{
@@ -258,7 +259,7 @@ impl From<usize> for RegionStart {
 }
 
 /// Errors related to the PLONK table.
-#[derive(Error, Copy, Clone, Debug)]
+#[derive(Error, Clone, Debug)]
 pub enum TableError {
     /// Unexpected column type when Fixed was expected.
     #[error("Expected Any::Fixed. Got {0:?}")]
@@ -269,6 +270,18 @@ pub enum TableError {
     /// Unexpected column type when Instance was expected.
     #[error("Expected Any::Instance. Got {0:?}")]
     ExpectedInstance(Any),
+    /// A `TableColumn` has not been assigned.
+    #[error("{0:?} not fully assigned. Help: assign a value at offset 0.")]
+    ColumnNotAssigned(Column<Fixed>),
+    /// A Table has columns of uneven lengths.
+    #[error("{0:?} has length {1} while {2:?} has length {3}")]
+    UnevenColumnLengths(Column<Fixed>, usize, Column<Fixed>, usize),
+    /// Attempt to assign a used `TableColumn`
+    #[error("{0:?} has already been used")]
+    UsedColumn(Column<Fixed>),
+    /// Attempt to overwrite a default value
+    #[error("Attempted to overwrite default value {1} with {2} in {0:?}")]
+    OverwriteDefault(Column<Fixed>, String, String),
 }
 
 /// Implementations of this trait represent complex types that aggregate a
@@ -379,3 +392,50 @@ macro_rules! tuple_impl {
 }
 
 tuple_impl!();
+
+/// Trait for defining how many cells in a circuit's table a type would take.
+pub trait CellReprSize {
+    /// Number of cells the type occupies.
+    const SIZE: usize;
+}
+
+impl<const N: usize, T: CellReprSize> CellReprSize for [T; N] {
+    const SIZE: usize = N * T::SIZE;
+}
+
+macro_rules! zero_size_repr {
+    ($t:ty) => {
+        impl CellReprSize for $t {
+            const SIZE: usize = 0;
+        }
+    };
+}
+
+zero_size_repr!(bool);
+zero_size_repr!(u8);
+zero_size_repr!(usize);
+zero_size_repr!(BigUint);
+
+macro_rules! tuple_size {
+    () => {
+        impl CellReprSize for () {
+            const SIZE: usize =  0;
+        }
+    };
+    ($h:ident $(,$t:ident)* $(,)?) => {
+        tuple_size!($( $t, )*);
+
+        impl<$h, $( $t, )*> CellReprSize for (
+                $h, $( $t, )*
+            )
+        where
+            $h: CellReprSize,
+            $( $t: CellReprSize, )*
+        {
+            const SIZE: usize = $h::SIZE + $( $t::SIZE + )* 0;
+
+        }
+    };
+}
+
+tuple_size!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12);

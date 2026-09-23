@@ -5,27 +5,23 @@ use std::{cell::RefCell, marker::PhantomData};
 use configuration::Config;
 use ff::{Field, PrimeField};
 use haloumi_core::{
+    circuit::{AbstractCircuitIO, ChipArgs, ExtraibleChip},
     expressions::{EvaluableExpr, ExpressionInfo},
     groups::RegionsGroupHooks,
     info_traits::ConstraintSystemInfo,
+    io::table::InputDescr,
     layouter::{LayoutAdaptor, Layouter},
     query::Fixed,
-    table::{Column, RegionIndex},
+    table::{CellReprSize, Column, RegionIndex},
+    types::Types,
 };
-use haloumi_driver::ir::{inject::InjectedIR, stmt::IRStmt};
-use haloumi_integration::{
-    Types,
-    circuit::{
-        AbstractCircuit, AbstractCircuitIO, ChipArgs, ExtraibleChip,
-        io::{
-            CellReprSize,
-            ctx::{ICtx, InputDescr, OCtx},
-            layouter::AdaptsLayouter,
-            load::LoadFromCells,
-            store::StoreIntoCells,
-        },
-    },
+
+use haloumi_extractor_core::io::{
+    ctx::{input::ICtx, output::OCtx},
+    load::LoadFromCells,
+    store::StoreIntoCells,
 };
+use haloumi_ir::{inject::InjectedIR, stmt::IRStmt};
 use haloumi_ir_gen::expressions::ExpressionInRow;
 use haloumi_synthesis::{
     CircuitSynthesis,
@@ -38,6 +34,34 @@ use crate::{circuit::layouter::ExtractionLayouter, extractor::InjectedIRPolicy};
 
 mod configuration;
 mod layouter;
+
+/// Main trait for defining harness that return a value.
+///
+/// The actual logic of the circuit is defined in an implementation of this trait with the circuit
+/// implementation struct acting as scaffolding and glue.
+///
+/// For harnesses that return `()` see [`AbstractUnitCircuit`].
+pub trait AbstractCircuit<F: PrimeField>: AbstractCircuitIO {
+    /// Error type.
+    type Error;
+    /// Expression type.
+    type Expression;
+    /// Cell type used by the circuit implementation.
+    type Cell;
+    /// Region index type.
+    type RegionIndex;
+
+    /// Runs the circuit's main logic.
+    fn synthesize<L>(
+        &self,
+        chip: &Self::Chip,
+        layouter: &mut LayoutAdaptor<L>,
+        input: Self::Input,
+        injected_ir: &mut InjectedIR<Self::RegionIndex, Self::Expression>,
+    ) -> Result<Self::Output, Self::Error>
+    where
+        L: Layouter<F, Self::Error> + RegionsGroupHooks<F, Self::Cell, Error = Self::Error>;
+}
 
 /// Marker for function harnesses.
 #[derive(Debug)]
@@ -157,13 +181,12 @@ where
         do_ir_injection: bool,
     ) -> Result<Load, T::Error>
     where
-        Load: LoadFromCells<F, C::Chip, T, L>,
+        Load: LoadFromCells<F, C::Chip, T>,
         C: AbstractCircuitIO + ChipArgs,
         //C::Chip: ExtraibleChip<LayoutAdaptor<'l, L>, Args = C::Args, Error = T::Error>,
         L: Layouter<F, T::Error> + 's,
         T: Types<F>,
     {
-        let mut layouter = AdaptsLayouter::new(layouter);
         let mut injected_ir = self.injected_ir.borrow_mut();
         let mut dummy_injected_ir = InjectedIR::default();
         Load::load(
@@ -178,7 +201,7 @@ where
                 self.constants,
             ),
             chip,
-            &mut layouter,
+            layouter,
             if do_ir_injection {
                 &mut injected_ir
             } else {
@@ -194,7 +217,7 @@ where
         layouter: &mut LayoutAdaptor<'l, L>,
     ) -> Result<C::Input, T::Error>
     where
-        C::Input: LoadFromCells<F, C::Chip, T, L>,
+        C::Input: LoadFromCells<F, C::Chip, T>,
         C: AbstractCircuitIO + ChipArgs,
         //C::Chip: ExtraibleChip<LayoutAdaptor<'l, L>, Args = C::Args, Error = T::Error>,
         L: Layouter<F, T::Error> + 's,
@@ -212,12 +235,11 @@ where
         layouter: &mut LayoutAdaptor<L>,
     ) -> Result<(), T::Error>
     where
-        C::Output: StoreIntoCells<F, C::Chip, T, L>,
+        C::Output: StoreIntoCells<F, C::Chip, T>,
         C: AbstractCircuitIO + ChipArgs,
         //C::Chip: ExtraibleChip<LayoutAdaptor<'l, L>, Args = C::Args, Error = T::Error>,
         L: Layouter<F, T::Error> + 's,
     {
-        let mut layouter = AdaptsLayouter::new(layouter);
         let outputs = config.outputs();
         // Store the results
         let n_outputs = outputs.len();
@@ -232,7 +254,7 @@ where
                     .map(|(_, o)| o),
             ),
             chip,
-            &mut layouter,
+            layouter,
             match self.injected_ir_policy {
                 InjectedIRPolicy::AllowAll => &mut injected_ir,
                 InjectedIRPolicy::DisallowForOutputs => &mut dummy_injected_ir,
@@ -259,8 +281,8 @@ where
             Expression = E,
             RegionIndex = T::RegionIndex,
         > + ChipArgs,
-    I: CellReprSize + LoadFromCells<F, C::Chip, T, ExtractionLayouter<'s, F, T::Error>>,
-    O: CellReprSize + StoreIntoCells<F, C::Chip, T, ExtractionLayouter<'s, F, T::Error>>,
+    I: CellReprSize + LoadFromCells<F, C::Chip, T>,
+    O: CellReprSize + StoreIntoCells<F, C::Chip, T>,
     C::Chip: for<'l> ExtraibleChip<
             LayoutAdaptor<'l, ExtractionLayouter<'s, F, T::Error>>,
             Args = C::Args,

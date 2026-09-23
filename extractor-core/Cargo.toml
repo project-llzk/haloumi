@@ -1,0 +1,21 @@
+[package]
+name = "haloumi-extractor-core"
+description = "Haloumi's extraction core types."
+categories = {workspace = true}
+version = {workspace = true}
+authors = {workspace = true}
+edition = {workspace = true}
+rust-version = {workspace = true}
+readme = "README.md"
+repository = {workspace = true}
+license-file = {workspace = true}
+keywords = {workspace = true}
+
+[dependencies]
+haloumi-ir-gen = { path = "../ir-gen/" }
+haloumi-ir = { path = "../ir/" }
+haloumi-synthesis = { path = "../synthesis/" }
+haloumi-core = { path = "../core/" }
+ff.workspace = true
+thiserror.workspace = true
+num-bigint.workspace = true

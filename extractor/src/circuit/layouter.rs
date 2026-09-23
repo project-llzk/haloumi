@@ -8,6 +8,7 @@ use std::{
 };
 
 use ff::Field;
+use haloumi_core::{error::Error, table::TableError};
 use haloumi_core::{
     groups::{GroupKey, GroupKeyInstance, RegionsGroup, RegionsGroupHooks},
     info_traits::SelectorInfo,
@@ -16,7 +17,6 @@ use haloumi_core::{
     synthesis::SynthesizerLike,
     table::{Any, Cell, Column, RegionIndex, RegionStart},
 };
-use haloumi_integration::error::{Error, TableError};
 use haloumi_synthesis::synthesizer::Synthesizer;
 
 /// A Haloumi layouter that records assignments in a [`Synthesizer`].

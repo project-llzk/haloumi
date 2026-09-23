@@ -22,12 +22,11 @@ haloumi-ir-gen = { path = "../ir-gen" }
 haloumi-synthesis = { path = "../synthesis" }
 haloumi-integration-macros = { path = "../integration-macros" }
 haloumi-extractor = { path = "../extractor/", optional = true }
+haloumi-extractor-core = { path = "../extractor-core/" }
 
-anyhow = { version = "1", optional = true }
-inventory = { version = "0.3", optional = true }
 
 [dev-dependencies]
 rstest = "0"
 
 [features]
-extractor = ["dep:anyhow", "dep:inventory", "dep:haloumi-extractor"]
+extractor = ["dep:haloumi-extractor"]

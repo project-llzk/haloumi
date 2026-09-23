@@ -1,86 +1,6 @@
 //! Error type for the support crate.
 
-use std::{fmt, num::ParseIntError, str::ParseBoolError, sync::Arc};
-
-use haloumi_core::{
-    query::Fixed,
-    table::{Any, Column},
-};
-use num_bigint::{BigInt, ParseBigIntError, TryFromBigIntError};
-use thiserror::Error;
-
-/// Error type.
-#[derive(Error, Debug)]
-pub enum Error {
-    /// Parsing error while loading a field element from a string.
-    #[error("Failure while parsing field element")]
-    FieldParsingError,
-    /// The circuit requested more constants than provided.
-    #[error("Not enough constants")]
-    NotEnoughConstants,
-    /// The circuit did not declare enough cells for input or output.
-    #[error("IO cell iterator was exhausted")]
-    NotEnoughIOCells,
-    /// Integer parse error.
-    #[error("Parse failure")]
-    IntParse(#[from] ParseIntError),
-    /// Boolean parse error.
-    #[error("Parse failure")]
-    BoolParse(#[from] ParseBoolError),
-    /// BigUint parse error.
-    #[error("Parse failure")]
-    BigUintParse(#[from] ParseBigIntError),
-    /// Plonk synthesis error.
-    #[error("Synthesis error")]
-    Plonk(Arc<dyn std::error::Error>),
-    /// An error represented with an static string.
-    #[error("Error")]
-    StrError(&'static str),
-    /// Int cast error.
-    #[error(transparent)]
-    IntCast(#[from] std::num::TryFromIntError),
-    /// Big int cast error.
-    #[error(transparent)]
-    BigIntCast(#[from] TryFromBigIntError<BigInt>),
-    /// Error when an encountered an unexpected number of elements.
-    #[error("{header}Was expecting {expected} elements but got {actual}")]
-    UnexpectedElements {
-        /// Context header for the error
-        header: String,
-        /// The expected number of elements.
-        expected: usize,
-        /// The number of elements.
-        actual: usize,
-    },
-    /// This is an error that could occur during table synthesis.
-    #[error(transparent)]
-    TableError(#[from] TableError),
-    /// Circuit synthesis requires global constants, but circuit configuration
-    /// did not call [`ConstraintSystem::enable_constant`] on fixed columns
-    /// with sufficient space.
-    ///
-    /// [`ConstraintSystem::enable_constant`]: crate::plonk::ConstraintSystem::enable_constant
-    #[error("Too few fixed columns are enabled for global constants usage")]
-    NotEnoughColumnsForConstants,
-    /// Raised when the default value is missing while synthesizing a table.
-    #[error("Unknown default value")]
-    MissingDefaultValue,
-    /// Raised when a table value is missing while synthesizing a table.
-    #[error("Unknown table value")]
-    MissingTableValue,
-    /// Raised when an unknown fixed value is assigned to a fixed cell.
-    #[error("Unknown fixed value assigned to cell ({0}, {1})")]
-    MissingFixedValue(usize, usize),
-}
-
-impl From<&'static str> for Error {
-    fn from(value: &'static str) -> Self {
-        Self::StrError(value)
-    }
-}
-
-unsafe impl Send for Error {}
-unsafe impl Sync for Error {}
+pub use haloumi_core::error::Error;
 
 /// This macro implements the conversion between the error types in Halo2 and Haloumi.
 #[macro_export]
@@ -98,23 +18,6 @@ macro_rules! __impl_into_and_from_error {
             }
         }
     };
-}
-
-/// This is an error that could occur during table synthesis.
-#[derive(Debug, Error)]
-pub enum TableError {
-    /// A `TableColumn` has not been assigned.
-    #[error("{0:?} not fully assigned. Help: assign a value at offset 0.")]
-    ColumnNotAssigned(Column<Fixed>),
-    /// A Table has columns of uneven lengths.
-    #[error("{0:?} has length {1} while {2:?} has length {3}")]
-    UnevenColumnLengths(Column<Fixed>, usize, Column<Fixed>, usize),
-    /// Attempt to assign a used `TableColumn`
-    #[error("{0:?} has already been used")]
-    UsedColumn(Column<Fixed>),
-    /// Attempt to overwrite a default value
-    #[error("Attempted to overwrite default value {1} with {2} in {0:?}")]
-    OverwriteDefault(Column<Fixed>, String, String),
 }
 
 /// Macro for creating [`Error::UnexpectedElements`] errors.

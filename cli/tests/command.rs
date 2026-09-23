@@ -41,7 +41,9 @@ fn cli() -> Command {
 fn direct_help_succeeds() {
     let output = cli().arg("--help").output().unwrap();
     assert!(output.status.success(), "{output:?}");
-    assert!(String::from_utf8_lossy(&output.stdout).contains("Workspace package to extract"));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Workspace package to extract"));
+    assert!(stdout.contains("Root directory of the Cargo project to extract"));
 }
 
 #[test]
@@ -128,6 +130,27 @@ fn no_configuration_creates_an_isolated_extraction_copy_without_backend_outputs(
     assert!(!temp.path().join("target/haloumi/ir").exists());
     assert!(!temp.path().join("target/haloumi/picus").exists());
     assert!(!temp.path().join("target/haloumi/llzk").exists());
+}
+
+#[test]
+fn root_runs_extraction_from_a_separate_directory() {
+    let caller = tempfile::tempdir().unwrap();
+    let root = caller.path().join("project");
+    fs::create_dir(&root).unwrap();
+    copy_directory(&fixture("extraction-root"), &root);
+
+    let output = cli()
+        .current_dir(caller.path())
+        .args(["--root", "project"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success(), "{output:?}");
+    assert!(
+        root.join("target/haloumi/.crates/extraction-root-0.1.0/src/bin/haloumi-extractor.rs")
+            .is_file()
+    );
+    assert!(!caller.path().join("target/haloumi").exists());
 }
 
 #[test]

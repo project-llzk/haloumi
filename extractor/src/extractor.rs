@@ -2,14 +2,13 @@
 
 use ff::PrimeField;
 use haloumi_core::{
+    circuit::{AbstractCircuitIO, ChipArgs},
     expressions::{EvaluableExpr, ExprBuilder, ExpressionInfo},
     info_traits::ConstraintSystemInfo,
+    types::Types,
 };
 use haloumi_driver::driver::Driver;
-use haloumi_integration::{
-    Types,
-    circuit::{AbstractCircuitIO, ChipArgs},
-};
+
 use haloumi_ir_gen::{
     IRGenParams, circuit::resolved::ResolvedIRCircuit, gates::callbacks::SimpleGateCallbacks,
     lookups::callbacks::LookupCallbacks,

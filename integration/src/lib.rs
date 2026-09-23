@@ -3,28 +3,17 @@
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]
 
-use ff::{Field, PrimeField};
-use haloumi_core::{
-    layouter::{FromRegionAdaptor, RegionAdaptor},
-    table::FromCell,
-};
+use ff::PrimeField;
+use haloumi_core::io::error::IoError;
 pub use haloumi_integration_macros::*;
 use num_bigint::{BigInt, BigUint};
 use num_traits::{Num as _, Signed as _};
 
-use crate::{
-    circuit::io::layouter::AdviceCopy,
-    core::{
-        query::{Advice, Instance},
-        table::{Cell, Column, DecomposeIn},
-    },
-    error::Error,
-};
+use crate::error::Error;
 
 pub mod circuit;
 pub mod error;
 pub mod expressions;
-#[cfg(feature = "extractor")]
 pub mod extractor;
 pub mod groups;
 pub mod info_traits;
@@ -48,34 +37,7 @@ pub mod synthesis {
     pub use haloumi_synthesis::*;
 }
 
-/// This trait defines the halo2 types required by this crate.
-/// An implementation of halo2 compatible with this crate must have
-/// some type that implements this trait s.t. it can be passed to traits
-/// and types in this crate.
-pub trait Types<F: Field>: Sized {
-    /// Type for instance columns.
-    type InstanceCol: std::fmt::Debug
-        + Copy
-        + Clone
-        + Into<Column<Instance>>
-        + From<Column<Instance>>;
-    /// Type for advice columns.
-    type AdviceCol: std::fmt::Debug + Copy + Clone + Into<Column<Advice>> + From<Column<Advice>>;
-    /// Type for a cell.
-    type Cell: std::fmt::Debug + Copy + Clone + DecomposeIn<Self::Cell> + Into<Cell> + From<Cell>;
-    /// Type for an assigned cell.
-    type AssignedCell<V>: FromCell;
-    /// Region type.
-    type Region<'a>: FromRegionAdaptor<'a, F, Self::Error>;
-    /// Error type.
-    type Error: Into<Error> + From<Error> + std::error::Error + Send + Sync + 'static;
-    /// Region index type
-    type RegionIndex: std::hash::Hash + Copy + Eq + std::ops::Deref<Target = usize>;
-    /// Expression type
-    type Expression;
-    /// Associated type for Rational.
-    type Rational;
-}
+pub use core::types::Types;
 
 /// Creates a type that implements the [`Types`] trait.
 #[macro_export]
@@ -123,9 +85,9 @@ pub fn parse_field<F: PrimeField>(mut s: &str) -> Result<F, Error> {
         s = &s[1..];
     }
     if s.is_empty() {
-        return Err(Error::FieldParsingError);
+        return Err(IoError::FieldParsingError.into());
     }
-    F::from_str_vartime(s).ok_or(Error::FieldParsingError)
+    F::from_str_vartime(s).ok_or(IoError::FieldParsingError.into())
 }
 
 /// Returns the modulus of the field as a [`BigUint`].

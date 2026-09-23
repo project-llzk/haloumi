@@ -134,7 +134,7 @@ impl App {
         let crate_ident = self.target.package.name.replace('-', "_");
         let extractor_ident = extractor.name().replace('-', "_");
         let source = format!(
-            "fn main() {{ {extractor_ident}::main_impl::ExtractorMain::run({crate_ident}::harnesses()); }}"
+            "fn main() {{ {extractor_ident}::ExtractorMain::run({crate_ident}::harnesses()); }}"
         );
         root.create_rust_file(
             "src/bin/haloumi-extractor.rs",
@@ -272,10 +272,12 @@ impl CargoProject {
             .ok_or_else(|| {
                 Error::Message("selected package is absent from Cargo resolution".into())
             })?;
+        dbg!(&package.id);
+
         node.deps
             .iter()
             .find(|dependency| dependency.pkg == package.id)
-            .map(|dependency| dependency.name.as_str())
+            .map(|dependency| dbg!(dependency).name.as_str())
             .ok_or_else(|| Error::Message("resolved dependency metadata is missing".into()))
     }
 

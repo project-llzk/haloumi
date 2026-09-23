@@ -3,8 +3,9 @@
 use crate::{
     groups::RegionsGroupHooks,
     info_traits::{ChallengeInfo, SelectorInfo},
-    query::{Advice, Fixed, Instance},
-    table::{Any, Cell, Column},
+    query::{Advice, AdviceCopy, Fixed, Instance},
+    table::{Any, Cell, Column, FromCell},
+    types::Types,
 };
 use ff::Field;
 
@@ -36,6 +37,124 @@ impl<F: Field, E> std::fmt::Debug for TableAdaptor<'_, F, E> {
 #[derive(Debug)]
 pub struct LayoutAdaptor<'l, L>(pub &'l mut L);
 
+impl<L> LayoutAdaptor<'_, L> {
+    /// Adds an equality constraint between the cell and the given instance cell.
+    pub fn constrain_instance<F, T>(
+        &mut self,
+        cell: T::Cell,
+        instance_col: T::InstanceCol,
+        instance_row: usize,
+    ) -> Result<(), T::Error>
+    where
+        F: Field,
+        T: Types<F>,
+        L: Layouter<F, T::Error>,
+    {
+        self.0
+            .constrain_instance(cell.into(), instance_col, instance_row)
+    }
+
+    /// Adds an equality constraint between the advice cell and a constant value.
+    pub fn constrain_advice_constant<F, T>(
+        &mut self,
+        advice_col: T::AdviceCol,
+        advice_row: usize,
+        constant: F,
+    ) -> Result<T::Cell, T::Error>
+    where
+        F: Field,
+        T: Types<F>,
+        L: Layouter<F, T::Error>,
+    {
+        let advice_col = Column::<Advice>::from(advice_col.into());
+        Ok(self
+            .0
+            .assign_region(
+                || format!("Adv[{}, {advice_row}] == 0", advice_col.index()),
+                |region| {
+                    region.0.assign_advice_from_constant(
+                        &|| format!("Adv[{}, {advice_row}]", advice_col.index()),
+                        advice_col,
+                        advice_row,
+                        constant,
+                    )
+                },
+            )?
+            .into())
+    }
+
+    /// Adds an equality constraint between the given advice and instance cells.
+    pub fn assign_advice_from_instance<F, T, V>(
+        &mut self,
+        advice_col: T::AdviceCol,
+        advice_row: usize,
+        instance_col: T::InstanceCol,
+        instance_row: usize,
+    ) -> Result<T::AssignedCell<V>, T::Error>
+    where
+        V: Clone,
+        F: Field,
+        T: Types<F>,
+        L: Layouter<F, T::Error>,
+    {
+        let advice_col = Column::<Advice>::from(advice_col.into());
+        let instance_col = Column::<Instance>::from(instance_col.into());
+        let c = self.0.assign_region(
+            || "ins",
+            |region| {
+                region.0.assign_advice(
+                    &|| {
+                        format!(
+                            "Adv[{}, +{advice_row}] == Ins[{}, {instance_row}]",
+                            advice_col.index(),
+                            instance_col.index()
+                        )
+                    },
+                    advice_col,
+                    advice_row,
+                    &mut || None,
+                )
+            },
+        )?;
+
+        self.0.constrain_instance(c, instance_col, instance_row)?;
+        Ok(from_cell_helper(c))
+    }
+
+    /// Adds an equality constraint between the assigned cell and the advice cell.
+    pub fn copy_advice<F, T, V>(
+        &mut self,
+        ac: &T::AssignedCell<V>,
+        region: &mut T::Region<'_>,
+        advice_col: T::AdviceCol,
+        advice_row: usize,
+    ) -> Result<T::AssignedCell<V>, T::Error>
+    where
+        V: Clone,
+        T::AssignedCell<V>: AdviceCopy<V, F, T>,
+        F: Field,
+        T: Types<F>,
+        L: Layouter<F, T::Error>,
+    {
+        ac.copy_advice_helper(region, advice_col, advice_row)
+    }
+
+    /// Creates a new region in the table.
+    pub fn region<F, T, A, AR, N, NR>(&mut self, name: N, mut assignment: A) -> Result<AR, T::Error>
+    where
+        A: FnMut(T::Region<'_>) -> Result<AR, T::Error>,
+        N: Fn() -> NR,
+        NR: Into<String>,
+        F: Field,
+        T: Types<F>,
+        L: Layouter<F, T::Error>,
+    {
+        self.0.assign_region(name, |mut adaptor| {
+            assignment(from_region_adaptor(&mut adaptor))
+        })
+    }
+}
+
 impl<F, C, L> RegionsGroupHooks<F, C> for LayoutAdaptor<'_, L>
 where
     L: RegionsGroupHooks<F, C>,
@@ -60,6 +179,23 @@ where
     fn pop_group(&mut self, meta: crate::groups::RegionsGroup<C>) {
         self.0.pop_group(meta);
     }
+}
+
+/// Helper for keeping the syntax of its users a bit more terse.
+fn from_cell_helper<T>(cell: Cell) -> T
+where
+    T: FromCell,
+{
+    T::from_cell(cell)
+}
+
+/// Helper for keeping the syntax of its users a bit more terse.
+fn from_region_adaptor<'a, T, F, E>(adaptor: &'a mut RegionAdaptor<'_, F, E>) -> T
+where
+    T: FromRegionAdaptor<'a, F, E>,
+    F: Field,
+{
+    T::from_region_adaptor(adaptor)
 }
 
 /// Replica trait of a halo2 layouter.

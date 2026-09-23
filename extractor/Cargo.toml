@@ -1,6 +1,6 @@
 [package]
 name = "haloumi-extractor"
-description = "Haloumi's extraction core runtime."
+description = "Haloumi's extraction runtime."
 categories = {workspace = true}
 version = {workspace = true}
 authors = {workspace = true}
@@ -13,17 +13,21 @@ keywords = {workspace = true}
 
 [dependencies]
 haloumi-ir-gen = { path = "../ir-gen/" }
+haloumi-ir = { path = "../ir/" }
+haloumi-driver = { path = "../driver/" }
 haloumi-synthesis = { path = "../synthesis/" }
 haloumi-core = { path = "../core/" }
-haloumi-integration = { path = "../integration/" }
-haloumi-driver = { path = "../driver/" }
+haloumi-extractor-core = { path = "../extractor-core/" }
+# haloumi-integration = { path = "../integration/" }
 ff.workspace = true
 thiserror.workspace = true
 log.workspace = true
-simplelog = "0.12"
-env_logger = "0.11"
-multi_log = "0.1"
-clap = {version = "4.6", features = ["derive"]}
+anyhow = { version = "1" }
+inventory = { version = "0.3" }
+# simplelog = "0.12"
+# env_logger = "0.11"
+# multi_log = "0.1"
+# clap = {version = "4.6", features = ["derive"]}
 
 [dev-dependencies]
 haloumi-mdnt-test-circuits = { path = "../support/mdnt-test-circuits", features = ["extraction"] }

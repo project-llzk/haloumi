@@ -15,6 +15,8 @@ members = [
   "inject-tester",
   "cli",
   "extractor",
+  "extractor-core",
+  "extractor-runner",
   "support/midnight",
   "support/mdnt-test-circuits",
 ]
@@ -40,7 +42,8 @@ log = "0.4"
 eqv = "0.1"
 bit-set = "0.8"
 disjoint = "0.8"
-llzk = { version = "0.7.0", features = ["bigint"] }
+# llzk = { version = "0.7.0", features = ["bigint"] }
+llzk = { git = "https://github.com/project-llzk/llzk-rs", features = ["bigint"] }
 midnight-proofs = { path = "../midnight-zk-current/proofs", default-features = false, features = [
   "circuit-params",
   "committed-instances",

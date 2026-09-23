@@ -1,5 +1,7 @@
 //! Types and traits related to cell queries.
 
+use crate::types::Types;
+
 mod sealed {
     /// Sealed trait pattern to avoid clients implementing the trait [`super::QueryKind`] on
     /// external types.
@@ -46,4 +48,19 @@ impl std::fmt::Debug for Instance {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Ins")
     }
+}
+
+/// Supporting trait for implementing the [`LayoutHelper::copy_advice`].
+pub trait AdviceCopy<V, F, T>: Sized
+where
+    F: ff::Field,
+    T: Types<F, AssignedCell<V> = Self>,
+{
+    /// Performs the copy operation.
+    fn copy_advice_helper(
+        &self,
+        region: &mut T::Region<'_>,
+        advice_col: T::AdviceCol,
+        advice_row: usize,
+    ) -> Result<Self, T::Error>;
 }

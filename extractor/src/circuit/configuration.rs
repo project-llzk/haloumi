@@ -3,19 +3,12 @@
 use ff::{Field, PrimeField};
 use haloumi_core::{
     auto_conf::AutoConfigure,
+    circuit::{AbstractCircuitIO, ExtraibleChip},
     info_traits::ConstraintSystemInfo,
+    io::table::{Cell, InputDescr, OutputDescr},
     query::{Advice, Fixed, Instance},
-    table::{Column, ColumnType},
-};
-use haloumi_integration::{
-    Types,
-    circuit::{
-        AbstractCircuitIO, ExtraibleChip,
-        io::{
-            CellReprSize,
-            ctx::{Cell, InputDescr, OutputDescr},
-        },
-    },
+    table::{CellReprSize, Column, ColumnType},
+    types::Types,
 };
 
 /// Configuration for a chip type that implements [`AbstractCircuitIO`].

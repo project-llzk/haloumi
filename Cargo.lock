@@ -273,6 +273,7 @@ dependencies = [
  "cargo_metadata",
  "cargo_toml",
  "clap",
+ "env_logger",
  "haloumi-inject",
  "log",
  "serde",
@@ -998,14 +999,13 @@ dependencies = [
 name = "haloumi-extractor"
 version = "0.5.15"
 dependencies = [
- "clap",
- "env_logger",
+ "anyhow",
  "ff",
  "group",
  "halo2curves 0.7.0",
  "haloumi-core",
  "haloumi-driver",
- "haloumi-integration",
+ "haloumi-extractor-core",
  "haloumi-ir",
  "haloumi-ir-gen",
  "haloumi-llzk",
@@ -1013,16 +1013,47 @@ dependencies = [
  "haloumi-midnight-integration",
  "haloumi-picus",
  "haloumi-synthesis",
+ "inventory",
  "llzk",
  "log",
  "midnight-proofs",
  "mlir-testutils",
- "multi_log",
  "paste",
  "similar-asserts",
  "simplelog",
  "thiserror",
  "time",
+]
+
+[[package]]
+name = "haloumi-extractor-core"
+version = "0.5.15"
+dependencies = [
+ "ff",
+ "haloumi-core",
+ "haloumi-ir",
+ "haloumi-ir-gen",
+ "haloumi-synthesis",
+ "num-bigint 0.4.6",
+ "thiserror",
+]
+
+[[package]]
+name = "haloumi-extractor-runner"
+version = "0.5.15"
+dependencies = [
+ "clap",
+ "env_logger",
+ "ff",
+ "haloumi-core",
+ "haloumi-driver",
+ "haloumi-extractor",
+ "haloumi-ir-gen",
+ "haloumi-synthesis",
+ "log",
+ "multi_log",
+ "simplelog",
+ "thiserror",
 ]
 
 [[package]]
@@ -1047,14 +1078,14 @@ dependencies = [
 name = "haloumi-integration"
 version = "0.5.15"
 dependencies = [
- "anyhow",
  "ff",
  "haloumi-core",
+ "haloumi-extractor",
+ "haloumi-extractor-core",
  "haloumi-integration-macros",
  "haloumi-ir",
  "haloumi-ir-gen",
  "haloumi-synthesis",
- "inventory",
  "num-bigint 0.4.6",
  "num-traits",
  "rstest 0.27.0",
@@ -1399,8 +1430,7 @@ checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 [[package]]
 name = "llzk"
 version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a02649ec361296cb0db4ce9d0125ce3d970c949bfa38b502a3e768ba7862b0bb"
+source = "git+https://github.com/project-llzk/llzk-rs#67ea685eb6cad2516777cc6bb7ebd3b1717e5e71"
 dependencies = [
  "llzk-macro",
  "llzk-sys",
@@ -1414,8 +1444,7 @@ dependencies = [
 [[package]]
 name = "llzk-macro"
 version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3f17d3446516be7877386852378e56e73fb0924a8c2108f0991dcacf4b49677"
+source = "git+https://github.com/project-llzk/llzk-rs#67ea685eb6cad2516777cc6bb7ebd3b1717e5e71"
 dependencies = [
  "convert_case",
  "proc-macro2",
@@ -1427,8 +1456,7 @@ dependencies = [
 [[package]]
 name = "llzk-sys"
 version = "30.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc183171d12e1ad4c3d53edd6d54866a0b1e907bd966afec9d2fd56c3d48b521"
+source = "git+https://github.com/project-llzk/llzk-rs#67ea685eb6cad2516777cc6bb7ebd3b1717e5e71"
 dependencies = [
  "anyhow",
  "llzk-sys-build-support",
@@ -1438,8 +1466,7 @@ dependencies = [
 [[package]]
 name = "llzk-sys-build-support"
 version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28210153860126ef27febf43e4be2c0215ff4e00c6d561c04601c3d1a48e7403"
+source = "git+https://github.com/project-llzk/llzk-rs#67ea685eb6cad2516777cc6bb7ebd3b1717e5e71"
 dependencies = [
  "anyhow",
  "bindgen 0.71.1",

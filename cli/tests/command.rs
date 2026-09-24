@@ -272,6 +272,10 @@ fn higher_priority_backend_table_blocks_lower_priority_backend_parameters() {
     let args = fs::read_to_string(args_output).unwrap();
     assert!(args.contains("--format\nir"), "{args}");
     assert!(!args.contains("--llzk-field-name"), "{args}");
+    assert!(args.contains("--preludes\nalpha,beta"), "{args}");
+    assert!(!args.contains("--no-opt"), "{args}");
+    assert!(!args.contains("--picus-no-opt"), "{args}");
+    assert!(!args.contains("--llzk-no-opt"), "{args}");
     assert!(args.contains("--output"), "{args}");
 
     let copied_root = temp
@@ -284,6 +288,131 @@ fn higher_priority_backend_table_blocks_lower_priority_backend_parameters() {
         fs::read_to_string(copied_root.join("src/bin/haloumi-extractor.rs"))
             .unwrap()
             .contains("custom_extractor::ExtractorMain::run")
+    );
+}
+
+#[test]
+fn disabled_optimization_is_forwarded_independently() {
+    let temp = copy_fixture("config-chain-root");
+    let config = temp.path().join(".haloumi.toml");
+    let args_output = temp.path().join("extractor-args");
+    let contents = fs::read_to_string(&config).unwrap();
+    fs::write(
+        &config,
+        contents.replace(
+            "preludes = [\"alpha\", \"beta\"]",
+            "preludes = [\"alpha\", \"beta\"]\noptimize = false",
+        ) + "\n[backends.picus]\noptimize = false\n\n[backends.llzk]\noptimize = false\n",
+    )
+    .unwrap();
+
+    let output = cli()
+        .current_dir(temp.path())
+        .env("HALOUMI_TEST_ARGS_OUTPUT", &args_output)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let args = fs::read_to_string(args_output).unwrap();
+    assert!(args.contains("--no-opt"), "{args}");
+    assert!(args.contains("--picus-no-opt"), "{args}");
+    assert!(args.contains("--llzk-no-opt"), "{args}");
+}
+
+#[test]
+fn omitted_or_empty_preludes_are_not_forwarded() {
+    for replacement in ["", "preludes = []\n"] {
+        let temp = copy_fixture("config-chain-root");
+        let config = temp.path().join(".haloumi.toml");
+        let args_output = temp.path().join("extractor-args");
+        let contents = fs::read_to_string(&config).unwrap();
+        fs::write(
+            &config,
+            contents.replace("preludes = [\"alpha\", \"beta\"]\n", replacement),
+        )
+        .unwrap();
+
+        let output = cli()
+            .current_dir(temp.path())
+            .env("HALOUMI_TEST_ARGS_OUTPUT", &args_output)
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{output:?}");
+        let args = fs::read_to_string(args_output).unwrap();
+        assert!(!args.contains("--preludes"), "{args}");
+    }
+}
+
+#[test]
+fn llzk_field_implicitly_enables_llzk() {
+    let temp = copy_fixture("config-chain-root");
+    let config = temp.path().join(".haloumi.toml");
+    let args_output = temp.path().join("extractor-args");
+    let contents = fs::read_to_string(&config).unwrap();
+    fs::write(
+        &config,
+        contents.replace(
+            "[backends.ir]\nenabled = true",
+            "[backends.llzk.field]\nbuiltin = \"bn256\"",
+        ),
+    )
+    .unwrap();
+
+    let output = cli()
+        .current_dir(temp.path())
+        .env("HALOUMI_TEST_ARGS_OUTPUT", &args_output)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let args = fs::read_to_string(args_output).unwrap();
+    assert!(args.contains("--format\nllzk"), "{args}");
+    assert!(args.contains("--llzk-field-name\nbn256"), "{args}");
+}
+
+#[test]
+fn explicit_backend_enablement_overrides_defaulting() {
+    let temp = copy_fixture("config-chain-root");
+    let config = temp.path().join(".haloumi.toml");
+    let args_output = temp.path().join("extractor-args");
+    let contents = fs::read_to_string(&config).unwrap();
+    fs::write(
+        &config,
+        contents.replace(
+            "[backends.ir]\nenabled = true",
+            "[backends.llzk]\nenabled = false\n\n[backends.llzk.field]\nbuiltin = \"bn256\"",
+        ),
+    )
+    .unwrap();
+
+    let output = cli()
+        .current_dir(temp.path())
+        .env("HALOUMI_TEST_ARGS_OUTPUT", &args_output)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let args = fs::read_to_string(args_output).unwrap();
+    assert!(!args.contains("--format"), "{args}");
+    assert!(!args.contains("--llzk-field-name"), "{args}");
+}
+
+#[test]
+fn enabled_llzk_requires_a_field() {
+    let temp = copy_fixture("config-chain-root");
+    let config = temp.path().join(".haloumi.toml");
+    let contents = fs::read_to_string(&config).unwrap();
+    fs::write(
+        &config,
+        contents.replace(
+            "[backends.ir]\nenabled = true",
+            "[backends.llzk]\nenabled = true",
+        ),
+    )
+    .unwrap();
+
+    let output = cli().current_dir(temp.path()).output().unwrap();
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("LLZK is enabled but backends.llzk.field.builtin is missing")
     );
 }
 

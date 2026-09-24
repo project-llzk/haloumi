@@ -181,17 +181,30 @@ impl App {
             .arg("--target-dir")
             .arg(&self.paths.cargo_target);
         add_target_feature_args(&mut command, &self.config.target());
-        if self.config.extractor()?.groups_enabled() {
+        let extractor = self.config.extractor()?;
+        if extractor.groups_enabled() {
             command.env("HALOUMI_ENABLE_GROUPS", "1");
         }
         if !self.dry_run {
             command.arg("--").arg("--output").arg(&self.paths.output);
+            if !extractor.optimize() {
+                command.arg("--no-opt");
+            }
+            if !self.config.picus_optimize() {
+                command.arg("--picus-no-opt");
+            }
+            if !self.config.llzk_optimize() {
+                command.arg("--llzk-no-opt");
+            }
             let formats = self.config.formats();
             if !formats.is_empty() {
                 command.arg("--format").arg(formats.join(","));
             }
             if let Some(field) = self.config.llzk_field() {
                 command.arg("--llzk-field-name").arg(field);
+            }
+            if let Some(preludes) = extractor.preludes().filter(|preludes| !preludes.is_empty()) {
+                command.arg("--preludes").arg(preludes.join(","));
             }
         }
         log::debug!("Running {:?}", command);

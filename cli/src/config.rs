@@ -73,22 +73,83 @@ impl TargetConfig {
 
 #[derive(Debug, Default, Deserialize)]
 struct Backends {
-    picus: Option<Empty>,
-    llzk: Option<Llzk>,
-    ir: Option<Empty>,
+    picus: Option<PicusBackend>,
+    llzk: Option<LlzkBackend>,
+    ir: Option<SimpleBackend>,
 }
 
 #[derive(Debug, Default, Deserialize)]
-struct Empty {}
+struct SimpleBackend {
+    enabled: Option<bool>,
+}
 
 #[derive(Debug, Default, Deserialize)]
-struct Llzk {
+struct PicusBackend {
+    enabled: Option<bool>,
+    optimize: Option<bool>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct LlzkBackend {
+    enabled: Option<bool>,
+    optimize: Option<bool>,
     field: Option<Field>,
 }
 
 #[derive(Debug, Default, Deserialize)]
 struct Field {
     builtin: Option<String>,
+}
+
+/// Common enablement rules for configured output backends.
+trait BackendConfig {
+    /// Returns the explicit backend enablement setting, if configured.
+    fn enabled_override(&self) -> Option<bool>;
+
+    /// Returns whether the backend's mandatory parameter blocks are configured.
+    fn mandatory_parameters_configured(&self) -> bool {
+        false
+    }
+
+    /// Returns whether this backend is enabled.
+    fn enabled(&self) -> bool {
+        self.enabled_override()
+            .unwrap_or_else(|| self.mandatory_parameters_configured())
+    }
+}
+
+impl BackendConfig for SimpleBackend {
+    fn enabled_override(&self) -> Option<bool> {
+        self.enabled
+    }
+}
+
+impl BackendConfig for PicusBackend {
+    fn enabled_override(&self) -> Option<bool> {
+        self.enabled
+    }
+}
+
+impl BackendConfig for LlzkBackend {
+    fn enabled_override(&self) -> Option<bool> {
+        self.enabled
+    }
+
+    fn mandatory_parameters_configured(&self) -> bool {
+        self.field.is_some()
+    }
+}
+
+impl PicusBackend {
+    fn optimize(&self) -> bool {
+        self.optimize.unwrap_or(true)
+    }
+}
+
+impl LlzkBackend {
+    fn optimize(&self) -> bool {
+        self.optimize.unwrap_or(true)
+    }
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -98,6 +159,8 @@ struct Extractor {
     #[serde(default)]
     dependencies: DepsSet,
     groups: Option<bool>,
+    preludes: Option<Vec<String>>,
+    optimize: Option<bool>,
 }
 
 /// The resolved dependencies required by the generated extractor binary.
@@ -110,6 +173,10 @@ pub(crate) struct ExtractorConfig {
     ///
     /// On by default.
     groups_enabled: bool,
+    /// Named semantic preludes forwarded to the extractor runner.
+    preludes: Option<Vec<String>>,
+    /// Configures whether the runner optimizes resolved IR.
+    optimize: bool,
 }
 
 impl ExtractorConfig {
@@ -131,6 +198,16 @@ impl ExtractorConfig {
     /// Returns whether groups are enabled or not.
     pub fn groups_enabled(&self) -> bool {
         self.groups_enabled
+    }
+
+    /// Returns configured semantic prelude names, if present.
+    pub(crate) fn preludes(&self) -> Option<&[String]> {
+        self.preludes.as_deref()
+    }
+
+    /// Returns whether resolved IR optimization is enabled.
+    pub(crate) fn optimize(&self) -> bool {
+        self.optimize
     }
 }
 
@@ -193,13 +270,13 @@ impl Config {
             return Vec::new();
         };
         let mut formats = Vec::new();
-        if backends.ir.is_some() {
+        if backends.ir.as_ref().is_some_and(BackendConfig::enabled) {
             formats.push("ir");
         }
-        if backends.picus.is_some() {
+        if backends.picus.as_ref().is_some_and(BackendConfig::enabled) {
             formats.push("picus");
         }
-        if backends.llzk.is_some() {
+        if backends.llzk.as_ref().is_some_and(BackendConfig::enabled) {
             formats.push("llzk");
         }
         formats
@@ -207,13 +284,27 @@ impl Config {
 
     /// Returns the built-in LLZK field name, when LLZK is configured completely.
     pub(crate) fn llzk_field(&self) -> Option<&str> {
-        self.backends()?
-            .llzk
-            .as_ref()?
+        let llzk = self.backends()?.llzk.as_ref()?;
+        llzk.enabled()
+            .then_some(llzk)?
             .field
             .as_ref()?
             .builtin
             .as_deref()
+    }
+
+    /// Returns whether Picus optimization is enabled.
+    pub(crate) fn picus_optimize(&self) -> bool {
+        self.backends()
+            .and_then(|backends| backends.picus.as_ref())
+            .is_none_or(PicusBackend::optimize)
+    }
+
+    /// Returns whether LLZK optimization is enabled.
+    pub(crate) fn llzk_optimize(&self) -> bool {
+        self.backends()
+            .and_then(|backends| backends.llzk.as_ref())
+            .is_none_or(LlzkBackend::optimize)
     }
 
     /// Returns the extractor crate and extra dependencies for the generated binary.
@@ -227,6 +318,8 @@ impl Config {
             .and_then(|value| value.name.clone())
             .unwrap_or_else(|| "haloumi-extractor-runner".into());
         let groups_enabled = extractor.and_then(|value| value.groups).unwrap_or(true);
+        let preludes = extractor.and_then(|value| value.preludes.clone());
+        let optimize = extractor.and_then(|value| value.optimize).unwrap_or(true);
         let mut dependency = extractor
             .and_then(|value| value.dependency.clone())
             .unwrap_or_else(|| {
@@ -248,6 +341,8 @@ impl Config {
             dependency,
             dependencies,
             groups_enabled,
+            preludes,
+            optimize,
         })
     }
 
@@ -256,7 +351,7 @@ impl Config {
         if self
             .backends()
             .and_then(|backends| backends.llzk.as_ref())
-            .is_some()
+            .is_some_and(BackendConfig::enabled)
             && self.llzk_field().is_none()
         {
             return Err(Error::Message(
@@ -285,4 +380,54 @@ fn rebase_dependency(dependency: &mut Dependency, base: Option<&Path>) -> Result
         detail.path = Some(base.join(path).display().to_string());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn simple_backends_require_explicit_enablement() {
+        assert!(!SimpleBackend { enabled: None }.enabled());
+        assert!(
+            SimpleBackend {
+                enabled: Some(true)
+            }
+            .enabled()
+        );
+        assert!(
+            !SimpleBackend {
+                enabled: Some(false)
+            }
+            .enabled()
+        );
+    }
+
+    #[test]
+    fn llzk_enablement_uses_field_presence_unless_overridden() {
+        assert!(
+            LlzkBackend {
+                enabled: None,
+                optimize: None,
+                field: Some(Field { builtin: None }),
+            }
+            .enabled()
+        );
+        assert!(
+            !LlzkBackend {
+                enabled: Some(false),
+                optimize: None,
+                field: Some(Field { builtin: None }),
+            }
+            .enabled()
+        );
+        assert!(
+            LlzkBackend {
+                enabled: Some(true),
+                optimize: None,
+                field: None,
+            }
+            .enabled()
+        );
+    }
 }

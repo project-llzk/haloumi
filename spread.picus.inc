@@ -1,3 +1,4 @@
+; TEMPORARY BACKUP: port this legacy PCL prelude into a downstream semantic prelude.
 ; Spread prelude
 ; When invoking Picus declare these modules as deterministic
 (begin-module Spread)

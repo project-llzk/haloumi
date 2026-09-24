@@ -1,4 +1,4 @@
 [package]
-name = "haloumi-extractor-runner"
+name = "target-dependency"
 version = "0.1.0"
 edition = "2024"

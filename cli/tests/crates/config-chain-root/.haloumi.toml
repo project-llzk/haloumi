@@ -1,8 +1,12 @@
 [backends.ir]
 
+[target]
+features = ["configured-feature"]
+no-default-features = true
+
 [extractor]
 name = "custom-extractor"
-dependency = { package = "haloumi-extractor", path = "extractor" }
+dependency = { package = "haloumi-extractor-runner", path = "extractor" }
 
 [extractor.dependencies]
 support = { path = "support" }

@@ -2,7 +2,7 @@
 midnight-proofs = ">= 0.8.0"
 
 [dependencies]
-haloumi-integration = { path = "/Users/foldr/code/veridise/llzk/haloumi/integration/"}
+haloumi-integration = { path = "/Users/foldr/code/veridise/llzk/haloumi/integration/", features = ["derive"] }
 
 ###-------------------------------------------------------------------------------###
 ### src/circuit/floor_planner/single_pass.rs
@@ -132,6 +132,18 @@ haloumi_integration::__impl_table_layouter_adaptor!(
     Value,
     Rational,
     TableColumn,
+);
+
+haloumi_integration::__impl_layouter_for_group_layouter!(
+    Field,
+    Layouter,
+    crate::plonk::Error,
+    Region,
+    Table,
+    Cell,
+    crate::plonk::Column<crate::plonk::Instance>,
+    crate::plonk::Challenge,
+    Value
 );
 
 """

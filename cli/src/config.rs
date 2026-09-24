@@ -26,6 +26,7 @@ struct ConfigSource {
 #[derive(Debug, Default, Deserialize)]
 struct ConfigData {
     specs: Option<Specs>,
+    target: Option<Target>,
     backends: Option<Backends>,
     extractor: Option<Extractor>,
 }
@@ -33,6 +34,41 @@ struct ConfigData {
 #[derive(Debug, Default, Deserialize)]
 struct Specs {
     path: Option<PathBuf>,
+}
+
+#[derive(Debug, Default, Clone, Deserialize)]
+struct Target {
+    #[serde(default)]
+    features: Vec<String>,
+    #[serde(default, rename = "no-default-features")]
+    no_default_features: bool,
+    #[serde(default, rename = "all-features")]
+    all_features: bool,
+}
+
+/// Cargo feature settings for the extraction target.
+#[derive(Debug, Default, Clone)]
+pub(crate) struct TargetConfig {
+    features: Vec<String>,
+    no_default_features: bool,
+    all_features: bool,
+}
+
+impl TargetConfig {
+    /// Returns the explicitly enabled feature names.
+    pub(crate) fn features(&self) -> &[String] {
+        &self.features
+    }
+
+    /// Returns whether default features are disabled.
+    pub(crate) fn no_default_features(&self) -> bool {
+        self.no_default_features
+    }
+
+    /// Returns whether all target features are enabled.
+    pub(crate) fn all_features(&self) -> bool {
+        self.all_features
+    }
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -61,6 +97,7 @@ struct Extractor {
     dependency: Option<Dependency>,
     #[serde(default)]
     dependencies: DepsSet,
+    groups: Option<bool>,
 }
 
 /// The resolved dependencies required by the generated extractor binary.
@@ -69,6 +106,10 @@ pub(crate) struct ExtractorConfig {
     name: String,
     dependency: Dependency,
     dependencies: DepsSet,
+    /// Configures whether groups are enabled or not during extraction.
+    ///
+    /// On by default.
+    groups_enabled: bool,
 }
 
 impl ExtractorConfig {
@@ -85,6 +126,11 @@ impl ExtractorConfig {
     /// Returns additional dependencies for the generated binary.
     pub(crate) fn dependencies(&self) -> &DepsSet {
         &self.dependencies
+    }
+
+    /// Returns whether groups are enabled or not.
+    pub fn groups_enabled(&self) -> bool {
+        self.groups_enabled
     }
 }
 
@@ -126,6 +172,21 @@ impl Config {
             .unwrap_or_else(|| self.root.join(".haloumi/specs"))
     }
 
+    /// Returns the selected target's Cargo feature settings.
+    pub(crate) fn target(&self) -> TargetConfig {
+        let target = self
+            .sources
+            .iter()
+            .find_map(|source| source.data.target.as_ref())
+            .cloned()
+            .unwrap_or_default();
+        TargetConfig {
+            features: target.features,
+            no_default_features: target.no_default_features,
+            all_features: target.all_features,
+        }
+    }
+
     /// Returns enabled extractor output formats.
     pub(crate) fn formats(&self) -> Vec<&'static str> {
         let Some(backends) = self.backends() else {
@@ -165,6 +226,7 @@ impl Config {
         let name = extractor
             .and_then(|value| value.name.clone())
             .unwrap_or_else(|| "haloumi-extractor-runner".into());
+        let groups_enabled = extractor.and_then(|value| value.groups).unwrap_or(true);
         let mut dependency = extractor
             .and_then(|value| value.dependency.clone())
             .unwrap_or_else(|| {
@@ -185,6 +247,7 @@ impl Config {
             name,
             dependency,
             dependencies,
+            groups_enabled,
         })
     }
 

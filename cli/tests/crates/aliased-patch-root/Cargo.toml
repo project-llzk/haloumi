@@ -5,4 +5,4 @@ edition = "2024"
 
 [dependencies]
 patched = { package = "target-dependency", path = "dependency" }
-haloumi-extractor = { path = "extractor" }
+haloumi-extractor-runner = { path = "extractor" }

@@ -3,5 +3,11 @@ name = "config-chain-root"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = ["default-feature"]
+default-feature = []
+configured-feature = []
+all-feature = []
+
 [dependencies]
-custom-extractor = { package = "haloumi-extractor", path = "extractor" }
+custom-extractor = { package = "haloumi-extractor-runner", path = "extractor" }

@@ -24,6 +24,9 @@ struct Args {
     /// Workspace package to extract.
     #[arg(short = 'p', long)]
     package: Option<String>,
+    /// Build the generated extractor without running it.
+    #[arg(long)]
+    dry_run: bool,
 }
 
 #[derive(Debug, thiserror::Error)]

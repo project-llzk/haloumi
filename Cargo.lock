@@ -255,6 +255,7 @@ dependencies = [
  "cargo_metadata",
  "cargo_toml",
  "clap",
+ "env_logger",
  "haloumi-inject",
  "log",
  "serde",

@@ -20,7 +20,7 @@ haloumi-core = { path = "../core" }
 haloumi-ir = { path = "../ir" }
 haloumi-ir-gen = { path = "../ir-gen" }
 haloumi-synthesis = { path = "../synthesis" }
-haloumi-integration-macros = { path = "../integration-macros" }
+haloumi-integration-macros = { path = "../integration-macros", optional = true }
 haloumi-extractor = { path = "../extractor/", optional = true }
 haloumi-extractor-core = { path = "../extractor-core/" }
 
@@ -28,5 +28,9 @@ haloumi-extractor-core = { path = "../extractor-core/" }
 [dev-dependencies]
 rstest = "0"
 
+[build-dependencies]
+anyhow = "1"
+
 [features]
 extractor = ["dep:haloumi-extractor"]
+derive = ["dep:haloumi-integration-macros"]

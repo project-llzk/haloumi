@@ -70,7 +70,7 @@ impl<'i, 's, F: Field, H: Types<F>> ICtx<'i, 's, F, H> {
     }
 
     /// Loads an instance from a set of cells.
-    pub fn load<T, C, L>(
+    pub fn load<T, C>(
         &mut self,
         chip: &C,
         layouter: &mut LayoutAdaptor<'_, impl Layouter<F, H::Error>>,

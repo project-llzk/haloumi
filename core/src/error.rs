@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use crate::{io::error::IoError, slot::cell::CellError, table::TableError};
+use num_bigint::{BigInt, TryFromBigIntError};
 use thiserror::Error;
 
 /// Core error type.
@@ -36,6 +37,12 @@ pub enum Error {
     /// Plonk synthesis error.
     #[error("Synthesis error")]
     Plonk(Arc<dyn std::error::Error>),
+    /// Int cast error.
+    #[error(transparent)]
+    IntCast(#[from] std::num::TryFromIntError),
+    /// Big int cast error.
+    #[error(transparent)]
+    BigIntCast(#[from] TryFromBigIntError<BigInt>),
     /// An error represented with an static string.
     #[error("Error")]
     StrError(&'static str),

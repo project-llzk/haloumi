@@ -7,7 +7,7 @@ use std::{
 use haloumi_driver::backends::picus::PicusParamsBuilder;
 use haloumi_driver::{driver::Driver, ir::r#gen::circuit::resolved::ResolvedIRCircuit};
 
-use crate::main_impl::prelude::Preludes;
+use crate::prelude::Preludes;
 
 pub struct PicusConfig {
     opt: bool,

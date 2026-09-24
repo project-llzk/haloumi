@@ -1,0 +1,9 @@
+[specs]
+path = ".haloumi/specs"
+
+[target]
+features = ["patch-target-dependency"]
+
+[extractor]
+name = "haloumi-extractor-runner"
+dependency = { path = "extractor" }

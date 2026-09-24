@@ -8,20 +8,17 @@ use std::{borrow::Cow, path::Path, process::exit};
 use clap::Parser;
 use haloumi_driver::backends::llzk::{LlzkParams, llzk::prelude::LlzkContext};
 use haloumi_driver::backends::picus::PicusParamsBuilder;
+use haloumi_extractor::Harness;
+use haloumi_extractor::extractor::{Comments, Extractor, ExtractorCfg, InjectedIRPolicy};
 use haloumi_ir_gen::circuit::resolved::ResolvedIRCircuit;
 
 use crate::logging::setup_logging;
 use crate::{
-    Harness,
-    error::Error,
-    extractor::{Comments, Extractor, ExtractorCfg, InjectedIRPolicy},
-    {
-        app_error::AppError,
-        cli::Cli,
-        ir::write_ir_output,
-        llzk::{LlzkConfig, write_llzk_output},
-        picus::{PicusConfig, write_picus_output},
-    },
+    app_error::AppError,
+    cli::Cli,
+    ir::write_ir_output,
+    llzk::{LlzkConfig, write_llzk_output},
+    picus::{PicusConfig, write_picus_output},
 };
 
 pub mod app_error;

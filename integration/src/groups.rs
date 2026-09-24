@@ -84,3 +84,78 @@ macro_rules! __impl_layouter_for_group_layouter {
         }
     };
 }
+
+/// Opens a group using the given layouter that implements the hooks.
+///
+/// This version is only enabled during extraction. Outside of
+/// extraction a different version of this function exists that
+/// transparently forwards the layouter to the body as if nothing happened.
+#[cfg(groups)]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __group {
+    ($layouter:ident, $name:expr, $key:expr, |$layouter_clo:ident, $groups:ident| $assignment:block) => {
+        $layouter.group($name, $key, |$layouter_clo, $groups| $assignment)
+    };
+}
+
+/// Forwards the layouter directly to the body of the function.
+///
+/// This version is enabled by default and is meant for transparently
+/// building circuits outside of extraction mode.
+#[cfg(not(groups))]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __group {
+    ($layouter:ident, $name:expr, $key:expr, |$layouter_clo:ident, $groups:ident| $assignment:block) => {{
+        let $layouter_clo = $layouter;
+        let $groups = ();
+        $assignment
+    }};
+}
+
+/// Annotates a collection of decomposable cells as inputs.
+///
+/// This version is only enabled during extraction. Outside of
+/// extraction a different version of this function exists that
+/// is a no-op.
+#[cfg(groups)]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __annotate_input_cells {
+    ($scope:expr, $value:expr) => {
+        $scope.annotate_as_input(&$value);
+    };
+}
+
+/// No-op version of the input annotation function for using outside of
+/// extraction mode.
+#[cfg(not(groups))]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __annotate_input_cells {
+    ($scope:expr, $value:expr) => {};
+}
+
+/// Annotates a collection of decomposable cells as outputs.
+///
+/// This version is only enabled during extraction. Outside of
+/// extraction a different version of this function exists that
+/// is a no-op.
+#[cfg(groups)]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __annotate_output_cells {
+    ($scope:expr, $value:expr) => {
+        $scope.annotate_as_output(&$value)
+    };
+}
+
+/// No-op version of the output annotation function for using outside of
+/// extraction mode.
+#[cfg(not(groups))]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __annotate_output_cells {
+    ($scope:expr, $value:expr) => {};
+}

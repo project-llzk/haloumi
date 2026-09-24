@@ -151,6 +151,12 @@ impl<C> RegionsGroup<C> {
     }
 }
 
+impl<C> Default for RegionsGroup<C> {
+    fn default() -> Self {
+        Self::new(Default::default())
+    }
+}
+
 impl<C> RegionsGroup<C>
 where
     C: Hash + Eq + Copy,

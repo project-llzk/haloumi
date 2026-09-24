@@ -5,6 +5,7 @@
 
 use ff::PrimeField;
 use haloumi_core::io::error::IoError;
+#[cfg(feature = "derive")]
 pub use haloumi_integration_macros::*;
 use num_bigint::{BigInt, BigUint};
 use num_traits::{Num as _, Signed as _};
@@ -122,6 +123,8 @@ pub fn fe_to_big<F: PrimeField>(fe: F) -> BigUint {
 
 /// Creates an [`Expression`] that queries the given cell relative to the
 /// beginning of the cell's region.
+///
+/// TODO: This macro has the `midnight_proofs` crate hardcoded on it!
 #[macro_export]
 macro_rules! cell_to_expr {
     ($x:expr, $F:ty) => {{

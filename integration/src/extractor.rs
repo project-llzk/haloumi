@@ -10,6 +10,7 @@ pub mod core {
 
 /// Generates a function that is expected to be in the root of the crate where the harness are
 /// defined.
+#[cfg(feature = "extractor")]
 #[macro_export]
 macro_rules! __impl_harnesses_root_function {
     ($name:ident) => {
@@ -20,9 +21,10 @@ macro_rules! __impl_harnesses_root_function {
 }
 
 /// Registers a harness in the registry.
+#[cfg(feature = "extractor")]
 #[macro_export]
 macro_rules! register_harness {
     ($name:literal, $harness:path) => {
-        $crate::extractor::inventory::submit!($crate::Harness::new($name, $harness));
+        $crate::extractor::inventory::submit!($crate::extractor::Harness::new($name, $harness));
     };
 }

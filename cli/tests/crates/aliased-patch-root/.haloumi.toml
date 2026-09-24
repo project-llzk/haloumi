@@ -1,2 +1,6 @@
 [specs]
 path = ".haloumi/specs"
+
+[extractor]
+name = "haloumi-extractor-runner"
+dependency = { path = "extractor" }

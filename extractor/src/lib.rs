@@ -22,10 +22,10 @@ pub mod anyhow {
 }
 
 /// Output produced by a harness function.
-pub type Output = ResolvedIRCircuit;
+pub type Output = anyhow::Result<ResolvedIRCircuit>;
 
 /// Type representing the harness logic.
-pub type HarnessFn = fn(&Extractor) -> anyhow::Result<Output>;
+pub type HarnessFn = fn(&Extractor) -> Output;
 
 /// Entry in the harness table.
 #[derive(Copy, Clone, Debug)]
@@ -43,7 +43,7 @@ impl Harness {
     }
 
     /// Runs the harness function with the given extractor.
-    fn run(&self, extractor: &Extractor) -> anyhow::Result<Output> {
+    pub fn run(&self, extractor: &Extractor) -> Output {
         self.1(extractor)
     }
 }

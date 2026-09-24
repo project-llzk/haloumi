@@ -6,7 +6,7 @@ use std::{
     process::Command,
 };
 
-use cargo_metadata::{DependencyKind, Metadata, MetadataCommand, Package, PackageId};
+use cargo_metadata::{CargoOpt, DependencyKind, Metadata, MetadataCommand, Package, PackageId};
 use haloumi_inject::{
     Injector,
     crate_info::{Crate, CrateMut, RustFile},
@@ -14,7 +14,10 @@ use haloumi_inject::{
     spec::{SpecMatch, SpecRegistry},
 };
 
-use crate::{Args, Error, config::Config};
+use crate::{
+    Args, Error,
+    config::{Config, TargetConfig},
+};
 
 /// The initialized `cargo haloumi` application.
 #[derive(Debug)]
@@ -24,6 +27,7 @@ pub(crate) struct App {
     config: Config,
     paths: ManagedPaths,
     specs: SpecRegistry,
+    dry_run: bool,
 }
 
 #[derive(Debug)]
@@ -47,9 +51,9 @@ struct ManagedPaths {
 impl App {
     /// Creates an application after performing all read-only discovery and validation.
     pub(crate) fn new(root: PathBuf, args: Args) -> Result<Self, Error> {
-        let project = CargoProject::load(root)?;
+        let config = Config::load(&root)?;
+        let project = CargoProject::load(root, &config.target())?;
         let target = project.select_package(&args)?;
-        let config = Config::load(project.root())?;
         config.validate()?;
         let paths = ManagedPaths::new(project.root());
         let specs_path = config.specs_path();
@@ -65,16 +69,23 @@ impl App {
             config,
             paths,
             specs,
+            dry_run: args.dry_run,
         })
     }
 
     /// Performs the isolated extraction workflow.
     pub(crate) fn run(self) -> Result<(), Error> {
+        log::info!("Preparing workspace.");
         self.prepare_workspace()?;
+        log::info!("Cloning target into work directory.");
         let mut root = self.clone_target_crate()?;
+        log::info!("Applying specs to dependencies.");
         self.patch_direct_dependencies(&mut root)?;
+        log::info!("Adding runner binary.");
         self.add_extractor_binary(&mut root)?;
+        log::info!("Commiting all changes to target crate.");
         self.commit_root_crate(&root)?;
+        log::info!("Running extraction");
         self.run_extractor(&root)
     }
 
@@ -164,20 +175,24 @@ impl App {
         let mut command = Command::new("cargo");
         command
             .current_dir(root.base_path())
-            .arg("run")
+            .arg(if self.dry_run { "build" } else { "run" })
             .arg("--bin")
             .arg("haloumi-extractor")
             .arg("--target-dir")
-            .arg(&self.paths.cargo_target)
-            .arg("--")
-            .arg("--output")
-            .arg(&self.paths.output);
-        let formats = self.config.formats();
-        if !formats.is_empty() {
-            command.arg("--format").arg(formats.join(","));
+            .arg(&self.paths.cargo_target);
+        add_target_feature_args(&mut command, &self.config.target());
+        if self.config.extractor()?.groups_enabled() {
+            command.env("HALOUMI_ENABLE_GROUPS", "1");
         }
-        if let Some(field) = self.config.llzk_field() {
-            command.arg("--llzk-field-name").arg(field);
+        if !self.dry_run {
+            command.arg("--").arg("--output").arg(&self.paths.output);
+            let formats = self.config.formats();
+            if !formats.is_empty() {
+                command.arg("--format").arg(formats.join(","));
+            }
+            if let Some(field) = self.config.llzk_field() {
+                command.arg("--llzk-field-name").arg(field);
+            }
         }
         log::debug!("Running {:?}", command);
         if !command.status()?.success() {
@@ -188,8 +203,19 @@ impl App {
 }
 
 impl CargoProject {
-    fn load(root: PathBuf) -> Result<Self, Error> {
-        let metadata = MetadataCommand::new().current_dir(&root).exec()?;
+    fn load(root: PathBuf, target: &TargetConfig) -> Result<Self, Error> {
+        let mut command = MetadataCommand::new();
+        command.current_dir(&root);
+        if target.all_features() {
+            command.features(CargoOpt::AllFeatures);
+        }
+        if target.no_default_features() {
+            command.features(CargoOpt::NoDefaultFeatures);
+        }
+        if !target.features().is_empty() {
+            command.features(CargoOpt::SomeFeatures(target.features().to_vec()));
+        }
+        let metadata = command.exec()?;
         Ok(Self { root, metadata })
     }
 
@@ -259,25 +285,17 @@ impl CargoProject {
 
     fn dependency_name<'a>(
         &'a self,
-        target: &SelectedPackage,
+        target: &'a SelectedPackage,
         package: &Package,
     ) -> Result<&'a str, Error> {
-        let resolve = self.metadata.resolve.as_ref().ok_or_else(|| {
-            Error::Message("Cargo metadata did not include a dependency resolution".into())
-        })?;
-        let node = resolve
-            .nodes
+        target
+            .package
+            .dependencies
             .iter()
-            .find(|node| node.id == target.package.id)
-            .ok_or_else(|| {
-                Error::Message("selected package is absent from Cargo resolution".into())
-            })?;
-        dbg!(&package.id);
-
-        node.deps
-            .iter()
-            .find(|dependency| dependency.pkg == package.id)
-            .map(|dependency| dbg!(dependency).name.as_str())
+            .find(|dependency| {
+                dependency.kind == DependencyKind::Normal && dependency.name == package.name
+            })
+            .map(|dependency| dependency.rename.as_deref().unwrap_or(&dependency.name))
             .ok_or_else(|| Error::Message("resolved dependency metadata is missing".into()))
     }
 
@@ -293,6 +311,18 @@ impl CargoProject {
             .packages
             .iter()
             .find(|package| package.id == *id)
+    }
+}
+
+fn add_target_feature_args(command: &mut Command, target: &TargetConfig) {
+    if target.all_features() {
+        command.arg("--all-features");
+    }
+    if target.no_default_features() {
+        command.arg("--no-default-features");
+    }
+    if !target.features().is_empty() {
+        command.arg("--features").arg(target.features().join(","));
     }
 }
 

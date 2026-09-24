@@ -7,7 +7,7 @@ use std::{
 
 use log::{Level, Log};
 
-use crate::error::Error;
+use crate::Error;
 
 pub struct LoggingConfig {
     path: PathBuf,

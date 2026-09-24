@@ -28,3 +28,14 @@ macro_rules! register_harness {
         $crate::extractor::inventory::submit!($crate::extractor::Harness::new($name, $harness));
     };
 }
+
+/// Registers a semantic prelude in the registry.
+#[cfg(feature = "extractor")]
+#[macro_export]
+macro_rules! register_prelude {
+    ($name:literal, $prelude:path) => {
+        $crate::extractor::inventory::submit!($crate::extractor::PreludeEntry::new(
+            $name, $prelude
+        ));
+    };
+}

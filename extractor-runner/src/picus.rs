@@ -7,16 +7,13 @@ use std::{
 use haloumi_driver::backends::picus::PicusParamsBuilder;
 use haloumi_driver::{driver::Driver, ir::r#gen::circuit::resolved::ResolvedIRCircuit};
 
-use crate::prelude::Preludes;
-
 pub struct PicusConfig {
     opt: bool,
-    prelude: Option<Preludes>,
 }
 
 impl PicusConfig {
-    pub fn new(opt: bool, prelude: Option<Preludes>) -> Self {
-        Self { opt, prelude }
+    pub fn new(opt: bool) -> Self {
+        Self { opt }
     }
 }
 
@@ -37,9 +34,6 @@ pub fn write_picus_output(
 
     let output_path = output_dir.join("output.picus");
     let mut output_file = File::create(&output_path)?;
-    if let Some(prelude) = config.prelude {
-        writeln!(output_file, "{prelude}")?;
-    }
     writeln!(output_file, "{}", output.display())?;
     log::info!("Saved picus output in {}", output_path.display());
     Ok(())

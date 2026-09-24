@@ -227,16 +227,9 @@ impl<E> IRGroup<E> {
     ) -> Result<(), ValidationErrors> {
         let callee_id = callsite.callee_id();
         let callee = groups
-            .get(callee_id)
+            .iter()
+            .find(|group| group.id() == callee_id)
             .ok_or(ValidationErrors::CalleeNotFound { callee_id })?;
-        if callee.id() != callsite.callee_id() {
-            return Err(ValidationErrors::WrongCallee {
-                callsite_name: callsite.name().to_string(),
-                callsite_id: callee_id,
-                callee_name: callee.name().to_string(),
-                callee_id: callee.id(),
-            });
-        }
         if callee.input_count != callsite.inputs().len() {
             return Err(ValidationErrors::UnexpectedInputs {
                 callee_name: callee.name().to_string(),
@@ -326,15 +319,6 @@ impl ValidationFailed {
 enum ValidationErrors {
     #[error("Callee with id {callee_id} was not found")]
     CalleeNotFound { callee_id: usize },
-    #[error(
-        "Callsite points to \"{callsite_name}\" ({callsite_id}) but callee was \"{callee_name}\" ({callee_id})"
-    )]
-    WrongCallee {
-        callsite_name: String,
-        callsite_id: usize,
-        callee_name: String,
-        callee_id: usize,
-    },
     #[error(
         "Callee \"{callee_name}\" ({callee_id}) was expecting {callee_count} inputs but callsite has {callsite_count}"
     )]

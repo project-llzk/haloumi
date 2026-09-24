@@ -8,8 +8,8 @@ use std::{borrow::Cow, path::Path, process::exit};
 use clap::Parser;
 use haloumi_driver::backends::llzk::{LlzkParams, llzk::prelude::LlzkContext};
 use haloumi_driver::backends::picus::PicusParamsBuilder;
-use haloumi_extractor::Harness;
 use haloumi_extractor::extractor::{Comments, Extractor, ExtractorCfg, InjectedIRPolicy};
+use haloumi_extractor::{Harness, PreludeEntry};
 use haloumi_ir_gen::circuit::resolved::ResolvedIRCircuit;
 
 use crate::logging::setup_logging;
@@ -28,7 +28,6 @@ mod ir;
 mod llzk;
 mod logging;
 mod picus;
-mod prelude;
 
 enum Action {
     List,
@@ -70,7 +69,8 @@ impl ExtractorMain {
             }
         };
 
-        let Err(err) = main.run_impl(harnesses) else {
+        let preludes = haloumi_extractor::inventory::iter::<PreludeEntry>().collect::<Vec<_>>();
+        let Err(err) = main.run_impl(harnesses, preludes) else {
             return;
         };
         eprintln!("Extraction failed: {err}");
@@ -96,23 +96,72 @@ impl ExtractorMain {
         Ok(Self { cli, extractor_cfg })
     }
 
-    fn run_impl(&self, harnesses: impl Iterator<Item = &'static Harness>) -> Result<(), Error> {
+    fn run_impl(
+        &self,
+        harnesses: impl Iterator<Item = &'static Harness>,
+        preludes: Vec<&'static PreludeEntry>,
+    ) -> Result<(), Error> {
         match self.cli.action() {
             Action::List => {
-                self.print_harness_list(harnesses);
+                if self.cli.list {
+                    self.print_harness_list(harnesses);
+                }
+                if self.cli.list_preludes {
+                    self.print_prelude_list(&preludes);
+                }
                 Ok(())
             }
-            Action::Extract => self.extract(harnesses),
+            Action::Extract => {
+                let preludes = self.select_preludes(preludes)?;
+                self.extract(harnesses, &preludes)
+            }
         }
     }
 
     fn print_harness_list(&self, harnesses: impl Iterator<Item = &'static Harness>) {
+        println!("Harnesses:");
         for h in harnesses {
             println!("{}", h.name());
         }
     }
 
-    fn extract(&self, harnesses: impl Iterator<Item = &'static Harness>) -> Result<(), Error> {
+    fn print_prelude_list(&self, preludes: &[&'static PreludeEntry]) {
+        println!("Preludes:");
+        for prelude in preludes {
+            println!("{}", prelude.name());
+        }
+    }
+
+    fn select_preludes(
+        &self,
+        preludes: Vec<&'static PreludeEntry>,
+    ) -> Result<Vec<&'static PreludeEntry>, Error> {
+        let mut available = std::collections::HashMap::new();
+        for prelude in preludes {
+            if available.insert(prelude.name(), prelude).is_some() {
+                return Err(Error::DuplicateRegisteredPrelude(prelude.name().to_owned()));
+            }
+        }
+        let mut selected = Vec::with_capacity(self.cli.preludes().len());
+        let mut requested = std::collections::HashSet::new();
+        for name in self.cli.preludes() {
+            if !requested.insert(name) {
+                return Err(Error::DuplicateRequestedPrelude(name.clone()));
+            }
+            let prelude = available
+                .get(name.as_str())
+                .copied()
+                .ok_or_else(|| Error::UnknownPrelude(name.clone()))?;
+            selected.push(prelude);
+        }
+        Ok(selected)
+    }
+
+    fn extract(
+        &self,
+        harnesses: impl Iterator<Item = &'static Harness>,
+        preludes: &[&'static PreludeEntry],
+    ) -> Result<(), Error> {
         let extractor = Extractor::new(&self.extractor_cfg);
         let picus_config = self.cli.picus_config();
         let llzk_config = self.cli.llzk_config();
@@ -120,7 +169,16 @@ impl ExtractorMain {
         let mut summary = Summary::default();
         for h in harnesses {
             self.handle_extract_result(
-                || self.extract_one(h, &extractor, &output_base, &picus_config, &llzk_config),
+                || {
+                    self.extract_one(
+                        h,
+                        preludes,
+                        &extractor,
+                        &output_base,
+                        &picus_config,
+                        &llzk_config,
+                    )
+                },
                 &mut summary,
             )?;
         }
@@ -136,6 +194,7 @@ impl ExtractorMain {
     fn extract_one(
         &self,
         harness: &'static Harness,
+        preludes: &[&'static PreludeEntry],
         extractor: &Extractor,
         output_base: &Path,
         picus_config: &PicusConfig,
@@ -145,6 +204,9 @@ impl ExtractorMain {
         log::info!("Extracting harness {name}");
 
         let mut ir = harness.run(extractor).map_err(AppError::harness(name))?;
+        for prelude in preludes {
+            ir.add_prelude_groups(prelude.groups().into())?;
+        }
         if self.cli.optimize_ir() {
             self.optimize_ir(&mut ir).map_err(AppError::opt(name))?;
         }
@@ -288,4 +350,13 @@ pub enum Error {
     /// Raised when LLZK output is emitted but the field name was not passed.
     #[error("Pass the --llzk-field-name=<name> parameter when emitting LLZK IR")]
     RequiredLlzkFieldName,
+    /// Raised when a requested prelude does not exist in the registry.
+    #[error("Unknown prelude {0:?}")]
+    UnknownPrelude(String),
+    /// Raised when a prelude name is passed more than once.
+    #[error("Prelude {0:?} was requested more than once")]
+    DuplicateRequestedPrelude(String),
+    /// Raised when multiple linked crates register the same prelude name.
+    #[error("Prelude {0:?} is registered more than once")]
+    DuplicateRegisteredPrelude(String),
 }

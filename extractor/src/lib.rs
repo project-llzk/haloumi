@@ -3,6 +3,8 @@
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]
 
+use haloumi_extractor_core::prelude::Prelude;
+use haloumi_ir::{expr::IRAexpr, groups::IRGroup};
 use haloumi_ir_gen::circuit::resolved::ResolvedIRCircuit;
 
 use crate::extractor::Extractor;
@@ -49,3 +51,29 @@ impl Harness {
 }
 
 ::inventory::collect!(Harness);
+
+/// Type representing a semantic prelude definition.
+pub type PreludeFn = fn() -> Prelude;
+
+/// Entry in the prelude table.
+#[derive(Copy, Clone, Debug)]
+pub struct PreludeEntry(&'static str, PreludeFn);
+
+impl PreludeEntry {
+    /// Creates a new prelude entry.
+    pub const fn new(name: &'static str, prelude: PreludeFn) -> Self {
+        Self(name, prelude)
+    }
+
+    /// Returns the name of the entry.
+    pub fn name(&self) -> &'static str {
+        self.0
+    }
+
+    /// Generates the resolved IR groups defined by this prelude.
+    pub fn groups(&self) -> Prelude {
+        (self.1)()
+    }
+}
+
+::inventory::collect!(PreludeEntry);

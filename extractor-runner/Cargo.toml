@@ -26,3 +26,7 @@ env_logger = "0.11"
 multi_log = "0.1"
 clap = {version = "4.6", features = ["derive"]}
 anyhow = { version = "1" }
+
+[dev-dependencies]
+haloumi-integration = { path = "../integration/" }
+halo2curves.workspace = true

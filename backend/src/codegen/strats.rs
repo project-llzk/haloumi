@@ -1,3 +1,40 @@
+pub mod preludes {
+    use crate::codegen::{Codegen, CodegenStrategy};
+    use haloumi_ir_gen::{circuit::resolved::ResolvedIRCircuit, ctx::IRCtx};
+
+    /// Code generation strategy that emits semantic prelude groups as standalone functions.
+    #[derive(Default)]
+    pub struct PreludesCodegenStrat {}
+
+    impl CodegenStrategy for PreludesCodegenStrat {
+        fn codegen<'c: 'st, 's, 'st, C>(
+            &self,
+            codegen: &C,
+            _: &IRCtx,
+            ir: &ResolvedIRCircuit,
+        ) -> Result<(), C::Error>
+        where
+            C: Codegen<'c, 'st>,
+        {
+            if ir.prelude_groups().is_empty() {
+                return Ok(());
+            }
+            ir.validate()?;
+            for group in ir.prelude_groups() {
+                log::debug!("Generating prelude group \"{}\"", group.name());
+                codegen.define_function_with_body(
+                    group.name(),
+                    group.input_count(),
+                    group.output_count(),
+                    group.callees(),
+                    |_, _, _| Ok([group.clone()]),
+                )?;
+            }
+            Ok(())
+        }
+    }
+}
+
 pub mod inline {
 
     use crate::codegen::{Codegen, CodegenStrategy};

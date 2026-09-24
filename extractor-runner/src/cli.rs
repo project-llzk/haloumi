@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     Action, Error, FailMode, OutputFormat, constants::parse_constants_file, llzk::LlzkConfig,
-    logging::LoggingConfig, picus::PicusConfig, prelude::Preludes,
+    logging::LoggingConfig, picus::PicusConfig,
 };
 use clap::Parser;
 
@@ -51,9 +51,12 @@ pub struct Cli {
     #[arg(long)]
     pub fail_fast: bool,
     #[arg(long)]
-    pub prelude: Option<Preludes>,
+    #[arg(long, value_delimiter = ',')]
+    pub preludes: Vec<String>,
     #[arg(long)]
     pub list: bool,
+    #[arg(long)]
+    pub list_preludes: bool,
     #[arg(long)]
     pub allow_injected_ir_for_outputs: bool,
     #[arg(long)]
@@ -124,7 +127,7 @@ impl Cli {
     }
 
     pub fn picus_config(&self) -> PicusConfig {
-        PicusConfig::new(!(self.picus_no_opt || self.no_opt), self.prelude)
+        PicusConfig::new(!(self.picus_no_opt || self.no_opt))
     }
 
     pub fn llzk_config(&self) -> LlzkConfig {
@@ -132,7 +135,7 @@ impl Cli {
     }
 
     pub fn action(&self) -> Action {
-        if self.list {
+        if self.list || self.list_preludes {
             Action::List
         } else {
             Action::Extract
@@ -141,6 +144,10 @@ impl Cli {
 
     pub fn formats(&self) -> &[OutputFormat] {
         &self.format
+    }
+
+    pub fn preludes(&self) -> &[String] {
+        &self.preludes
     }
 
     //fn harness_config(&self) -> HarnessConfig {
@@ -171,5 +178,17 @@ mod tests {
     fn defaults_to_no_output_formats() {
         let cli = Cli::try_parse_from(["extractor"]).unwrap();
         assert!(cli.formats().is_empty());
+    }
+
+    #[test]
+    fn accepts_comma_delimited_preludes() {
+        let cli = Cli::try_parse_from(["extractor", "--preludes", "alpha,beta"]).unwrap();
+        assert_eq!(cli.preludes(), ["alpha", "beta"]);
+    }
+
+    #[test]
+    fn list_preludes_is_a_listing_action() {
+        let cli = Cli::try_parse_from(["extractor", "--list-preludes"]).unwrap();
+        assert!(matches!(cli.action(), Action::List));
     }
 }

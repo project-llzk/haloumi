@@ -102,10 +102,13 @@ impl Crate {
 
     fn rebase_dependencies(dependencies: &mut DepsSet, base_path: &Path) {
         for dependency in dependencies.values_mut() {
-            if let Dependency::Detailed(detail) = dependency
-                && let Some(path) = detail.path.as_mut()
-                && Path::new(path).is_relative()
-            {
+            let Dependency::Detailed(detail) = dependency else {
+                continue;
+            };
+            let Some(path) = detail.path.as_mut() else {
+                continue;
+            };
+            if Path::new(path).is_relative() {
                 *path = base_path.join(&path).display().to_string();
             }
         }
@@ -118,7 +121,10 @@ impl Crate {
         manifest.workspace = None;
     }
 
-    #[expect(deprecated, reason = "[replace] manifests remain supported for copied crates")]
+    #[expect(
+        deprecated,
+        reason = "[replace] manifests remain supported for copied crates"
+    )]
     fn warn_manifest_overrides(&self) {
         if !self.manifest.patch.is_empty() {
             log::warn!(
@@ -295,13 +301,18 @@ impl CrateMut {
         file: RustFile,
     ) -> Result<(), Error> {
         let path = path.as_ref();
-        if path.is_absolute() || path.components().any(|component| matches!(component, Component::ParentDir)) {
+        if path.is_absolute()
+            || path
+                .components()
+                .any(|component| matches!(component, Component::ParentDir))
+        {
             return Err(Error::InvalidCrateRelativePath(path.to_path_buf()));
         }
         if self.base_path().join(path).exists() || self.rust_files_cache.contains_key(path) {
             return Err(Error::GeneratedFileExists(path.to_path_buf()));
         }
-        self.rust_files_cache.insert(path.to_path_buf(), file.into_inner());
+        self.rust_files_cache
+            .insert(path.to_path_buf(), file.into_inner());
         Ok(())
     }
 
@@ -372,6 +383,9 @@ mod tests {
 
     #[test]
     fn parse_str_rejects_invalid_rust() {
-        assert!(matches!(RustFile::parse_str("fn {"), Err(Error::Parsing(_))));
+        assert!(matches!(
+            RustFile::parse_str("fn {"),
+            Err(Error::Parsing(_))
+        ));
     }
 }

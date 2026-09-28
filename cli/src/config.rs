@@ -374,10 +374,10 @@ fn rebase_dependency(dependency: &mut Dependency, base: Option<&Path>) -> Result
         return Ok(());
     }
     let detail = dependency.try_detail_mut()?;
-    if let Some(path) = detail.path.as_ref()
-        && Path::new(path).is_relative()
-    {
-        detail.path = Some(base.join(path).display().to_string());
+    if let Some(path) = detail.path.as_ref() {
+        if Path::new(path).is_relative() {
+            detail.path = Some(base.join(path).display().to_string());
+        }
     }
     Ok(())
 }

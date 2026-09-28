@@ -19,6 +19,7 @@ pub mod error;
 mod extras;
 mod factory;
 mod lowering;
+mod members;
 mod params;
 mod state;
 

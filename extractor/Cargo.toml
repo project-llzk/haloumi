@@ -30,9 +30,9 @@ inventory = { version = "0.3" }
 # clap = {version = "4.6", features = ["derive"]}
 
 [dev-dependencies]
-haloumi-mdnt-test-circuits = { path = "../support/mdnt-test-circuits", features = ["extraction"] }
-midnight-proofs = { workspace = true, features = ["extraction"] }
-haloumi-midnight-integration = { path = "../support/midnight" }
+# haloumi-mdnt-test-circuits = { path = "../support/mdnt-test-circuits", features = ["extraction"] }
+# midnight-proofs = { workspace = true, features = ["extraction"] }
+# haloumi-midnight-integration = { path = "../support/midnight" }
 haloumi-picus = { path = "../picus" }
 haloumi-llzk = { path = "../llzk" }
 haloumi-ir = { path = "../ir" }

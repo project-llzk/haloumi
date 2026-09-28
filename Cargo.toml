@@ -17,8 +17,8 @@ members = [
   "extractor",
   "extractor-core",
   "extractor-runner",
-  "support/midnight",
-  "support/mdnt-test-circuits",
+  # "support/midnight",
+  # "support/mdnt-test-circuits",
 ]
 resolver = "2"
 

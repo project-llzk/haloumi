@@ -29,8 +29,8 @@ quickcheck = "1"
 quickcheck_macros = "1"
 rstest = "0.26"
 group = "0.13"
-haloumi-mdnt-test-circuits = { path = "../support/mdnt-test-circuits" }
-haloumi-midnight-integration = { path = "../support/midnight" }
+# haloumi-mdnt-test-circuits = { path = "../support/mdnt-test-circuits" }
+# haloumi-midnight-integration = { path = "../support/midnight" }
 paste = "1"
 anyhow = "1"
 halo2curves.workspace = true

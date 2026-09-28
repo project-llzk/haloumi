@@ -56,15 +56,18 @@ pub trait Codegen<'c: 's, 's>: Sized + 's {
     where
         FN: FnOnce(&Self::FuncOutput, &[Slot], &[Slot]) -> Result<I, Self::Error>,
         I: IntoIterator<Item = L>,
-        L: LowerableStmt,
+        L: LowerableStmt + std::fmt::Debug,
     {
         let func = self.define_function(name, inputs, outputs, callees)?;
         let inputs = func.lower_function_inputs(0..inputs);
         let outputs = func.lower_function_outputs(0..outputs);
+        log::info!("Collecting body for {name}...");
         let stmts = f(&func, &inputs, &outputs)?;
+        log::info!("Defined {name} function");
         for stmt in stmts {
             stmt.lower(&func)?;
         }
+        log::info!("Lowered function body");
         self.on_scope_end(func)
     }
 
@@ -90,7 +93,6 @@ pub trait Codegen<'c: 's, 's>: Sized + 's {
         let main = self.define_main_function(advice_io, instance_io, callees)?;
         log::debug!("Defined main function");
         for stmt in stmts {
-            log::debug!("Lowering statement {stmt:?}");
             stmt.lower(&main)?;
         }
         log::debug!("Lowered function body");

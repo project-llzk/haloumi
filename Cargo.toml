@@ -50,6 +50,7 @@ midnight-proofs = { path = "../midnight-zk-current/proofs", default-features = f
   "extraction",
   "region-groups",
 ] }
+serde = {version = "1", features = ["derive"] }
 
 # Testing dependencies
 halo2curves = "0.7.0"

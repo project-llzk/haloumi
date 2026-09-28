@@ -13,6 +13,7 @@ pub trait QueryKind: sealed::QK {}
 
 /// Marker for fixed cell queries.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Fixed;
 
 impl sealed::QK for Fixed {}
@@ -26,6 +27,7 @@ impl std::fmt::Debug for Fixed {
 
 /// Marker for advice cell queries.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Advice;
 
 impl sealed::QK for Advice {}
@@ -39,6 +41,7 @@ impl std::fmt::Debug for Advice {
 
 /// Marker for instance cell queries.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Instance;
 
 impl sealed::QK for Instance {}

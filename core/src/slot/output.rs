@@ -4,6 +4,7 @@ use std::{fmt, ops::Deref};
 
 /// An identifier that backends use to identify an output in the circuit.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct OutputId(usize);
 
 impl From<usize> for OutputId {

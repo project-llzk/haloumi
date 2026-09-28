@@ -12,6 +12,7 @@ use crate::{
 /// Is parametrized on the expression type and the type used to represent the external context
 /// relative to the circuit.
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct IRCircuit<E, C> {
     body: Vec<IRGroup<E>>,
     context: C,

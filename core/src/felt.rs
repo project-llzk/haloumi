@@ -50,6 +50,26 @@ impl std::fmt::Display for Prime {
     }
 }
 
+#[cfg(feature = "serde")]
+impl serde::Serialize for Prime {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.as_ref().serialize(serializer)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'d> serde::Deserialize<'d> for Prime {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'d>,
+    {
+        Ok(Self(Intern::new(BigUint::deserialize(deserializer)?)))
+    }
+}
+
 /// Lightweight representation of a constant value.
 ///
 /// The actual value is interned which allows this type to be [`Copy`] and
@@ -57,6 +77,7 @@ impl std::fmt::Display for Prime {
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Felt {
     value: Intern<BigUint>,
+    // TODO: Make this field optional for saving space on serialization.
     prime: Prime,
 }
 
@@ -265,6 +286,32 @@ impl Neg for Felt {
 impl std::fmt::Display for Felt {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_ref())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl serde::Serialize for Felt {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let tuple = (self.value.as_ref(), self.prime);
+        tuple.serialize(serializer)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'d> serde::Deserialize<'d> for Felt {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'d>,
+    {
+        let (value, prime) =
+            <(BigUint, Prime) as serde::Deserialize<'d>>::deserialize(deserializer)?;
+        Ok(Self {
+            value: Intern::new(value),
+            prime,
+        })
     }
 }
 

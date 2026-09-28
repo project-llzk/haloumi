@@ -17,6 +17,7 @@ eqv.workspace = true
 internment.workspace = true
 num-bigint.workspace = true
 log.workspace = true
+serde = { workspace = true, optional = true }
 
 
 [dev-dependencies]
@@ -27,3 +28,6 @@ quickcheck_macros = "1"
 ff = { workspace = true, features = ["derive"] }
 halo2curves = "0.9"
 
+[features]
+default = ["serde"]
+serde = ["dep:serde", "num-bigint/serde"]

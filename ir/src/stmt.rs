@@ -65,8 +65,10 @@ where
 impl<T, I> sealed::EmitIfSealed for I where I: IntoIterator<Item = IRStmt<T>> {}
 
 /// IR for operations that occur in the main circuit.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct IRStmt<T>(IRStmtImpl<T>, Meta);
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 enum IRStmtImpl<T> {
     /// A call to another module.
     ConstraintCall(Call<T>),
@@ -565,6 +567,12 @@ impl<'a, T> Iterator for IRStmtRefIter<'a, T> {
                     // Reverse to preserve left-to-right order
                     self.stack.extend(children.iter().rev());
                 }
+                IRStmtImpl::CondBlock(cb) => {
+                    self.stack.extend(cb.body());
+                }
+                IRStmtImpl::BlockComment(bc) => {
+                    self.stack.extend(bc.body());
+                }
                 _ => return Some(node),
             }
         }
@@ -586,6 +594,10 @@ impl<'a, T> Iterator for IRStmtRefMutIter<'a, T> {
             if let IRStmt(IRStmtImpl::Seq(children), _) = node {
                 // Reverse to preserve left-to-right order
                 self.stack.extend(children.iter_mut().rev());
+            } else if let IRStmt(IRStmtImpl::CondBlock(cb), _) = node {
+                self.stack.extend(cb.body_mut());
+            } else if let IRStmt(IRStmtImpl::BlockComment(bc), _) = node {
+                self.stack.extend(bc.body_mut());
             } else {
                 return Some(node);
             }
@@ -615,6 +627,12 @@ impl<T> Iterator for IRStmtIter<T> {
                 IRStmt(IRStmtImpl::Seq(children), _) => {
                     // Reverse to preserve left-to-right order
                     self.stack.extend(children.into_iter().rev());
+                }
+                IRStmt(IRStmtImpl::CondBlock(cb), _) => {
+                    self.stack.push(cb.take_body());
+                }
+                IRStmt(IRStmtImpl::BlockComment(bc), _) => {
+                    self.stack.push(bc.take_body());
                 }
                 stmt => return Some(stmt),
             }

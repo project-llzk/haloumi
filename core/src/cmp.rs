@@ -2,6 +2,7 @@
 
 /// Comparison operators between arithmetic expressions.
 #[derive(Copy, Clone, PartialEq, Eq, Debug, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum CmpOp {
     /// Equality
     Eq,

@@ -961,6 +961,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "quickcheck",
  "quickcheck_macros",
+ "serde",
  "similar-asserts",
  "simplelog",
  "thiserror",
@@ -1132,6 +1133,7 @@ dependencies = [
  "quickcheck",
  "quickcheck_macros",
  "rstest 0.26.1",
+ "serde",
  "similar-asserts",
  "thiserror",
 ]
@@ -1145,6 +1147,7 @@ dependencies = [
  "haloumi-ir",
  "haloumi-synthesis",
  "log",
+ "serde",
  "thiserror",
 ]
 
@@ -1239,6 +1242,7 @@ dependencies = [
  "ff",
  "haloumi-core",
  "log",
+ "serde",
  "thiserror",
 ]
 
@@ -1687,6 +1691,7 @@ checksum = "a5e44f723f1133c9deac646763579fdb3ac745e418f2a7af9cd0c431da1f20b9"
 dependencies = [
  "num-integer",
  "num-traits",
+ "serde",
 ]
 
 [[package]]

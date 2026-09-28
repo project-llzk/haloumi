@@ -16,6 +16,7 @@ use super::GroupKey;
 
 /// Data related to a single callsite
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CallSite<E> {
     no: usize,
     name: String,

@@ -186,12 +186,14 @@ impl std::fmt::Display for Meta {
 }
 
 #[derive(Debug, Default, Hash, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 struct GroupMeta {
     name: String,
     key: Option<GroupKey>,
 }
 
 #[derive(Debug, Default, Hash, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 enum Location {
     #[default]
     Unknown,
@@ -212,8 +214,29 @@ enum Location {
 }
 
 #[derive(Debug, Default, Hash, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 struct MetaImpl {
     group_meta: Option<GroupMeta>,
     location: Location,
     row: Option<usize>,
+}
+
+#[cfg(feature = "serde")]
+impl serde::Serialize for Meta {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.as_ref().serialize(serializer)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'d> serde::Deserialize<'d> for Meta {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'d>,
+    {
+        Ok(Self(Intern::new(MetaImpl::deserialize(deserializer)?)))
+    }
 }

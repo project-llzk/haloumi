@@ -16,6 +16,7 @@ pub mod output;
 /// A slot can represent IO (Arg, Output, Challenge, ...) or cells in the PLONK table
 /// (Advice, Fixed, TableLookup).
 #[derive(Clone, Copy, Hash, Eq, PartialEq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Slot {
     /// Points to the n-th input argument
     Arg(ArgNo),

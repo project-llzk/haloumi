@@ -22,8 +22,10 @@ use thiserror::Error;
 
 /// Represents boolean expressions over some arithmetic expression type A.
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct IRBexpr<A>(IRBexprImpl<A>);
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 enum IRBexprImpl<A> {
     /// Literal value for true.
     True,

@@ -17,3 +17,8 @@ haloumi-core = { path = "../core", version = "0.5.5"}
 thiserror.workspace = true
 log.workspace = true
 bit-set.workspace = true
+serde = { workspace = true, optional = true }
+
+[features]
+default = ["serde"]
+serde = ["dep:serde", "haloumi-core/serde"]

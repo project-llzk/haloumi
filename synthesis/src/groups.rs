@@ -348,6 +348,7 @@ impl Deref for Groups {
 
 /// Contains information about the groups input and output cells.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct GroupsIO {
     advice_io: HashMap<usize, AdviceIO>,
     instance_io: HashMap<usize, InstanceIO>,

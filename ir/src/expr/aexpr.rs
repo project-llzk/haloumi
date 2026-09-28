@@ -16,9 +16,11 @@ use std::{
 
 /// Represents an arithmetic expression.
 #[derive(PartialEq, Eq, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct IRAexpr(pub(crate) IRAexprImpl);
 
 #[derive(PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) enum IRAexprImpl {
     /// Constant value.
     Constant(Felt),

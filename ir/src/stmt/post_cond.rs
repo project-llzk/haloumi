@@ -12,6 +12,7 @@ use haloumi_lowering::{
     lowerable::{LowerableExpr, LowerableStmt},
 };
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PostCond<T>(IRBexpr<T>);
 
 impl<T> PostCond<T> {

@@ -8,6 +8,7 @@ use crate::eqv::{EqvRelation, SymbolicEqv};
 
 /// Used for comparing cells' offsets.
 #[derive(Copy, Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 enum Offset {
     Rel(usize),
     Abs(usize),
@@ -15,6 +16,7 @@ enum Offset {
 
 /// A reference to a cell in the circuit.
 #[derive(Clone, Copy, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CellRef {
     col: usize,
     base: Option<usize>,

@@ -22,6 +22,7 @@ pub trait ColumnType: std::fmt::Debug + Copy + Clone + PartialEq + Eq + std::has
 
 /// Erased column type.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Any {
     /// Fixed type.
     Fixed,
@@ -71,6 +72,7 @@ impl ColumnType for Instance {
 
 /// A column with a type.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Column<C: ColumnType> {
     index: usize,
     column_type: C,
@@ -224,6 +226,7 @@ impl RotationExt for Rotation {
 
 /// Replacement for Halo2's `RegionIndex` type.
 #[derive(Eq, Hash, PartialEq, Debug, Copy, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RegionIndex(usize);
 
 impl Deref for RegionIndex {

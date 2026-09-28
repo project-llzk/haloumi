@@ -2,6 +2,7 @@ use eqv::EqvRelation;
 use haloumi_core::{eqv::SymbolicEqv, slot::Slot};
 use haloumi_lowering::{Lowering, lowerable::LowerableStmt};
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AssumeDeterministic(Slot);
 
 impl AssumeDeterministic {

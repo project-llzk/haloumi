@@ -8,6 +8,7 @@ use crate::{
 
 /// Types of copy constraints.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum CopyConstraint {
     /// A copy constraint between two cells.
     Cells(Column<Any>, usize, Column<Any>, usize),

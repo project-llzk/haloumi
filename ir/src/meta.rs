@@ -1,11 +1,16 @@
 //! IR metadata
 
+#[cfg(any(test, feature = "arbitrary"))]
+use haloumi_core::felt::Felt;
 use haloumi_core::{
     constraints::CopyConstraint,
     query::Fixed,
     table::{Any, Column, RegionIndex},
 };
 use internment::Intern;
+
+#[cfg(any(test, feature = "arbitrary"))]
+use quickcheck::Arbitrary;
 
 use crate::groups::GroupKey;
 
@@ -19,8 +24,36 @@ pub trait HasMeta {
 }
 
 /// Metadata associated with an IR object.
-#[derive(Debug, Copy, Clone, Default)]
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
 pub struct Meta(Intern<MetaImpl>);
+
+#[cfg(any(test, feature = "arbitrary"))]
+impl Arbitrary for Meta {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let mut meta = Self::default();
+        meta.at_group(String::arbitrary(g), Option::<GroupKey>::arbitrary(g));
+        match u8::arbitrary(g) % 5 {
+            0 => meta.at_gate(
+                String::arbitrary(g),
+                String::arbitrary(g),
+                Option::<RegionIndex>::arbitrary(g),
+                Option::<usize>::arbitrary(g),
+            ),
+            1 => meta.at_copy_constraint(CopyConstraint::arbitrary(g)),
+            2 => meta.at_lookup(
+                String::arbitrary(g),
+                usize::arbitrary(g),
+                Option::<usize>::arbitrary(g),
+            ),
+            3 => meta.at_inject(
+                RegionIndex::from(usize::arbitrary(g)),
+                Option::<usize>::arbitrary(g),
+            ),
+            _ => meta.at_row(usize::arbitrary(g)),
+        }
+        meta
+    }
+}
 
 impl Meta {
     fn edit_meta(&mut self, mut f: impl FnMut(&mut MetaImpl)) {
@@ -238,5 +271,19 @@ impl<'d> serde::Deserialize<'d> for Meta {
         D: serde::Deserializer<'d>,
     {
         Ok(Self(Intern::new(MetaImpl::deserialize(deserializer)?)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "serde")]
+    use quickcheck_macros::quickcheck;
+
+    use super::*;
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn metadata_round_trips(value: Meta) {
+        assert_eq!(value, crate::serde_tests_helpers::round_trip(&value));
     }
 }

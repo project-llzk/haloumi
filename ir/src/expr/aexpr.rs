@@ -34,6 +34,30 @@ pub(crate) enum IRAexprImpl {
     Product(Box<IRAexpr>, Box<IRAexpr>),
 }
 
+#[cfg(any(test, feature = "arbitrary"))]
+impl quickcheck::Arbitrary for IRAexpr {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        fn arbitrary_with_depth(g: &mut quickcheck::Gen, depth: usize) -> IRAexpr {
+            if depth == 0 {
+                return if bool::arbitrary(g) {
+                    IRAexpr::constant(Felt::arbitrary(g))
+                } else {
+                    IRAexpr::slot(Slot::arbitrary(g))
+                };
+            }
+            match u8::arbitrary(g) % 5 {
+                0 => IRAexpr::constant(Felt::arbitrary(g)),
+                1 => IRAexpr::slot(Slot::arbitrary(g)),
+                2 => -arbitrary_with_depth(g, depth - 1),
+                3 => arbitrary_with_depth(g, depth - 1) + arbitrary_with_depth(g, depth - 1),
+                _ => arbitrary_with_depth(g, depth - 1) * arbitrary_with_depth(g, depth - 1),
+            }
+        }
+
+        arbitrary_with_depth(g, g.size())
+    }
+}
+
 impl IRAexpr {
     /// Creates a constant expression.
     pub fn constant(felt: Felt) -> Self {
@@ -328,7 +352,7 @@ impl IRPrintable for IRAexpr {
 }
 
 #[cfg(test)]
-mod folding_tests {
+mod tests {
     use super::*;
     use rstest::rstest;
 
@@ -414,5 +438,11 @@ mod folding_tests {
         let mut sum = IRAexpr(IRAexprImpl::Sum(Box::new(lhs.clone()), Box::new(rhs)));
         sum.constant_fold().unwrap();
         assert_eq!(sum, lhs);
+    }
+
+    #[cfg(feature = "serde")]
+    #[quickcheck_macros::quickcheck]
+    fn arithmetic_expression_round_trips(value: IRAexpr) {
+        assert_eq!(value, crate::serde_tests_helpers::round_trip(&value));
     }
 }

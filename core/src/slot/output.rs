@@ -13,6 +13,13 @@ impl From<usize> for OutputId {
     }
 }
 
+#[cfg(any(test, feature = "arbitrary"))]
+impl quickcheck::Arbitrary for OutputId {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        Self::from(usize::arbitrary(g))
+    }
+}
+
 impl OutputId {
     /// Offsets the field number by the given amount.
     pub fn offset_by(self, offset: usize) -> Self {
@@ -37,5 +44,19 @@ impl fmt::Display for OutputId {
 impl fmt::Debug for OutputId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "field{}", self.0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "serde")]
+    use quickcheck_macros::quickcheck;
+
+    use super::*;
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn output_id_round_trips(value: OutputId) {
+        assert_eq!(value, crate::serde_tests_helpers::round_trip(value));
     }
 }

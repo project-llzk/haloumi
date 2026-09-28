@@ -18,16 +18,19 @@ internment.workspace = true
 num-bigint.workspace = true
 log.workspace = true
 serde = { workspace = true, optional = true }
+quickcheck = { workspace = true, optional = true }
 
 
 [dev-dependencies]
 simplelog = {version = "0.12", features = ["test"] }
 similar-asserts = "1.7"
-quickcheck = "1"
-quickcheck_macros = "1"
+quickcheck.workspace = true
+quickcheck_macros.workspace = true
+serde_json.workspace = true
 ff = { workspace = true, features = ["derive"] }
 halo2curves = "0.9"
 
 [features]
-default = ["serde"]
+default = []
 serde = ["dep:serde", "num-bigint/serde"]
+arbitrary = ["dep:quickcheck"]

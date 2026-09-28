@@ -21,3 +21,6 @@ pub mod slot;
 pub mod synthesis;
 pub mod table;
 pub mod types;
+
+#[cfg(all(test, feature = "serde"))]
+mod serde_tests_helpers;

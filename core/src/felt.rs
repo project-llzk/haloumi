@@ -5,9 +5,19 @@ use internment::Intern;
 use num_bigint::BigUint;
 use std::ops::{Add, AddAssign, Deref, Mul, MulAssign, Neg, Rem, RemAssign, Sub, SubAssign};
 
+#[cfg(any(test, feature = "arbitrary"))]
+use quickcheck::Arbitrary;
+
 /// Interned value of the prime of a finite field.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Prime(Intern<BigUint>);
+
+#[cfg(any(test, feature = "arbitrary"))]
+impl Arbitrary for Prime {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        Self(Intern::new(BigUint::from(u64::arbitrary(g))))
+    }
+}
 
 impl Prime {
     /// Creates the prime from the given [`PrimeField`].
@@ -79,6 +89,13 @@ pub struct Felt {
     value: Intern<BigUint>,
     // TODO: Make this field optional for saving space on serialization.
     prime: Prime,
+}
+
+#[cfg(any(test, feature = "arbitrary"))]
+impl Arbitrary for Felt {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        Self::from_parts(BigUint::from(u64::arbitrary(g)), Prime::arbitrary(g))
+    }
 }
 
 impl Felt {
@@ -454,5 +471,17 @@ pub mod tests {
         let mut a = Felt::new(BabyBear::from(a));
         let b = Felt::new(Fq::from(b));
         a %= b;
+    }
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn prime_round_trips(value: Prime) {
+        assert_eq!(value, crate::serde_tests_helpers::round_trip(value));
+    }
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn felt_round_trips(value: Felt) {
+        assert_eq!(value, crate::serde_tests_helpers::round_trip(value));
     }
 }

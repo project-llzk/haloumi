@@ -32,6 +32,7 @@ pub fn write_llzk_output(
     }
     let output = Driver::default().llzk(ir, params)?;
 
+    log::info!("Writing LLZK output...");
     let output_path = output_dir.join("output.llzk");
     let mut output_file = File::create(&output_path)?;
 

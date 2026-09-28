@@ -204,25 +204,35 @@ impl ExtractorMain {
         log::info!("Extracting harness {name}");
 
         let mut ir = harness.run(extractor).map_err(AppError::harness(name))?;
+        log::info!("Extracted {name} into IR");
         for prelude in preludes {
             ir.add_prelude_groups(prelude.groups().into())?;
         }
+        log::info!("Prepended preludes");
         if self.cli.optimize_ir() {
+            log::info!("Running optimizer...");
             self.optimize_ir(&mut ir).map_err(AppError::opt(name))?;
         }
         for format in self.cli.formats() {
             match format {
-                OutputFormat::Ir => write_ir_output(name, output_base.join("ir"), &ir)
-                    .map_err(AppError::ir(name))?,
-                OutputFormat::Picus => write_picus_output(
-                    picus_config,
-                    name,
-                    output_base.join("picus"),
-                    &ir,
-                    PicusParamsBuilder::new(),
-                )
-                .map_err(AppError::picus(name))?,
+                OutputFormat::Ir => {
+                    log::info!("Dumping IR...");
+                    write_ir_output(name, output_base.join("ir"), &ir)
+                        .map_err(AppError::ir(name))?
+                }
+                OutputFormat::Picus => {
+                    log::info!("Generating PCL...");
+                    write_picus_output(
+                        picus_config,
+                        name,
+                        output_base.join("picus"),
+                        &ir,
+                        PicusParamsBuilder::new(),
+                    )
+                    .map_err(AppError::picus(name))?
+                }
                 OutputFormat::Llzk => {
+                    log::info!("Generating LLZK...");
                     let field_name = self
                         .cli
                         .llzk_field_name
@@ -237,6 +247,7 @@ impl ExtractorMain {
             }
         }
 
+        log::info!("Completed {name}!");
         Ok(())
     }
 

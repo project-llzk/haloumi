@@ -176,6 +176,7 @@ impl App {
         command
             .current_dir(root.base_path())
             .arg(if self.dry_run { "build" } else { "run" })
+            .arg("--release")
             .arg("--bin")
             .arg("haloumi-extractor")
             .arg("--target-dir")

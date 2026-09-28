@@ -12,6 +12,7 @@ use melior::{
 
 use crate::error::Error;
 use crate::factory::StructIO;
+use crate::members::Members;
 use haloumi_synthesis::io::{AdviceIO, InstanceIO};
 
 use super::factory;
@@ -29,12 +30,24 @@ impl<'c, 's> LlzkCodegen<'c, 's> {
         name: &str,
         io: StructIO,
     ) -> Result<LlzkStructLowering<'c, 's>, Error> {
+        let members = Members::new();
         let builder = OpBuilder::at_block_end(self.context(), self.module.body());
-        let s = factory::create_struct(&builder, self.state, name, self.struct_count.next(), &io)?;
+        log::info!("Creating struct with name {name}...");
+        let s = factory::create_struct(
+            &builder,
+            self.state,
+            name,
+            self.struct_count.peek(),
+            &io,
+            &members,
+        )?;
+        self.struct_count.step();
+        log::info!("Done.");
         LlzkStructLowering::new(
             self.state,
             unsafe { StructDefOpRefMut::from_raw(s.to_raw()) },
             io,
+            members,
         )
     }
 
@@ -78,9 +91,12 @@ impl<'c: 's, 's> Codegen<'c, 's> for LlzkCodegen<'c, 's> {
         callees: impl IntoIterator<Item = String>,
     ) -> Result<Self::FuncOutput, Self::Error> {
         let name = self.state.params().top_level().unwrap_or("Main");
-        log::debug!("Creating Main struct with name '{name}'");
+        log::info!("Creating Main struct with name '{name}'");
         self.set_main_struct(name);
-        self.create_lowering_scope(name, StructIO::from_io(advice_io, instance_io, callees))
+        self.create_lowering_scope(
+            name,
+            StructIO::from_io(name.to_owned(), advice_io, instance_io, callees),
+        )
     }
 
     fn define_function(
@@ -90,7 +106,11 @@ impl<'c: 's, 's> Codegen<'c, 's> for LlzkCodegen<'c, 's> {
         outputs: usize,
         callees: impl IntoIterator<Item = String>,
     ) -> Result<Self::FuncOutput, Self::Error> {
-        self.create_lowering_scope(name, StructIO::from_io_count(inputs, outputs, callees))
+        log::info!("Creating a struct with name '{name}'");
+        self.create_lowering_scope(
+            name,
+            StructIO::from_io_count(name.to_owned(), inputs, outputs, callees),
+        )
     }
 
     fn on_scope_end(&self, _: Self::FuncOutput) -> Result<(), Self::Error> {
@@ -98,6 +118,7 @@ impl<'c: 's, 's> Codegen<'c, 's> for LlzkCodegen<'c, 's> {
     }
 
     fn generate_output(mut self) -> Result<Self::Output, Self::Error> {
+        log::info!("Generating final output...");
         verify_operation_with_diags(&self.module.as_operation()).map_err(|err| {
             Error::VerificationFailed {
                 err,
@@ -110,8 +131,10 @@ impl<'c: 's, 's> Codegen<'c, 's> for LlzkCodegen<'c, 's> {
         })?;
 
         if self.state.optimize() {
+            log::info!("Running the optimizer...");
             let pipeline = create_pipeline(self.context());
             pipeline.run(&mut self.module)?;
+            log::info!("Optimizer done.");
         }
 
         Ok(self.module.into())

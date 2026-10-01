@@ -204,6 +204,9 @@ impl App {
             if let Some(field) = self.config.llzk_field() {
                 command.arg("--llzk-field-name").arg(field);
             }
+            if self.config.llzk_emit_assembly() {
+                command.arg("--llzk-emit-assembly");
+            }
             if let Some(preludes) = extractor.preludes().filter(|preludes| !preludes.is_empty()) {
                 command.arg("--preludes").arg(preludes.join(","));
             }

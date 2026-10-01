@@ -15,6 +15,7 @@ keywords.workspace = true
 cargo_metadata = "0.19"
 cargo_toml = "1"
 clap = { version = "4.6", features = ["derive"] }
+haloumi-core = { path = "../core", features = ["serde"] }
 haloumi-inject = { path = "../inject" }
 log.workspace = true
 serde = { version = "1", features = ["derive"] }

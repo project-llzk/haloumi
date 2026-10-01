@@ -63,6 +63,8 @@ pub struct Cli {
     /// prime; any other name defines a field with the circuit's prime.
     #[arg(long)]
     pub llzk_field_name: Option<String>,
+    #[arg(long)]
+    pub llzk_emit_assembly: bool,
 }
 
 impl Cli {

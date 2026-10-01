@@ -28,7 +28,6 @@ pub trait GroupKey: Copy + Hash + Debug + Sized {}
 
 /// Type erased group key.
 ///
-///
 /// Allows using different implementations of [`GroupKey`] together.
 /// Can be constructed from any implementation of [`GroupKey`]
 /// and stores only the resulting hash, erasing the original type.

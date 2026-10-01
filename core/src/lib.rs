@@ -15,6 +15,7 @@ pub mod groups;
 pub mod info_traits;
 pub mod io;
 pub mod layouter;
+pub mod llzk;
 pub mod lookups;
 pub mod query;
 pub mod slot;

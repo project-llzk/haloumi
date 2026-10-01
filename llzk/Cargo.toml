@@ -42,3 +42,4 @@ group = "0.13"
 similar-asserts.workspace = true
 mlir-testutils.workspace = true
 halo2curves.workspace = true
+

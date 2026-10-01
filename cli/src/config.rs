@@ -6,6 +6,7 @@ use std::{
 };
 
 use cargo_toml::{Dependency, DepsSet, VersionReq};
+use haloumi_core::llzk::LlzkOutputFormat;
 use serde::Deserialize;
 
 use crate::Error;
@@ -94,6 +95,7 @@ struct LlzkBackend {
     enabled: Option<bool>,
     optimize: Option<bool>,
     field: Option<Field>,
+    format: LlzkOutputFormat,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -291,6 +293,17 @@ impl Config {
             .as_ref()?
             .builtin
             .as_deref()
+    }
+
+    /// Returns if LLZK should emit assembly output, when LLZK is configured completely.
+    pub(crate) fn llzk_emit_assembly(&self) -> bool {
+        let Some(llzk) = self.backends().and_then(|b| b.llzk.as_ref()) else {
+            return false;
+        };
+        if !llzk.enabled() {
+            return false;
+        }
+        matches!(llzk.format, LlzkOutputFormat::Assembly)
     }
 
     /// Returns whether Picus optimization is enabled.

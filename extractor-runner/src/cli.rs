@@ -61,6 +61,8 @@ pub struct Cli {
     pub allow_injected_ir_for_outputs: bool,
     #[arg(long)]
     pub llzk_field_name: Option<String>,
+    #[arg(long)]
+    pub llzk_emit_assembly: bool,
 }
 
 impl Cli {

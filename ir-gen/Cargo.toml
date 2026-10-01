@@ -31,7 +31,7 @@ haloumi-ir = { path = "../ir", version = "0.5.5", features = ["arbitrary"] }
 haloumi-synthesis = { path = "../synthesis", version = "0.5.5", features = ["arbitrary"] }
 
 [features]
-default = ["serde"]
+default = []
 serde = ["dep:serde", "haloumi-core/serde", "haloumi-ir/serde"]
 arbitrary = [
   "dep:quickcheck",

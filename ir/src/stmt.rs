@@ -94,34 +94,35 @@ enum IRStmtImpl<T> {
 }
 
 #[cfg(any(test, feature = "arbitrary"))]
-fn arbitrary_with_depth<T: Arbitrary>(g: &mut quickcheck::Gen, depth: usize) -> IRStmt<T> {
-    if depth == 0 {
-        return IRStmt::constraint(CmpOp::arbitrary(g), T::arbitrary(g), T::arbitrary(g));
-    }
-    match u8::arbitrary(g) % 9 {
-        0 => IRStmt::call(
-            String::arbitrary(g),
-            [T::arbitrary(g)],
-            [Slot::Temp(usize::arbitrary(g))],
-        ),
-        1 => IRStmt::constraint(CmpOp::arbitrary(g), T::arbitrary(g), T::arbitrary(g)),
-        2 => IRStmt::comment(String::arbitrary(g)),
-        3 => IRStmt::assume_deterministic(Slot::arbitrary(g)),
-        4 => IRStmt::assert(IRBexpr::arbitrary(g)),
-        5 => IRStmt::post_cond(IRBexpr::arbitrary(g)),
-        6 => IRStmt::seq([
-            arbitrary_with_depth::<T>(g, depth - 1),
-            arbitrary_with_depth::<T>(g, depth - 1),
-        ]),
-        7 => [arbitrary_with_depth::<T>(g, depth - 1)].emit_unless_false(IRBexpr::arbitrary(g)),
-        _ => arbitrary_with_depth::<T>(g, depth - 1).with_comment(String::arbitrary(g)),
-    }
-}
-
-#[cfg(any(test, feature = "arbitrary"))]
 impl<T: Arbitrary> Arbitrary for IRStmt<T> {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        arbitrary_with_depth(g, g.size().min(4))
+        fn arbitrary_with_depth<T: Arbitrary>(g: &mut quickcheck::Gen, depth: usize) -> IRStmt<T> {
+            if depth == 0 {
+                return IRStmt::constraint(CmpOp::arbitrary(g), T::arbitrary(g), T::arbitrary(g));
+            }
+            match u8::arbitrary(g) % 9 {
+                0 => IRStmt::call(
+                    String::arbitrary(g),
+                    Vec::<T>::arbitrary(g),
+                    Vec::<usize>::arbitrary(g).into_iter().map(Slot::Temp),
+                ),
+                1 => IRStmt::constraint(CmpOp::arbitrary(g), T::arbitrary(g), T::arbitrary(g)),
+                2 => IRStmt::comment(String::arbitrary(g)),
+                3 => IRStmt::assume_deterministic(Slot::arbitrary(g)),
+                4 => IRStmt::assert(IRBexpr::arbitrary(g)),
+                5 => IRStmt::post_cond(IRBexpr::arbitrary(g)),
+                6 => IRStmt::seq(
+                    (0..(usize::arbitrary(g) % 32))
+                        .map(|_| arbitrary_with_depth::<T>(g, depth - 1)),
+                ),
+                7 => {
+                    arbitrary_with_depth::<T>(g, depth - 1).emit_unless_false(IRBexpr::arbitrary(g))
+                }
+                _ => arbitrary_with_depth::<T>(g, depth - 1).with_comment(String::arbitrary(g)),
+            }
+        }
+
+        arbitrary_with_depth(g, g.size().min(5))
     }
 }
 

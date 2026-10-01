@@ -7,6 +7,9 @@ use std::{marker::PhantomData, ops::Deref};
 use ff::Field;
 use thiserror::Error;
 
+#[cfg(any(test, feature = "arbitrary"))]
+use quickcheck::Arbitrary;
+
 use crate::{
     expressions::ExprBuilder,
     info_traits::CreateQuery,
@@ -21,6 +24,7 @@ pub trait ColumnType: std::fmt::Debug + Copy + Clone + PartialEq + Eq + std::has
 
 /// Erased column type.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Any {
     /// Fixed type.
     Fixed,
@@ -28,6 +32,17 @@ pub enum Any {
     Advice,
     /// Instance type.
     Instance,
+}
+
+#[cfg(any(test, feature = "arbitrary"))]
+impl Arbitrary for Any {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        match u8::arbitrary(g) % 3 {
+            0 => Self::Fixed,
+            1 => Self::Advice,
+            _ => Self::Instance,
+        }
+    }
 }
 
 impl std::fmt::Debug for Any {
@@ -70,9 +85,20 @@ impl ColumnType for Instance {
 
 /// A column with a type.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Column<C: ColumnType> {
     index: usize,
     column_type: C,
+}
+
+#[cfg(any(test, feature = "arbitrary"))]
+impl<C> Arbitrary for Column<C>
+where
+    C: ColumnType + Arbitrary + 'static,
+{
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        Self::new(usize::arbitrary(g), C::arbitrary(g))
+    }
 }
 
 impl<C: ColumnType + std::fmt::Debug> std::fmt::Debug for Column<C> {
@@ -214,7 +240,15 @@ impl RotationExt for Rotation {
 
 /// Replacement for Halo2's `RegionIndex` type.
 #[derive(Eq, Hash, PartialEq, Debug, Copy, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RegionIndex(usize);
+
+#[cfg(any(test, feature = "arbitrary"))]
+impl Arbitrary for RegionIndex {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        Self::from(usize::arbitrary(g))
+    }
+}
 
 impl Deref for RegionIndex {
     type Target = usize;
@@ -370,3 +404,48 @@ macro_rules! tuple_impl {
 }
 
 tuple_impl!();
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[cfg(feature = "serde")]
+    use crate::serde_tests_helpers::round_trip;
+    #[cfg(feature = "serde")]
+    use quickcheck_macros::quickcheck;
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn region_index_round_trips(value: RegionIndex) {
+        assert_eq!(value, round_trip(value));
+    }
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn any_column_round_trips(value: Column<Any>) {
+        assert_eq!(value, round_trip(value));
+    }
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn fixed_column_round_trips(value: Column<Fixed>) {
+        assert_eq!(value, round_trip(value));
+    }
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn advice_column_round_trips(value: Column<Advice>) {
+        assert_eq!(value, round_trip(value));
+    }
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn instance_column_round_trips(value: Column<Instance>) {
+        assert_eq!(value, round_trip(value));
+    }
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn any_column_type_round_trip(any: Any) {
+        assert_eq!(any, round_trip(any));
+    }
+}

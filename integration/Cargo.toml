@@ -19,3 +19,6 @@ num-traits = "0.2"
 haloumi-core = { path = "../core" }
 haloumi-ir = { path = "../ir" }
 haloumi-integration-macros = { path = "../integration-macros" }
+
+[dev-dependencies]
+rstest = "0"

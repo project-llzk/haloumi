@@ -357,10 +357,10 @@ pub trait RegionsGroupHooks<F, C> {
     type Error;
 
     /// Root layouter.
-    type Root: RegionsGroupHooks<F, C>;
+    type RootHook: RegionsGroupHooks<F, C>;
 
     /// Returns the root layouter.
-    fn get_root(&mut self) -> &mut Self::Root;
+    fn get_root_hook(&mut self) -> &mut Self::RootHook;
 
     /// Creates a new group and enters into it.
     ///
@@ -427,7 +427,7 @@ pub trait RegionsGroupHooks<F, C> {
     ///     });
     /// }
     /// ```
-    fn group<A, AR, N, NR, K>(
+    fn group_impl<A, AR, N, NR, K>(
         &mut self,
         name: N,
         key: K,
@@ -435,16 +435,16 @@ pub trait RegionsGroupHooks<F, C> {
     ) -> Result<AR, Self::Error>
     where
         A: FnMut(
-            &mut GroupLayouter<'_, F, Self::Root>,
+            &mut GroupLayouter<'_, F, Self::RootHook>,
             &mut RegionsGroup<C>,
         ) -> Result<AR, Self::Error>,
         NR: Into<String>,
         N: FnOnce() -> NR,
         K: GroupKey,
     {
-        self.get_root().push_group(name, key);
+        self.get_root_hook().push_group(name, key);
 
-        let mut scope = GroupScope::new(self.get_root());
+        let mut scope = GroupScope::new(self.get_root_hook());
         assignment(&mut scope.layouter, &mut scope.meta)
     }
 }
@@ -481,7 +481,8 @@ pub trait RegionsGroupAssignmentHooks<C> {
 /// Implements [`Layouter`] and can be used as a drop-in replacement.
 #[derive(Debug)]
 pub struct GroupLayouter<'l, F, L> {
-    parent: &'l mut L,
+    /// Parent layouter.
+    pub parent: &'l mut L,
     /// Shared with RegionGroup for tracking if annotating is enabled or not.
     enabled: AnnotationFlag,
     _marker: PhantomData<F>,
@@ -496,14 +497,9 @@ impl<'l, F, L> GroupLayouter<'l, F, L> {
         }
     }
 
-    /// Enables or disables the annotation of cells.
-    pub fn set_enabled(&self, enabled: bool) {
-        self.enabled.set(enabled);
-    }
-
-    /// Enables the annotation of cells.
-    pub fn enable(&self) {
-        self.enabled.enable();
+    /// Returns the annotation flag.
+    pub fn flag(&self) -> AnnotationFlag {
+        self.enabled.clone()
     }
 }
 
@@ -513,10 +509,10 @@ where
 {
     type Error = L::Error;
 
-    type Root = L::Root;
+    type RootHook = L::RootHook;
 
-    fn get_root(&mut self) -> &mut Self::Root {
-        self.parent.get_root()
+    fn get_root_hook(&mut self) -> &mut Self::RootHook {
+        self.parent.get_root_hook()
     }
 
     fn push_group<N, NR, K>(&mut self, name: N, key: K)

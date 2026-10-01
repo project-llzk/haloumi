@@ -240,7 +240,7 @@ impl ExtractorMain {
                         .ok_or(Error::RequiredLlzkFieldName)?;
                     let context = LlzkContext::new();
                     let mut params = LlzkParams::new(&context);
-                    params.with_builtin_field(field_name);
+                    crate::llzk::set_field(&mut params, field_name, ir.prime())?;
                     write_llzk_output(llzk_config, name, output_base.join("llzk"), &ir, params)
                         .map_err(AppError::llzk(name))?;
                 }
@@ -361,6 +361,9 @@ pub enum Error {
     /// Raised when LLZK output is emitted but the field name was not passed.
     #[error("Pass the --llzk-field-name=<name> parameter when emitting LLZK IR")]
     RequiredLlzkFieldName,
+    /// Raised when the LLZK field cannot be defined for the circuit.
+    #[error(transparent)]
+    LlzkField(#[from] crate::llzk::FieldError),
     /// Raised when a requested prelude does not exist in the registry.
     #[error("Unknown prelude {0:?}")]
     UnknownPrelude(String),

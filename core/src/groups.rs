@@ -10,7 +10,10 @@ use std::{
     rc::Rc,
 };
 
-use crate::{info_traits::GroupInfo, table::Cell};
+use crate::{
+    info_traits::GroupInfo,
+    table::{Cell, DecomposeIn},
+};
 
 #[cfg(test)]
 mod tests;
@@ -235,33 +238,25 @@ where
         }
     }
 
-    ///// Annotates the list of `C` that represent the given value with
-    ///// [`CellRole::Input`].
-    /////
-    ///// See the documentation in [`RegionsGroup::annotate_cell`] for
-    ///// requirements annotated cells must meet.
-    //#[cfg(feature = "decompose-in-cells")]
-    //#[inline]
-    //pub fn annotate_as_input(
-    //    &mut self,
-    //    value: &impl picus_support::DecomposeIn<Cell>,
-    //) -> Result<(), Error> {
-    //    self.annotate_inputs(value.cells())
-    //}
-    //
-    ///// Annotates the list of `C` that represent the given value with
-    ///// [`CellRole::Output`].
-    /////
-    ///// See the documentation in [`RegionsGroup::annotate_cell`] for
-    ///// requirements annotated cells must meet.
-    //#[cfg(feature = "decompose-in-cells")]
-    //#[inline]
-    //pub fn annotate_as_output(
-    //    &mut self,
-    //    value: &impl picus_support::DecomposeIn<Cell>,
-    //) -> Result<(), Error> {
-    //    self.annotate_outputs(value.cells())
-    //}
+    /// Annotates the list of `C` that represent the given value with
+    /// [`CellRole::Input`].
+    ///
+    /// See the documentation in [`RegionsGroup::annotate_cell`] for
+    /// requirements annotated cells must meet.
+    #[inline]
+    pub fn annotate_as_input(&mut self, value: &impl DecomposeIn<C>) {
+        self.annotate_inputs(value.cells())
+    }
+
+    /// Annotates the list of `C` that represent the given value with
+    /// [`CellRole::Output`].
+    ///
+    /// See the documentation in [`RegionsGroup::annotate_cell`] for
+    /// requirements annotated cells must meet.
+    #[inline]
+    pub fn annotate_as_output(&mut self, value: &impl DecomposeIn<C>) {
+        self.annotate_outputs(value.cells())
+    }
 }
 
 impl<C> GroupInfo for RegionsGroup<C>

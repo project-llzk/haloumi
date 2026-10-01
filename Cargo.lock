@@ -827,8 +827,6 @@ dependencies = [
  "quickcheck",
  "quickcheck_macros",
  "rstest",
- "serde",
- "serde_json",
  "similar-asserts",
  "thiserror",
 ]

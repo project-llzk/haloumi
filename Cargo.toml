@@ -9,6 +9,7 @@ members = [
   "picus",
   "llzk",
   "driver",
+  "extractor-core",
   "support/midnight",
   "support/mdnt-test-circuits",
 ]

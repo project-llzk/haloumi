@@ -9,6 +9,7 @@ pub mod diagnostics;
 pub mod error;
 pub mod expr;
 pub mod groups;
+pub mod inject;
 pub mod meta;
 pub mod printer;
 mod slot;
@@ -16,3 +17,6 @@ pub mod stmt;
 pub mod traits;
 pub use circuit::IRCircuit;
 pub use haloumi_core::{cmp::*, eqv::*, felt::*, slot::*};
+
+#[cfg(all(test, feature = "serde"))]
+mod serde_tests_helpers;

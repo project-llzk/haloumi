@@ -11,11 +11,14 @@ pub mod expressions;
 pub mod felt;
 pub mod groups;
 pub mod info_traits;
+pub mod io;
+pub mod layouter;
 pub mod lookups;
 pub mod query;
 pub mod slot;
 pub mod synthesis;
 pub mod table;
+pub mod types;
 
 #[cfg(all(test, feature = "serde"))]
 mod serde_tests_helpers;

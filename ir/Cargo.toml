@@ -21,6 +21,8 @@ haloumi-core = { path = "../core", version = "0.5.5"}
 haloumi-lowering = { path = "../lowering", version = "0.5.5" }
 num-bigint.workspace = true
 bit-set.workspace = true
+serde = { workspace = true, optional = true }
+quickcheck = { workspace = true, optional = true }
 
 
 [dev-dependencies]
@@ -30,4 +32,3 @@ ff = { workspace = true, features = ["derive"] }
 halo2curves = "0.9"
 quickcheck.workspace = true
 quickcheck_macros.workspace = true
-

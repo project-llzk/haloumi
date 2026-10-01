@@ -19,7 +19,23 @@ ff.workspace = true
 log.workspace = true
 thiserror.workspace = true
 serde = { workspace = true, optional = true }
+quickcheck = { workspace = true, optional = true }
+
+[dev-dependencies]
+quickcheck.workspace = true
+quickcheck_macros.workspace = true
+serde_json.workspace = true
+halo2curves.workspace = true
+haloumi-core = { path = "../core", version = "0.5.5", features = ["arbitrary"] }
+haloumi-ir = { path = "../ir", version = "0.5.5", features = ["arbitrary"] }
+haloumi-synthesis = { path = "../synthesis", version = "0.5.5", features = ["arbitrary"] }
 
 [features]
 default = []
 serde = ["dep:serde", "haloumi-core/serde", "haloumi-ir/serde"]
+arbitrary = [
+  "dep:quickcheck",
+  "haloumi-core/arbitrary",
+  "haloumi-ir/arbitrary",
+  "haloumi-synthesis/arbitrary",
+]

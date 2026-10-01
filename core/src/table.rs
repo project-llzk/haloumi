@@ -5,7 +5,11 @@
 use std::{marker::PhantomData, ops::Deref};
 
 use ff::Field;
+use num_bigint::BigUint;
 use thiserror::Error;
+
+#[cfg(any(test, feature = "arbitrary"))]
+use quickcheck::Arbitrary;
 
 use crate::{
     expressions::ExprBuilder,
@@ -21,6 +25,7 @@ pub trait ColumnType: std::fmt::Debug + Copy + Clone + PartialEq + Eq + std::has
 
 /// Erased column type.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Any {
     /// Fixed type.
     Fixed,
@@ -28,6 +33,17 @@ pub enum Any {
     Advice,
     /// Instance type.
     Instance,
+}
+
+#[cfg(any(test, feature = "arbitrary"))]
+impl Arbitrary for Any {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        match u8::arbitrary(g) % 3 {
+            0 => Self::Fixed,
+            1 => Self::Advice,
+            _ => Self::Instance,
+        }
+    }
 }
 
 impl std::fmt::Debug for Any {
@@ -70,9 +86,20 @@ impl ColumnType for Instance {
 
 /// A column with a type.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Column<C: ColumnType> {
     index: usize,
     column_type: C,
+}
+
+#[cfg(any(test, feature = "arbitrary"))]
+impl<C> Arbitrary for Column<C>
+where
+    C: ColumnType + Arbitrary + 'static,
+{
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        Self::new(usize::arbitrary(g), C::arbitrary(g))
+    }
 }
 
 impl<C: ColumnType + std::fmt::Debug> std::fmt::Debug for Column<C> {
@@ -183,6 +210,15 @@ pub struct Cell {
     pub column: Column<Any>,
 }
 
+/// Bespoke conversion trait from a [`Cell`].
+///
+/// Meant for avoiding the generality that `From<Cell>` would introduce
+/// into an integrated Halo2 implementation.
+pub trait FromCell {
+    /// Creates an instance of self from a cell.
+    fn from_cell(cell: Cell) -> Self;
+}
+
 /// Replacement type for Halo2's `Rotation` type.
 pub type Rotation = i32;
 
@@ -214,7 +250,15 @@ impl RotationExt for Rotation {
 
 /// Replacement for Halo2's `RegionIndex` type.
 #[derive(Eq, Hash, PartialEq, Debug, Copy, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RegionIndex(usize);
+
+#[cfg(any(test, feature = "arbitrary"))]
+impl Arbitrary for RegionIndex {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        Self::from(usize::arbitrary(g))
+    }
+}
 
 impl Deref for RegionIndex {
     type Target = usize;
@@ -249,7 +293,7 @@ impl From<usize> for RegionStart {
 }
 
 /// Errors related to the PLONK table.
-#[derive(Error, Copy, Clone, Debug)]
+#[derive(Error, Clone, Debug)]
 pub enum TableError {
     /// Unexpected column type when Fixed was expected.
     #[error("Expected Any::Fixed. Got {0:?}")]
@@ -260,6 +304,18 @@ pub enum TableError {
     /// Unexpected column type when Instance was expected.
     #[error("Expected Any::Instance. Got {0:?}")]
     ExpectedInstance(Any),
+    /// A `TableColumn` has not been assigned.
+    #[error("{0:?} not fully assigned. Help: assign a value at offset 0.")]
+    ColumnNotAssigned(Column<Fixed>),
+    /// A Table has columns of uneven lengths.
+    #[error("{0:?} has length {1} while {2:?} has length {3}")]
+    UnevenColumnLengths(Column<Fixed>, usize, Column<Fixed>, usize),
+    /// Attempt to assign a used `TableColumn`
+    #[error("{0:?} has already been used")]
+    UsedColumn(Column<Fixed>),
+    /// Attempt to overwrite a default value
+    #[error("Attempted to overwrite default value {1} with {2} in {0:?}")]
+    OverwriteDefault(Column<Fixed>, String, String),
 }
 
 /// Implementations of this trait represent complex types that aggregate a
@@ -370,3 +426,95 @@ macro_rules! tuple_impl {
 }
 
 tuple_impl!();
+
+/// Trait for defining how many cells in a circuit's table a type would take.
+pub trait CellReprSize {
+    /// Number of cells the type occupies.
+    const SIZE: usize;
+}
+
+impl<const N: usize, T: CellReprSize> CellReprSize for [T; N] {
+    const SIZE: usize = N * T::SIZE;
+}
+
+macro_rules! zero_size_repr {
+    ($t:ty) => {
+        impl CellReprSize for $t {
+            const SIZE: usize = 0;
+        }
+    };
+}
+
+zero_size_repr!(bool);
+zero_size_repr!(u8);
+zero_size_repr!(usize);
+zero_size_repr!(BigUint);
+
+macro_rules! tuple_size {
+    () => {
+        impl CellReprSize for () {
+            const SIZE: usize =  0;
+        }
+    };
+    ($h:ident $(,$t:ident)* $(,)?) => {
+        tuple_size!($( $t, )*);
+
+        impl<$h, $( $t, )*> CellReprSize for (
+                $h, $( $t, )*
+            )
+        where
+            $h: CellReprSize,
+            $( $t: CellReprSize, )*
+        {
+            const SIZE: usize = $h::SIZE + $( $t::SIZE + )* 0;
+
+        }
+    };
+}
+
+tuple_size!(A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[cfg(feature = "serde")]
+    use crate::serde_tests_helpers::round_trip;
+    #[cfg(feature = "serde")]
+    use quickcheck_macros::quickcheck;
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn region_index_round_trips(value: RegionIndex) {
+        assert_eq!(value, round_trip(value));
+    }
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn any_column_round_trips(value: Column<Any>) {
+        assert_eq!(value, round_trip(value));
+    }
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn fixed_column_round_trips(value: Column<Fixed>) {
+        assert_eq!(value, round_trip(value));
+    }
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn advice_column_round_trips(value: Column<Advice>) {
+        assert_eq!(value, round_trip(value));
+    }
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn instance_column_round_trips(value: Column<Instance>) {
+        assert_eq!(value, round_trip(value));
+    }
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn any_column_type_round_trip(any: Any) {
+        assert_eq!(any, round_trip(any));
+    }
+}

@@ -35,9 +35,12 @@ eqv = "0.1"
 bit-set = "0.8"
 disjoint = "0.8"
 llzk = { version = "0.7.0", features = ["bigint"] }
+serde = {version = "1", features = ["derive"] }
+quickcheck = "1"
+quickcheck_macros = "1"
+serde_json = "1"
 
 # Testing dependencies
 halo2curves = "0.7.0"
 similar-asserts = "1.7"
 mlir-testutils = {version = "0.1.0", features = ["similar-asserts"]}
-

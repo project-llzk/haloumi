@@ -208,6 +208,14 @@ jobs:
         if: always()
         run: cargo clippy -p haloumi-extractor-core --all-targets --all-features -- -Dwarnings --no-deps
 
+      - name: Run Clippy on `haloumi-extractor`
+        if: always()
+        run: cargo clippy -p haloumi-extractor --all-targets --all-features -- -Dwarnings --no-deps
+
+      - name: Run Clippy on `haloumi-extractor-runner`
+        if: always()
+        run: cargo clippy -p haloumi-extractor-runner --all-targets --all-features -- -Dwarnings --no-deps
+
       - name: Run Clippy on `haloumi-backend`
         if: always()
         run: cargo clippy -p haloumi-backend --all-targets --all-features -- -Dwarnings --no-deps

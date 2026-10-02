@@ -6,6 +6,7 @@ use crate::{
 };
 use ff::Field;
 use haloumi_core::{
+    auto_conf::AutoConfigure,
     expressions::{EvalExpression, EvaluableExpr, ExprBuilder, ExpressionInfo, ExpressionTypes},
     info_traits::{
         ChallengeInfo, ConstraintSystemInfo, CreateQuery, GateInfo, QueryInfo, SelectorInfo,
@@ -141,6 +142,30 @@ impl<FC: ColumnWrapper + ColumnConversion<TC>, TC: haloumi_core::table::ColumnTy
     }
 }
 
+impl<C: ColumnWrapper, CS> AutoConfigure<CS> for _Column<C> {
+    fn configure(_meta: &mut CS) -> Self {
+        todo!()
+    }
+}
+
+impl From<_Column<_Fixed>> for _Column<_Any> {
+    fn from(_value: _Column<_Fixed>) -> Self {
+        todo!()
+    }
+}
+
+impl From<_Column<_Instance>> for _Column<_Any> {
+    fn from(_value: _Column<_Instance>) -> Self {
+        todo!()
+    }
+}
+
+impl From<_Column<_Advice>> for _Column<_Any> {
+    fn from(_value: _Column<_Advice>) -> Self {
+        todo!()
+    }
+}
+
 //===----------------------------------------------------------------------===//
 // ConstraintSystem
 //===----------------------------------------------------------------------===//
@@ -213,6 +238,35 @@ impl<F: Field> ConstraintSystemInfo<F> for ConstraintSystem<F> {
                 table: table.as_slice(),
             })
             .collect()
+    }
+
+    type InstanceCol = _Column<_Instance>;
+
+    type AdviceCol = _Column<_Advice>;
+
+    type FixedCol = _Column<_Fixed>;
+
+    type AnyCol = _Column<_Any>;
+
+    fn constants(&self) -> &[Self::FixedCol]
+    where
+        Self: Sized,
+    {
+        &[]
+    }
+
+    fn enable_constant(&mut self, _col: Self::FixedCol)
+    where
+        Self: Sized,
+    {
+        todo!()
+    }
+
+    fn enable_equality(&mut self, _column: impl Into<Self::AnyCol>)
+    where
+        Self: Sized,
+    {
+        todo!()
     }
 }
 

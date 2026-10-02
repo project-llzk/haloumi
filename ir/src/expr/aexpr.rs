@@ -54,7 +54,7 @@ impl quickcheck::Arbitrary for IRAexpr {
             }
         }
 
-        arbitrary_with_depth(g, g.size())
+        arbitrary_with_depth(g, g.size().min(10))
     }
 }
 

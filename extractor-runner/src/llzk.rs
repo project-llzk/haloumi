@@ -4,6 +4,7 @@ use std::{
     path::Path,
 };
 
+use haloumi_core::llzk::LlzkOutputFormat;
 use haloumi_driver::backends::llzk::LlzkParams;
 use haloumi_driver::{driver::Driver, ir::r#gen::circuit::resolved::ResolvedIRCircuit};
 
@@ -22,6 +23,7 @@ pub fn write_llzk_output(
     name: &'static str,
     output_base: impl AsRef<Path>,
     ir: &ResolvedIRCircuit,
+    format: LlzkOutputFormat,
     mut params: LlzkParams,
 ) -> anyhow::Result<()> {
     let output_dir = output_base.as_ref().join(name);
@@ -32,11 +34,14 @@ pub fn write_llzk_output(
     }
     let output = Driver::default().llzk(ir, params)?;
 
-    log::info!("Writing LLZK output...");
+    log::info!("Writing LLZK output as {format}...");
     let output_path = output_dir.join("output.llzk");
     let mut output_file = File::create(&output_path)?;
 
-    writeln!(output_file, "{}", output)?;
+    match format {
+        LlzkOutputFormat::Assembly => writeln!(output_file, "{}", output)?,
+        LlzkOutputFormat::Bytecode => output.dump(&mut output_file)?,
+    }
     log::info!("Saved LLZK output in {}", output_path.display());
     Ok(())
 }

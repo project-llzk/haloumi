@@ -76,7 +76,7 @@ impl<T: Arbitrary> Arbitrary for IRBexpr<T> {
             }
         }
 
-        arbitrary_with_depth(g, g.size())
+        arbitrary_with_depth(g, g.size().min(10))
     }
 }
 

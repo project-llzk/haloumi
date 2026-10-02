@@ -13,17 +13,37 @@ use std::fmt::Write as _;
 
 use crate::{ctx::IRCtx, error::Error};
 
+#[cfg(any(test, feature = "arbitrary"))]
+use quickcheck::Arbitrary;
+
 type Circuit = IRCircuit<IRAexpr, ResolvedCtx>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(super) struct ResolvedCtx(pub IRCtx, pub Prime);
 
+#[cfg(any(test, feature = "arbitrary"))]
+impl Arbitrary for ResolvedCtx {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        Self(IRCtx::arbitrary(g), Prime::arbitrary(g))
+    }
+}
+
 /// Circuit that has resolved its expressions and is no longer tied to the lifetime of the
 /// synthesis and is not parametrized on a prime field.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ResolvedIRCircuit(pub(super) Circuit, Vec<IRGroup<IRAexpr>>);
+
+#[cfg(any(test, feature = "arbitrary"))]
+impl Arbitrary for ResolvedIRCircuit {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let preludes = (0..(usize::arbitrary(g) % 2))
+            .map(|_| IRGroup::<IRAexpr>::arbitrary(g))
+            .collect();
+        Self(Circuit::arbitrary(g), preludes)
+    }
+}
 
 const PRELUDE_GROUP_ID_MASK: usize = 1usize << (usize::BITS - 1);
 
@@ -210,5 +230,35 @@ pub(crate) enum ResolvedIRError {
 impl From<ResolvedIRError> for Error {
     fn from(value: ResolvedIRError) -> Self {
         Error::new(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[cfg(feature = "serde")]
+    use quickcheck_macros::quickcheck;
+
+    #[cfg(feature = "serde")]
+    fn round_trip<T: serde::Serialize + serde::de::DeserializeOwned>(value: &T) -> T {
+        serde_json::from_slice(&serde_json::to_vec(&value).unwrap()).unwrap()
+    }
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn resolved_context_round_trips(value: ResolvedCtx) {
+        assert_eq!(value, round_trip(&value));
+    }
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn resolved_circuit_round_trips(value: ResolvedIRCircuit) {
+        let decoded = round_trip(&value);
+        assert!(value.0.exact_eq(&decoded.0));
+        assert_eq!(value.1.len(), decoded.1.len());
+
+        for (lhs, rhs) in std::iter::zip(&value.1, &decoded.1) {
+            assert!(lhs.exact_eq(rhs));
+        }
     }
 }

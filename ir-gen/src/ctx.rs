@@ -18,9 +18,12 @@ use haloumi_synthesis::groups::GroupsIO;
 use haloumi_synthesis::io::{AdviceIO, InstanceIO};
 use haloumi_synthesis::regions::RegionData;
 
+#[cfg(any(test, feature = "arbitrary"))]
+use quickcheck::Arbitrary;
+
 /// Contains information related to the IR of a circuit. Is used by the driver to lower the
 /// circuit.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct IRCtx {
     groups_io: GroupsIO,
@@ -53,13 +56,40 @@ impl IRCtx {
     }
 }
 
+#[cfg(any(test, feature = "arbitrary"))]
+impl Arbitrary for IRCtx {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let len = usize::arbitrary(g) % g.size();
+        Self {
+            groups_io: GroupsIO::arbitrary(g),
+            advice_cells: (0..len)
+                .map(|_| (RegionIndex::arbitrary(g), AdviceCells::arbitrary(g)))
+                .collect(),
+        }
+    }
+}
+
 /// Contains information about the advice cells in a region.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct AdviceCells {
     columns: HashSet<Column<Any>>,
     rows: Range<usize>,
     start: Option<usize>,
+}
+
+#[cfg(any(test, feature = "arbitrary"))]
+impl Arbitrary for AdviceCells {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let row_start = usize::arbitrary(g) % 16;
+        Self {
+            columns: (0..(usize::arbitrary(g) % (g.size().min(4) + 1)))
+                .map(|_| Column::arbitrary(g))
+                .collect(),
+            rows: row_start..row_start + usize::arbitrary(g) % 16,
+            start: bool::arbitrary(g).then_some(usize::arbitrary(g) % 16),
+        }
+    }
 }
 
 impl AdviceCells {
@@ -149,5 +179,30 @@ impl<'lc, 'gc, 'syn, F: Field, E> GroupIRCtx<'lc, 'gc, 'syn, F, E> {
 
     pub(super) fn generate_debug_comments(&self) -> bool {
         self.params.debug_comments
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[cfg(feature = "serde")]
+    use quickcheck_macros::quickcheck;
+
+    #[cfg(feature = "serde")]
+    fn round_trip<T: serde::Serialize + serde::de::DeserializeOwned>(value: &T) -> T {
+        serde_json::from_slice(&serde_json::to_vec(&value).unwrap()).unwrap()
+    }
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn advice_cells_round_trip(value: AdviceCells) {
+        let decoded = round_trip(&value);
+        assert_eq!(value, decoded);
+    }
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn context_round_trip(value: IRCtx) {
+        assert_eq!(value.clone(), round_trip(&value));
     }
 }

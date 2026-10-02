@@ -33,8 +33,8 @@ pub struct CallSite<E> {
 #[cfg(any(test, feature = "arbitrary"))]
 impl<E: Arbitrary> Arbitrary for CallSite<E> {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        let inputs_len = usize::arbitrary(g) % g.size();
-        let outputs_len = usize::arbitrary(g) % g.size();
+        let inputs_len = usize::arbitrary(g) % g.size().max(10);
+        let outputs_len = usize::arbitrary(g) % g.size().max(10);
         Self::new(
             usize::arbitrary(g),
             String::arbitrary(g),

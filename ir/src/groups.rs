@@ -49,10 +49,10 @@ impl<E: Arbitrary> Arbitrary for IRGroup<E> {
             .with_input_count(usize::arbitrary(g))
             .with_output_count(usize::arbitrary(g))
             .with_key(Option::<GroupKey>::arbitrary(g))
-            .with_gates(Vec::<IRStmt<E>>::arbitrary(g))
-            .with_copy_constraints(Vec::<IRStmt<E>>::arbitrary(g))
+            .with_gates(IRStmt::arbitrary(g))
+            .with_copy_constraints(IRStmt::arbitrary(g))
             .with_callsites(Vec::<CallSite<E>>::arbitrary(g))
-            .with_lookups(Vec::<IRStmt<E>>::arbitrary(g))
+            .with_lookups(IRStmt::arbitrary(g))
             .do_debug_comments(bool::arbitrary(g));
         group.inject(IRStmt::arbitrary(g));
         group

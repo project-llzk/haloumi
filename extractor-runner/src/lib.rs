@@ -6,6 +6,7 @@
 use std::{borrow::Cow, path::Path, process::exit};
 
 use clap::Parser;
+use haloumi_core::llzk::LlzkOutputFormat;
 use haloumi_driver::backends::llzk::{LlzkParams, llzk::prelude::LlzkContext};
 use haloumi_driver::backends::picus::PicusParamsBuilder;
 use haloumi_extractor::extractor::{Comments, Extractor, ExtractorCfg, InjectedIRPolicy};
@@ -241,8 +242,20 @@ impl ExtractorMain {
                     let context = LlzkContext::new();
                     let mut params = LlzkParams::new(&context);
                     params.with_builtin_field(field_name);
-                    write_llzk_output(llzk_config, name, output_base.join("llzk"), &ir, params)
-                        .map_err(AppError::llzk(name))?;
+                    let format = if self.cli.llzk_emit_assembly {
+                        LlzkOutputFormat::Assembly
+                    } else {
+                        LlzkOutputFormat::Bytecode
+                    };
+                    write_llzk_output(
+                        llzk_config,
+                        name,
+                        output_base.join("llzk"),
+                        &ir,
+                        format,
+                        params,
+                    )
+                    .map_err(AppError::llzk(name))?;
                 }
             }
         }

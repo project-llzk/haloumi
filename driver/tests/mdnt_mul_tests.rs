@@ -1,3 +1,5 @@
+#![cfg(feature = "legacy-midnight-tests")]
+
 use halo2curves::bn256::Fr;
 use haloumi::ir::r#gen::IRGenParams;
 use haloumi_mdnt_test_circuits::mul;

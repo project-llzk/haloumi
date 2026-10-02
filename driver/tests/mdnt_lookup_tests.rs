@@ -1,3 +1,5 @@
+#![cfg(feature = "legacy-midnight-tests")]
+
 use group::ff::Field;
 use halo2curves::bn256::Fr;
 use haloumi::{

@@ -66,7 +66,7 @@ impl<L> LayoutAdaptor<'_, L> {
         T: Types<F>,
         L: Layouter<F, T::Error>,
     {
-        let advice_col = Column::<Advice>::from(advice_col.into());
+        let advice_col = advice_col.into();
         Ok(self
             .0
             .assign_region(
@@ -97,8 +97,8 @@ impl<L> LayoutAdaptor<'_, L> {
         T: Types<F>,
         L: Layouter<F, T::Error>,
     {
-        let advice_col = Column::<Advice>::from(advice_col.into());
-        let instance_col = Column::<Instance>::from(instance_col.into());
+        let advice_col = advice_col.into();
+        let instance_col = instance_col.into();
         let c = self.0.assign_region(
             || "ins",
             |region| {

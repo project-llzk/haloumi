@@ -17,7 +17,7 @@ impl<'io, IO> BaseCtx<'io, IO> {
     }
 
     /// Returns the next IO object or fails if there aren't any more objects.
-    pub fn next(&mut self) -> Result<IO, Error> {
+    pub fn next_io(&mut self) -> Result<IO, Error> {
         self.io
             .next()
             .ok_or_else(|| IoError::NotEnoughIOCells.into())

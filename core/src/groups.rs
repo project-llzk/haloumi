@@ -359,7 +359,7 @@ pub trait RegionsGroupHooks<F, C> {
 
     /// Creates a new group and enters into it.
     ///
-    /// Not intended for downstream consumption; use [`Layouter::group`]
+    /// Not intended for downstream consumption; use `Layouter::group`
     /// instead.
     fn push_group<N, NR, K>(&mut self, name: N, key: K)
     where
@@ -369,7 +369,7 @@ pub trait RegionsGroupHooks<F, C> {
 
     /// Exits out of the group.
     ///
-    /// Not intended for downstream consumption; use [`Layouter::group`]
+    /// Not intended for downstream consumption; use `Layouter::group`
     /// instead.
     fn pop_group(&mut self, meta: RegionsGroup<C>);
 
@@ -387,7 +387,7 @@ pub trait RegionsGroupHooks<F, C> {
     /// macro offers an implementation based on the source code location
     /// where the group was created, which should be enough for most cases. If
     /// you have additional requirements for uniquely identifing your groups
-    /// you can add your own implementation of [`groups::GroupKey`] and use
+    /// you can add your own implementation of `groups::GroupKey` and use
     /// that instead.
     ///
     /// This key is intended for upstream consumers that need to know what
@@ -473,7 +473,7 @@ pub trait RegionsGroupAssignmentHooks<C> {
 
 /// Tracks regions and cell roles in a group.
 ///
-/// Implements [`Layouter`] and can be used as a drop-in replacement.
+/// Implements `Layouter` and can be used as a drop-in replacement.
 #[derive(Debug)]
 pub struct GroupLayouter<'l, F, L> {
     /// Parent layouter.

@@ -65,7 +65,7 @@ impl<'i, 's, F: Field, H: Types<F>> ICtx<'i, 's, F, H> {
         V: Clone,
         H::Rational: for<'v> From<&'v V>,
     {
-        let i = self.next()?;
+        let i = self.next_io()?;
         layouter.assign_advice_from_instance::<F, H, V>(i.temp(), i.temp_offset(), i.col(), i.row())
     }
 

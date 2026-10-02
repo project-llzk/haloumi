@@ -6,13 +6,15 @@
 use crate::{
     crate_info::{Crate, CrateMut},
     error::Error,
-    spec::{Spec, SpecRegistry},
+    spec::{Spec, SpecMatch, SpecRegistry},
 };
 use std::path::Path;
 
 mod actions;
 pub mod crate_info;
 pub mod error;
+/// Rust-style AST target paths used by injection patches.
+pub(crate) mod rspath;
 pub mod spec;
 
 /// The injector coordinates the modification of a crate following a spec.
@@ -30,24 +32,16 @@ impl<'s, 'c> Injector<'s, 'c> {
     pub fn new(source: &'c Crate, registry: &'s SpecRegistry) -> Result<Self, Error> {
         let source_name = source.name()?;
         let source_version = source.version()?;
-        let usable_specs = registry
-            .specs()
-            .iter()
-            .filter(|spec| spec.valid_target(source_name, source_version))
-            .collect::<Vec<_>>();
-        match usable_specs.as_slice() {
-            [] => Err(Error::NoValidSpec(
+        match registry.find_matching(source_name, source_version) {
+            SpecMatch::None => Err(Error::NoValidSpec(
                 source_name.to_owned(),
                 source_version.clone(),
             )),
-            [spec] => Ok(Self {
-                source,
-                spec: *spec,
-            }),
-            other => Err(Error::TooManyValidSpec(
+            SpecMatch::One(spec) => Ok(Self { source, spec }),
+            SpecMatch::Ambiguous(specs) => Err(Error::TooManyValidSpec(
                 source_name.to_owned(),
                 source_version.clone(),
-                other.len(),
+                specs.len(),
             )),
         }
     }

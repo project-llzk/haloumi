@@ -12,8 +12,7 @@ members = [
   "extractor-core",
   "integration",
   "integration-macros",
-  "support/midnight",
-  "support/mdnt-test-circuits",
+  "support/mock-halo2",
 ]
 resolver = "2"
 

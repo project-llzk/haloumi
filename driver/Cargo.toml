@@ -44,3 +44,6 @@ llzk.workspace = true
 default = ["llzk-backend", "picus-backend"]
 llzk-backend = ["dep:haloumi-llzk"]
 picus-backend = ["dep:haloumi-picus"]
+# Deprecated Midnight snapshots are retained as source reference only. They
+# cannot be enabled without restoring the retired Midnight integration.
+legacy-midnight-tests = []

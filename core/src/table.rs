@@ -22,6 +22,7 @@ pub trait ColumnType: std::fmt::Debug + Copy + Clone + PartialEq + Eq + std::has
     /// Constructs a polynomial representing a query to the cell.
     fn query_cell<F: Field, E: ExprBuilder<F>>(&self, index: usize, at: Rotation) -> E;
 }
+
 /// Erased column type.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

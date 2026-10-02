@@ -17,6 +17,7 @@ members = [
   "support/mock-halo2",
   "support/test-circuits"
   "inject",
+  "inject-tester",
 ]
 resolver = "2"
 

@@ -1,0 +1,10 @@
+[workspace]
+members = ["member"]
+resolver = "2"
+
+[workspace.package]
+version = "1.2.3"
+edition = "2024"
+
+[workspace.dependencies]
+shared = { path = "shared" }

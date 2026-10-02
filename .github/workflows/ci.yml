@@ -218,3 +218,11 @@ jobs:
       - name: Run Clippy on `haloumi`
         if: always()
         run: cargo clippy -p haloumi --all-targets --all-features -- -Dwarnings --no-deps
+
+      - name: Run Clippy on `haloumi-integration-macros`
+        if: always()
+        run: cargo clippy -p haloumi-integration-macros --all-targets --all-features -- -Dwarnings --no-deps
+
+      - name: Run Clippy on `haloumi-integration`
+        if: always()
+        run: cargo clippy -p haloumi-integration --all-targets --all-features -- -Dwarnings --no-deps

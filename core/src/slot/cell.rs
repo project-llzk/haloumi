@@ -7,18 +7,48 @@ use thiserror::Error;
 use crate::eqv::{EqvRelation, SymbolicEqv};
 
 /// Used for comparing cells' offsets.
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 enum Offset {
     Rel(usize),
     Abs(usize),
 }
 
+#[cfg(any(test, feature = "arbitrary"))]
+impl quickcheck::Arbitrary for Offset {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let offset = usize::arbitrary(g);
+        if bool::arbitrary(g) {
+            Self::Rel(offset)
+        } else {
+            Self::Abs(offset)
+        }
+    }
+}
+
 /// A reference to a cell in the circuit.
 #[derive(Clone, Copy, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CellRef {
     col: usize,
     base: Option<usize>,
     offset: usize,
+}
+
+#[cfg(any(test, feature = "arbitrary"))]
+impl quickcheck::Arbitrary for CellRef {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        // Relative cells must have a representable absolute row because `PartialEq` and `Hash`
+        // compare that row.
+        // TODO: Why module 1024 here?
+        let col = usize::arbitrary(g) % 1_024;
+        let offset = usize::arbitrary(g) % 1_024;
+        if bool::arbitrary(g) {
+            Self::absolute(col, offset)
+        } else {
+            Self::relative(col, usize::arbitrary(g) % 1_024, offset)
+        }
+    }
 }
 
 impl CellRef {
@@ -63,6 +93,14 @@ impl CellRef {
     /// Returns true if is an absolute reference.
     pub fn is_absolute(&self) -> bool {
         self.base.is_none()
+    }
+
+    /// Returns every stored coordinate for serde round-trip tests.
+    ///
+    /// This is test-only because production equality deliberately compares the pointed-to cell.
+    #[cfg(all(test, feature = "serde"))]
+    pub(crate) fn into_parts(&self) -> (usize, Option<usize>, usize) {
+        (self.col, self.base, self.offset)
     }
 
     /// Tries to convert an absolute reference into a relative reference w.r.t. the given base.
@@ -174,6 +212,20 @@ mod tests {
     use simplelog::{Config, TestLogger};
 
     use super::*;
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn offset_round_trips(value: Offset) {
+        assert_eq!(value, crate::serde_tests_helpers::round_trip(value));
+    }
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn cell_ref_round_trips(value: CellRef) {
+        // PartialEq intentionally compares pointed-to cells; compare representation as well.
+        let decoded = crate::serde_tests_helpers::round_trip(value);
+        assert_eq!(value.into_parts(), decoded.into_parts());
+    }
 
     macro_rules! checked {
         ($name:ident, $e:expr) => {

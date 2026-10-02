@@ -147,3 +147,45 @@ impl<F: Field> Circuit<F> for MulCircuit<F> {
         Ok(())
     }
 }
+
+#[cfg(feature = "extraction")]
+impl<F: ff::PrimeField> crate::extraction::ExtractableFixture<F> for MulCircuit<F> {
+    type Input = AssignedCell<F, F>;
+    type Output = [AssignedCell<F, F>; 3];
+
+    fn synthesize_extraction<L>(
+        &self,
+        config: &Self::Config,
+        layouter: &mut haloumi_integration::core::layouter::LayoutAdaptor<L>,
+        input: Self::Input,
+        injected_ir: &mut haloumi_ir::inject::InjectedIR<midnight_proofs::circuit::RegionIndex, midnight_proofs::plonk::Expression<F>>,
+    ) -> Result<Self::Output, Error>
+    where
+        L: haloumi_integration::core::layouter::Layouter<F, Error>
+            + haloumi_integration::core::groups::RegionsGroupHooks<F, midnight_proofs::circuit::Cell, Error = Error>,
+    {
+        use haloumi_ir::{CmpOp, stmt::IRStmt};
+
+        let mut outputs = Vec::with_capacity(3);
+        for _ in 0..3 {
+            let output = layouter.assign_region(|| "first row", |mut region| {
+                config.selector.enable(&mut region, 0)?;
+                let fixed = region.assign_fixed(|| "-1", config.col_fixed, 0, || Value::known(-F::ONE))?;
+                let a = input.copy_advice(|| "a", &mut region, config.col_a, 0)?;
+                let b = region.assign_advice(|| "-1 * a", config.col_a, 1, || a.value().copied() * fixed.value())?;
+                region.assign_advice(|| "a * b", config.col_c, 0, || a.value().copied() * b.value())
+            })?;
+            let region = output.cell().region_index;
+            let thousand = midnight_proofs::plonk::Expression::Constant(F::from(1000));
+            injected_ir.entry(region).or_default().extend([
+                IRStmt::constraint(CmpOp::Lt, config.col_a.cur(), thousand.clone()).map(&mut |e| (0, e)),
+                IRStmt::constraint(CmpOp::Ge, config.col_a.cur(), thousand).map(&mut |e| (1, e)),
+            ]);
+            outputs.push(output);
+        }
+        Ok(outputs.try_into().unwrap())
+    }
+}
+
+#[cfg(feature = "extraction")]
+crate::impl_extractable_fixture!(MulCircuit<F>);

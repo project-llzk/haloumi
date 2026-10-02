@@ -19,8 +19,14 @@ pub mod error;
 mod extras;
 mod factory;
 mod lowering;
+mod members;
 mod params;
 mod state;
+
+/// Re-export of llzk-rs
+pub mod llzk {
+    pub use ::llzk::*;
+}
 
 /// Instance of a [`Backend`] prepared for lowering to LLZK.
 pub type LlzkBackend<'c, 's> = Backend<LlzkCodegen<'c, 's>, LlzkCodegenState<'c>>;

@@ -179,3 +179,41 @@ impl<F: Field> Circuit<F> for FibonacciCircuit<F> {
         Ok(())
     }
 }
+
+#[cfg(feature = "extraction")]
+impl<F: ff::PrimeField> crate::extraction::ExtractableFixture<F> for FibonacciCircuit<F> {
+    type Input = [AssignedCell<F, F>; 2];
+    type Output = AssignedCell<F, F>;
+
+    fn synthesize_extraction<L>(
+        &self,
+        config: &Self::Config,
+        layouter: &mut haloumi_integration::core::layouter::LayoutAdaptor<L>,
+        input: Self::Input,
+        _: &mut haloumi_ir::inject::InjectedIR<
+            midnight_proofs::circuit::RegionIndex,
+            midnight_proofs::plonk::Expression<F>,
+        >,
+    ) -> Result<Self::Output, Error>
+    where
+        L: haloumi_integration::core::layouter::Layouter<F, Error>
+            + haloumi_integration::core::groups::RegionsGroupHooks<
+                F,
+                midnight_proofs::circuit::Cell,
+                Error = Error,
+            >,
+    {
+        let chip = FibonacciChip::construct(config.clone());
+        let [input0, mut prev_b] = input;
+        let mut prev_c = chip.assign_row(layouter.namespace(|| "first row"), &input0, &prev_b)?;
+        for _ in 3..10 {
+            let c = chip.assign_row(layouter.namespace(|| "next row"), &prev_b, &prev_c)?;
+            prev_b = prev_c;
+            prev_c = c;
+        }
+        Ok(prev_c)
+    }
+}
+
+#[cfg(feature = "extraction")]
+crate::impl_extractable_fixture!(FibonacciCircuit<F>);

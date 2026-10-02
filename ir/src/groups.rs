@@ -16,13 +16,17 @@ use haloumi_lowering::{
 use std::fmt::Write;
 use thiserror::Error;
 
+#[cfg(any(test, feature = "arbitrary"))]
+use quickcheck::Arbitrary;
+
 /// Uniquely identifies groups that represent the same semantics.
 pub type GroupKey = u64;
 
 pub mod callsite;
 
 /// Body of a group.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct IRGroup<E> {
     name: String,
     /// Index in the original groups array.
@@ -36,6 +40,23 @@ pub struct IRGroup<E> {
     lookups: IRStmt<E>,
     injected: Vec<IRStmt<E>>,
     generate_debug_comments: bool,
+}
+
+#[cfg(any(test, feature = "arbitrary"))]
+impl<E: Arbitrary> Arbitrary for IRGroup<E> {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let mut group = Self::new(String::arbitrary(g), usize::arbitrary(g))
+            .with_input_count(usize::arbitrary(g))
+            .with_output_count(usize::arbitrary(g))
+            .with_key(Option::<GroupKey>::arbitrary(g))
+            .with_gates(Vec::<IRStmt<E>>::arbitrary(g))
+            .with_copy_constraints(Vec::<IRStmt<E>>::arbitrary(g))
+            .with_callsites(Vec::<CallSite<E>>::arbitrary(g))
+            .with_lookups(Vec::<IRStmt<E>>::arbitrary(g))
+            .do_debug_comments(bool::arbitrary(g));
+        group.inject(IRStmt::arbitrary(g));
+        group
+    }
 }
 
 impl<E> IRGroup<E> {
@@ -227,16 +248,9 @@ impl<E> IRGroup<E> {
     ) -> Result<(), ValidationErrors> {
         let callee_id = callsite.callee_id();
         let callee = groups
-            .get(callee_id)
+            .iter()
+            .find(|group| group.id() == callee_id)
             .ok_or(ValidationErrors::CalleeNotFound { callee_id })?;
-        if callee.id() != callsite.callee_id() {
-            return Err(ValidationErrors::WrongCallee {
-                callsite_name: callsite.name().to_string(),
-                callsite_id: callee_id,
-                callee_name: callee.name().to_string(),
-                callee_id: callee.id(),
-            });
-        }
         if callee.input_count != callsite.inputs().len() {
             return Err(ValidationErrors::UnexpectedInputs {
                 callee_name: callee.name().to_string(),
@@ -268,6 +282,31 @@ impl<E> IRGroup<E> {
     /// Returns a mutable reference to the copy constraints.
     pub fn eq_constraints_mut(&mut self) -> &mut IRStmt<E> {
         &mut self.eq_constraints
+    }
+
+    /// Returns true iff the two groups are structurally equal.
+    ///
+    /// This method is useful when you need to check if two groups are
+    /// exactly equal to each other.
+    ///
+    /// The implementation of `PartialEq` used by this type will check that
+    /// two groups are semantically equal.
+    pub fn exact_eq(&self, other: &Self) -> bool
+    where
+        E: PartialEq,
+    {
+        self.name.eq(&other.name)
+            && self.id == other.id
+            && self.input_count == other.input_count
+            && self.output_count == other.output_count
+            && self.key == other.key
+            && self.gates.exact_eq(&other.gates)
+            && self.eq_constraints.exact_eq(&other.eq_constraints)
+            && self.callsites.eq(&other.callsites)
+            && self.lookups.exact_eq(&other.lookups)
+            && self.injected.len() == other.injected.len()
+            && std::iter::zip(&self.injected, &other.injected).all(|(lhs, rhs)| lhs.exact_eq(&rhs))
+            && self.generate_debug_comments == other.generate_debug_comments
     }
 }
 
@@ -326,15 +365,6 @@ impl ValidationFailed {
 enum ValidationErrors {
     #[error("Callee with id {callee_id} was not found")]
     CalleeNotFound { callee_id: usize },
-    #[error(
-        "Callsite points to \"{callsite_name}\" ({callsite_id}) but callee was \"{callee_name}\" ({callee_id})"
-    )]
-    WrongCallee {
-        callsite_name: String,
-        callsite_id: usize,
-        callee_name: String,
-        callee_id: usize,
-    },
     #[error(
         "Callee \"{callee_name}\" ({callee_id}) was expecting {callee_count} inputs but callsite has {callsite_count}"
     )]
@@ -486,33 +516,33 @@ where
     where
         L: Lowering + ?Sized,
     {
-        log::debug!("Lowering {self:?}");
+        log::info!("Lowering {}", self.name());
         if self.generate_debug_comments {
             l.generate_comment("Calls to subgroups".to_owned())?;
         }
-        log::debug!("  Lowering callsites");
+        log::info!("  Lowering callsites");
         for callsite in self.callsites {
             callsite.lower(l)?;
         }
         if self.generate_debug_comments {
             l.generate_comment("Gate constraints".to_owned())?;
         }
-        log::debug!("  Lowering gates");
+        log::info!("  Lowering gates");
         self.gates.lower(l)?;
         if self.generate_debug_comments {
             l.generate_comment("Equality constraints".to_owned())?;
         }
-        log::debug!("  Lowering equality constraints");
+        log::info!("  Lowering equality constraints");
         self.eq_constraints.lower(l)?;
         if self.generate_debug_comments {
             l.generate_comment("Lookups".to_owned())?;
         }
-        log::debug!("  Lowering lookups");
+        log::info!("  Lowering lookups");
         self.lookups.lower(l)?;
         if self.generate_debug_comments {
             l.generate_comment("Injected".to_owned())?;
         }
-        log::debug!("  Lowering injected IR");
+        log::info!("  Lowering injected IR");
         for stmt in self.injected {
             stmt.lower(l)?;
         }
@@ -550,5 +580,19 @@ impl<E: IRPrintable> IRPrintable for IRGroup<E> {
 
             Ok(())
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "serde")]
+    use quickcheck_macros::quickcheck;
+
+    use super::*;
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn group_round_trips(value: IRGroup<()>) {
+        assert!(value.exact_eq(&crate::serde_tests_helpers::round_trip(&value)));
     }
 }

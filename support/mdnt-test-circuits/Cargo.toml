@@ -12,14 +12,17 @@ keywords = {workspace = true}
 publish = false
 
 [dependencies.midnight-proofs]
-git = "https://github.com/Veridise/midnight-zk.git"
-default-features = false
-features = [
-    "circuit-params",
-    "committed-instances",
-    "region-groups"
-]
+workspace = true
 
 [dependencies]
 ff = {workspace = true}
 anyhow = "1"
+haloumi-integration = { path = "../../integration", optional = true }
+haloumi-ir = { path = "../../ir", optional = true }
+
+[features]
+extraction = [
+    "midnight-proofs/extraction",
+    "dep:haloumi-integration",
+    "dep:haloumi-ir",
+]

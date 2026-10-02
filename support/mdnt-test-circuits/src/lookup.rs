@@ -92,7 +92,7 @@ impl<F: Field> LookupChip<F> {
     }
 
     #[allow(clippy::type_complexity)]
-    pub fn assign_table(&self, mut layouter: impl Layouter<F>) -> Result<(), Error> {
+    pub fn assign_table(&self, layouter: &mut impl Layouter<F>) -> Result<(), Error> {
         layouter.assign_table(
             || "table",
             |mut table| {
@@ -182,10 +182,25 @@ impl<F: Field> Circuit<F> for LookupCircuit<F> {
         mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
         let chip = LookupChip::construct(config);
-        chip.assign_table(layouter.namespace(|| "table"))?;
+        chip.assign_table(&mut layouter.namespace(|| "table"))?;
         let prev_c = chip.assign_first_row(layouter.namespace(|| "first row"))?;
 
         chip.expose_public(layouter.namespace(|| "out"), &prev_c, 1)?;
         Ok(())
     }
 }
+
+#[cfg(feature = "extraction")]
+impl<F: ff::PrimeField> crate::extraction::ExtractableFixture<F> for LookupCircuit<F> {
+    type Input = AssignedCell<F, F>;
+    type Output = AssignedCell<F, F>;
+    fn synthesize_extraction<L>(&self, config: &Self::Config, layouter: &mut haloumi_integration::core::layouter::LayoutAdaptor<L>, input: Self::Input, _: &mut haloumi_ir::inject::InjectedIR<midnight_proofs::circuit::RegionIndex, midnight_proofs::plonk::Expression<F>>) -> Result<Self::Output, Error>
+    where L: haloumi_integration::core::layouter::Layouter<F, Error> + haloumi_integration::core::groups::RegionsGroupHooks<F, midnight_proofs::circuit::Cell, Error = Error> {
+        crate::extraction::assign_advice_fixed_mul(layouter, &input, config.col_f, config.col_a, config.col_b, config.col_c, Some(config.selector))
+    }
+    fn load_extraction(config: &Self::Config, layouter: &mut impl Layouter<F>) -> Result<(), Error> {
+        LookupChip::construct(config.clone()).assign_table(layouter)
+    }
+}
+#[cfg(feature = "extraction")]
+crate::impl_extractable_fixture!(LookupCircuit<F>);

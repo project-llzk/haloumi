@@ -7,14 +7,29 @@ use crate::{
     traits::{Canonicalize, ConstantFolding, Validatable},
 };
 
+#[cfg(any(test, feature = "arbitrary"))]
+use quickcheck::Arbitrary;
+
 /// Generic type representing a circuit.
 ///
 /// Is parametrized on the expression type and the type used to represent the external context
 /// relative to the circuit.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct IRCircuit<E, C> {
     body: Vec<IRGroup<E>>,
     context: C,
+}
+
+#[cfg(any(test, feature = "arbitrary"))]
+impl<E: Arbitrary, C: Arbitrary> Arbitrary for IRCircuit<E, C> {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let len = usize::arbitrary(g) % 4;
+        Self::new(
+            (0..len).map(|_| IRGroup::arbitrary(g)).collect(),
+            C::arbitrary(g),
+        )
+    }
 }
 
 impl<E, C> IRCircuit<E, C> {
@@ -93,6 +108,23 @@ impl<E, C> IRCircuit<E, C> {
     //        errors,
     //    )
     //}
+
+    /// Returns true iff the two circuits are structurally equal.
+    ///
+    /// This method is useful when you need to check if two circuits are
+    /// exactly equal to each other.
+    ///
+    /// The implementation of `PartialEq` used by this type will check that
+    /// two circuits are semantically equal.
+    pub fn exact_eq(&self, other: &Self) -> bool
+    where
+        E: PartialEq,
+        C: PartialEq,
+    {
+        self.body.len() == other.body.len()
+            && std::iter::zip(&self.body, &other.body).all(|(lhs, rhs)| lhs.exact_eq(&rhs))
+            && self.context.eq(&other.context)
+    }
 }
 
 impl<E, C, D> Validatable for IRCircuit<E, C>
@@ -149,5 +181,19 @@ impl<E: IRPrintable, C: IRPrintable> IRPrintable for IRCircuit<E, C> {
             group.fmt(ctx)?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "serde")]
+    use quickcheck_macros::quickcheck;
+
+    use super::*;
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn circuit_round_trips(value: IRCircuit<(), ()>) {
+        assert!(value.exact_eq(&crate::serde_tests_helpers::round_trip(&value)));
     }
 }

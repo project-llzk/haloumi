@@ -19,4 +19,3 @@ haloumi-core = { path = "../core/" }
 ff.workspace = true
 thiserror.workspace = true
 num-bigint.workspace = true
-

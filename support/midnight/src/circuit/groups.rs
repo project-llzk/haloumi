@@ -5,13 +5,13 @@ use crate::{
     plonk::{_Any, _Column},
 };
 use haloumi_core::{info_traits::GroupInfo, table::Cell, table::RegionIndex};
-use midnight_proofs::circuit::groups::RegionsGroup;
+use midnight_proofs::circuit::{Cell as MidnightCell, groups::RegionsGroup};
 
 //===----------------------------------------------------------------------===//
 // RegionsGroup
 //===----------------------------------------------------------------------===//
 
-newtype!(RegionsGroup, _RegionsGroup with Debug);
+newtype!(RegionsGroup<MidnightCell>, _RegionsGroup with Debug);
 
 impl GroupInfo for _RegionsGroup {
     fn inputs(&self) -> impl Iterator<Item = Cell> + '_ {

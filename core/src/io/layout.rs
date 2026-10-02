@@ -56,4 +56,3 @@ pub trait LayoutHelper<F: Field, T: Types<F>> {
         N: Fn() -> NR,
         NR: Into<String>;
 }
-

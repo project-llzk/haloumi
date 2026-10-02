@@ -16,10 +16,4 @@ haloumi-core = { path = "../../core", version = "0.5.3" }
 ff = {workspace = true }
 
 [dependencies.midnight-proofs]
-git = "https://github.com/Veridise/midnight-zk.git"
-default-features = false
-features = [
-    "circuit-params",
-    "committed-instances",
-    "region-groups"
-]
+workspace = true

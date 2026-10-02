@@ -1,0 +1,11 @@
+[package]
+name = "hyphenated-patch-root"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+patch-target-dependency = ["dep:target-dependency"]
+
+[dependencies]
+target-dependency = { path = "dependency", optional = true }
+haloumi-extractor-runner = { path = "extractor" }

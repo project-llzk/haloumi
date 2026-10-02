@@ -379,4 +379,3 @@ pub trait TableLayouter<F: Field, E> {
         to: &'v mut (dyn FnMut() -> Option<F> + 'v),
     ) -> Result<(), E>;
 }
-

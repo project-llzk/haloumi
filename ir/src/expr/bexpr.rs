@@ -20,10 +20,15 @@ use std::{
 };
 use thiserror::Error;
 
+#[cfg(any(test, feature = "arbitrary"))]
+use quickcheck::Arbitrary;
+
 /// Represents boolean expressions over some arithmetic expression type A.
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct IRBexpr<A>(IRBexprImpl<A>);
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 enum IRBexprImpl<A> {
     /// Literal value for true.
     True,
@@ -43,6 +48,36 @@ enum IRBexprImpl<A> {
     Implies(Box<IRBexpr<A>>, Box<IRBexpr<A>>),
     /// Logical double-implication operator.
     Iff(Box<IRBexpr<A>>, Box<IRBexpr<A>>),
+}
+
+#[cfg(any(test, feature = "arbitrary"))]
+impl<T: Arbitrary> Arbitrary for IRBexpr<T> {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        fn arbitrary_with_depth<T: Arbitrary>(g: &mut quickcheck::Gen, depth: usize) -> IRBexpr<T> {
+            if depth == 0 {
+                return IRBexpr::cmp(CmpOp::arbitrary(g), T::arbitrary(g), T::arbitrary(g));
+            }
+            match u8::arbitrary(g) % 9 {
+                0 => IRBexpr::cmp(CmpOp::arbitrary(g), T::arbitrary(g), T::arbitrary(g)),
+                1 => IRBexpr::det(T::arbitrary(g)),
+                2 => IRBexpr::and_many([
+                    arbitrary_with_depth(g, depth - 1),
+                    arbitrary_with_depth(g, depth - 1),
+                ]),
+                3 => IRBexpr::or_many([
+                    arbitrary_with_depth(g, depth - 1),
+                    arbitrary_with_depth(g, depth - 1),
+                ]),
+                4 => !arbitrary_with_depth(g, depth - 1),
+                5 => arbitrary_with_depth(g, depth - 1).implies(arbitrary_with_depth(g, depth - 1)),
+                6 => arbitrary_with_depth(g, depth - 1).iff(arbitrary_with_depth(g, depth - 1)),
+                7 => true.into(),
+                _ => false.into(),
+            }
+        }
+
+        arbitrary_with_depth(g, g.size())
+    }
 }
 
 impl<T> IRBexpr<T> {
@@ -1002,5 +1037,11 @@ mod tests {
         fn constant_fold(&mut self) -> Result<(), Self::Error> {
             Ok(())
         }
+    }
+
+    #[cfg(feature = "serde")]
+    #[quickcheck_macros::quickcheck]
+    fn boolean_expression_round_trips(value: IRBexpr<()>) {
+        assert_eq!(value, crate::serde_tests_helpers::round_trip(&value));
     }
 }

@@ -1,6 +1,6 @@
 use ff::Field;
 use midnight_proofs::circuit::{AssignedCell, Layouter, SimpleFloorPlanner};
-use midnight_proofs::default_group_key;
+use midnight_proofs::circuit::groups::default_group_key;
 use midnight_proofs::plonk::{Circuit, ConstraintSystem, Error};
 use std::marker::PhantomData;
 
@@ -63,7 +63,7 @@ impl<F: Field> FibonacciChip<F> {
             || "fib",
             default_group_key!(),
             |layouter, group| {
-                group.annotate_inputs([fib0.cell(), fib1.cell()])?;
+                group.annotate_inputs([fib0.cell(), fib1.cell()]);
                 layouter.assign_region(
                     || "fib",
                     |mut region| {
@@ -78,7 +78,7 @@ impl<F: Field> FibonacciChip<F> {
                             || fib0.value().copied() + fib1.value(),
                         )?;
 
-                        group.annotate_outputs([fib1.cell(), fib2.cell()])?;
+                        group.annotate_outputs([fib1.cell(), fib2.cell()]);
                         Ok((fib1.clone(), fib2))
                     },
                 )
@@ -132,3 +132,32 @@ impl<F: Field> Circuit<F> for FibonacciCircuit<F> {
         Ok(())
     }
 }
+
+#[cfg(feature = "extraction")]
+impl<F: ff::PrimeField> crate::extraction::ExtractableFixture<F> for FibonacciCircuit<F> {
+    type Input = [AssignedCell<F, F>; 2];
+    type Output = [AssignedCell<F, F>; 2];
+
+    fn synthesize_extraction<L>(
+        &self,
+        config: &Self::Config,
+        layouter: &mut haloumi_integration::core::layouter::LayoutAdaptor<L>,
+        input: Self::Input,
+        _: &mut haloumi_ir::inject::InjectedIR<midnight_proofs::circuit::RegionIndex, midnight_proofs::plonk::Expression<F>>,
+    ) -> Result<Self::Output, Error>
+    where
+        L: haloumi_integration::core::layouter::Layouter<F, Error>
+            + haloumi_integration::core::groups::RegionsGroupHooks<F, midnight_proofs::circuit::Cell, Error = Error>,
+    {
+        let chip = FibonacciChip::construct(config.clone());
+        let [fib0, fib1] = input;
+        let mut fib = (fib0, fib1);
+        for _ in 0..7 {
+            fib = chip.step(layouter, &fib)?;
+        }
+        Ok([fib.0, fib.1])
+    }
+}
+
+#[cfg(feature = "extraction")]
+crate::impl_extractable_fixture!(FibonacciCircuit<F>);

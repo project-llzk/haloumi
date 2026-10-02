@@ -20,6 +20,7 @@ pub type InstanceIO = CircuitIO<Instance>;
 
 /// Records what cells of the given column type are inputs and what cells are outputs.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CircuitIO<C: ColumnType> {
     inputs: Vec<IOCell<C>>,
     outputs: Vec<IOCell<C>>,

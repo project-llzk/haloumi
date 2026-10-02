@@ -74,7 +74,7 @@ pub type DefaultKey = SourceLocKey;
 #[macro_export]
 macro_rules! default_group_key {
     () => {
-        $crate::circuit::groups::DefaultKey {
+        $crate::groups::DefaultKey {
             file: std::file!(),
             line: std::line!(),
             column: std::column!(),
@@ -148,6 +148,12 @@ impl<C> RegionsGroup<C> {
             annotations: Default::default(),
             enabled,
         }
+    }
+}
+
+impl<C> Default for RegionsGroup<C> {
+    fn default() -> Self {
+        Self::new(Default::default())
     }
 }
 

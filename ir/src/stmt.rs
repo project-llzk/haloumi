@@ -17,6 +17,9 @@ use haloumi_lowering::{
 };
 use std::fmt::Write;
 
+#[cfg(any(test, feature = "arbitrary"))]
+use quickcheck::Arbitrary;
+
 mod assert;
 mod assume_determ;
 mod block_comment;
@@ -65,8 +68,10 @@ where
 impl<T, I> sealed::EmitIfSealed for I where I: IntoIterator<Item = IRStmt<T>> {}
 
 /// IR for operations that occur in the main circuit.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct IRStmt<T>(IRStmtImpl<T>, Meta);
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 enum IRStmtImpl<T> {
     /// A call to another module.
     ConstraintCall(Call<T>),
@@ -86,6 +91,38 @@ enum IRStmtImpl<T> {
     CondBlock(CondBlock<T>),
     /// A block of code with a header comment.
     BlockComment(BlockComment<T>),
+}
+
+#[cfg(any(test, feature = "arbitrary"))]
+fn arbitrary_with_depth<T: Arbitrary>(g: &mut quickcheck::Gen, depth: usize) -> IRStmt<T> {
+    if depth == 0 {
+        return IRStmt::constraint(CmpOp::arbitrary(g), T::arbitrary(g), T::arbitrary(g));
+    }
+    match u8::arbitrary(g) % 9 {
+        0 => IRStmt::call(
+            String::arbitrary(g),
+            [T::arbitrary(g)],
+            [Slot::Temp(usize::arbitrary(g))],
+        ),
+        1 => IRStmt::constraint(CmpOp::arbitrary(g), T::arbitrary(g), T::arbitrary(g)),
+        2 => IRStmt::comment(String::arbitrary(g)),
+        3 => IRStmt::assume_deterministic(Slot::arbitrary(g)),
+        4 => IRStmt::assert(IRBexpr::arbitrary(g)),
+        5 => IRStmt::post_cond(IRBexpr::arbitrary(g)),
+        6 => IRStmt::seq([
+            arbitrary_with_depth::<T>(g, depth - 1),
+            arbitrary_with_depth::<T>(g, depth - 1),
+        ]),
+        7 => [arbitrary_with_depth::<T>(g, depth - 1)].emit_unless_false(IRBexpr::arbitrary(g)),
+        _ => arbitrary_with_depth::<T>(g, depth - 1).with_comment(String::arbitrary(g)),
+    }
+}
+
+#[cfg(any(test, feature = "arbitrary"))]
+impl<T: Arbitrary> Arbitrary for IRStmt<T> {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        arbitrary_with_depth(g, g.size().min(4))
+    }
 }
 
 impl<T> HasMeta for IRStmt<T> {
@@ -431,6 +468,36 @@ impl<T> IRStmt<T> {
             _ => None,
         }
     }
+
+    /// Returns true iff the two statements are structurally equal.
+    ///
+    /// This method is useful when you need to check if two statements are
+    /// exactly equal to each other.
+    ///
+    /// The implementation of `PartialEq` used by this type will check that
+    /// two statements are semantically equal.
+    pub fn exact_eq(&self, other: &Self) -> bool
+    where
+        T: PartialEq,
+    {
+        if self.meta() != other.meta() {
+            return false;
+        }
+        match (&self.0, &other.0) {
+            (IRStmtImpl::ConstraintCall(lhs), IRStmtImpl::ConstraintCall(rhs)) => lhs.eq(rhs),
+            (IRStmtImpl::Constraint(lhs), IRStmtImpl::Constraint(rhs)) => lhs.eq(rhs),
+            (IRStmtImpl::Comment(lhs), IRStmtImpl::Comment(rhs)) => lhs.eq(rhs),
+            (IRStmtImpl::AssumeDeterministic(lhs), IRStmtImpl::AssumeDeterministic(rhs)) => {
+                lhs.eq(rhs)
+            }
+            (IRStmtImpl::Assert(lhs), IRStmtImpl::Assert(rhs)) => lhs.eq(rhs),
+            (IRStmtImpl::PostCond(lhs), IRStmtImpl::PostCond(rhs)) => lhs.eq(rhs),
+            (IRStmtImpl::CondBlock(lhs), IRStmtImpl::CondBlock(rhs)) => lhs.eq(rhs),
+            (IRStmtImpl::BlockComment(lhs), IRStmtImpl::BlockComment(rhs)) => lhs.eq(rhs),
+            (IRStmtImpl::Seq(lhs), IRStmtImpl::Seq(rhs)) => lhs.eq(rhs),
+            _ => false,
+        }
+    }
 }
 
 impl<T> ConstantFolding for IRStmt<T>
@@ -565,6 +632,12 @@ impl<'a, T> Iterator for IRStmtRefIter<'a, T> {
                     // Reverse to preserve left-to-right order
                     self.stack.extend(children.iter().rev());
                 }
+                IRStmtImpl::CondBlock(cb) => {
+                    self.stack.extend(cb.body());
+                }
+                IRStmtImpl::BlockComment(bc) => {
+                    self.stack.extend(bc.body());
+                }
                 _ => return Some(node),
             }
         }
@@ -586,6 +659,10 @@ impl<'a, T> Iterator for IRStmtRefMutIter<'a, T> {
             if let IRStmt(IRStmtImpl::Seq(children), _) = node {
                 // Reverse to preserve left-to-right order
                 self.stack.extend(children.iter_mut().rev());
+            } else if let IRStmt(IRStmtImpl::CondBlock(cb), _) = node {
+                self.stack.extend(cb.body_mut());
+            } else if let IRStmt(IRStmtImpl::BlockComment(bc), _) = node {
+                self.stack.extend(bc.body_mut());
             } else {
                 return Some(node);
             }
@@ -615,6 +692,12 @@ impl<T> Iterator for IRStmtIter<T> {
                 IRStmt(IRStmtImpl::Seq(children), _) => {
                     // Reverse to preserve left-to-right order
                     self.stack.extend(children.into_iter().rev());
+                }
+                IRStmt(IRStmtImpl::CondBlock(cb), _) => {
+                    self.stack.push(cb.take_body());
+                }
+                IRStmt(IRStmtImpl::BlockComment(bc), _) => {
+                    self.stack.push(bc.take_body());
                 }
                 stmt => return Some(stmt),
             }

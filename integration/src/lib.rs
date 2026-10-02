@@ -3,7 +3,9 @@
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]
 
-use ff::{Field, PrimeField};
+use ff::PrimeField;
+use haloumi_core::io::error::IoError;
+#[cfg(feature = "derive")]
 pub use haloumi_integration_macros::*;
 use num_bigint::{BigInt, BigUint};
 use num_traits::{Num as _, Signed as _};
@@ -13,8 +15,10 @@ use crate::error::Error;
 pub mod circuit;
 pub mod error;
 pub mod expressions;
+pub mod extractor;
 pub mod groups;
 pub mod info_traits;
+pub mod layouter;
 pub mod table;
 
 /// Re-export of the core crate for simplifying dependency management in downstream clients.
@@ -25,31 +29,16 @@ pub mod core {
 pub mod ir {
     pub use haloumi_ir::*;
 }
-
-/// This trait defines the halo2 types required by this crate.
-/// An implementation of halo2 compatible with this crate must have
-/// some type that implements this trait s.t. it can be passed to traits
-/// and types in this crate.
-pub trait Types<F: Field> {
-    /// Type for instance columns.
-    type InstanceCol: std::fmt::Debug + Copy + Clone;
-    /// Type for advice columns.
-    type AdviceCol: std::fmt::Debug + Copy + Clone;
-    /// Type for a cell.
-    type Cell: std::fmt::Debug + Copy + Clone + core::table::DecomposeIn<Self::Cell>;
-    /// Type for an assigned cell.
-    type AssignedCell<V>;
-    /// Region type.
-    type Region<'a>;
-    /// Error type.
-    type Error: Into<Error> + From<Error>;
-    /// Region index type
-    type RegionIndex: std::hash::Hash + Copy + Eq;
-    /// Expression type
-    type Expression;
-    /// Associated type for Rational.
-    type Rational;
+/// Re-export of the ir-gen crate for simplifying dependency management in downstream clients.
+pub mod ir_gen {
+    pub use haloumi_ir_gen::*;
 }
+/// Re-export of the synthesis crate for simplifying dependency management in downstream clients.
+pub mod synthesis {
+    pub use haloumi_synthesis::*;
+}
+
+pub use core::types::Types;
 
 /// Creates a type that implements the [`Types`] trait.
 #[macro_export]
@@ -76,7 +65,7 @@ macro_rules! __impl_types_trait {
 
             type Cell = $cell;
 
-            type AssignedCell<V> = $($assigned_cell)::+<V, F>;
+            type AssignedCell<V> = $($assigned_cell)::+<V, F> ;
 
             type Region<'a> = $($region)::+<'a, F>;
 
@@ -92,11 +81,14 @@ macro_rules! __impl_types_trait {
 }
 
 /// Parses a value of F from the given string.
-pub fn parse_field<F: PrimeField>(s: &str) -> Result<F, Error> {
-    if s.is_empty() {
-        return Err(Error::FieldParsingError);
+pub fn parse_field<F: PrimeField>(mut s: &str) -> Result<F, Error> {
+    while s.len() > 1 && s.starts_with('0') {
+        s = &s[1..];
     }
-    F::from_str_vartime(s).ok_or(Error::FieldParsingError)
+    if s.is_empty() {
+        return Err(IoError::FieldParsingError.into());
+    }
+    F::from_str_vartime(s).ok_or(IoError::FieldParsingError.into())
 }
 
 /// Returns the modulus of the field as a [`BigUint`].
@@ -131,6 +123,8 @@ pub fn fe_to_big<F: PrimeField>(fe: F) -> BigUint {
 
 /// Creates an [`Expression`] that queries the given cell relative to the
 /// beginning of the cell's region.
+///
+/// TODO: This macro has the `midnight_proofs` crate hardcoded on it!
 #[macro_export]
 macro_rules! cell_to_expr {
     ($x:expr, $F:ty) => {{

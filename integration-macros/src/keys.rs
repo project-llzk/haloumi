@@ -1,6 +1,10 @@
 pub const KIND_KEY: &str = "kind";
 pub const FIELD_KEY: &str = "field";
 pub const EXPRESSION_KEY: &str = "expression";
+pub const INSTANCE_COL_KEY: &str = "instance";
+pub const ADVICE_COL_KEY: &str = "advice";
+pub const FIXED_COL_KEY: &str = "fixed";
+pub const ANY_COL_KEY: &str = "any";
 pub const ROTATION_KEY: &str = "rotation";
 pub const NEW_KEY: &str = "new";
 pub const CELL_KEY: &str = "cell";

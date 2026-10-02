@@ -116,4 +116,3 @@ pub fn parse_field<F: PrimeField>(mut s: &str) -> Result<F, Error> {
     }
     F::from_str_vartime(s).ok_or(IoError::FieldParsingError.into())
 }
-

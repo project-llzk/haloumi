@@ -1,5 +1,7 @@
 use crate::error::{Error, UnexpectedTypeError};
-use crate::factory::{MemberKind, StructIO, filename};
+use crate::factory::{StructIO, filename};
+use crate::lowering::data::LoweringData;
+use crate::members::{MemberKind, Members};
 use crate::state::LlzkCodegenState;
 use haloumi_backend::lowering::CallTracker;
 //use backend_err::{Result, backend_err};
@@ -25,6 +27,8 @@ use haloumi_core::{
     felt::Felt,
     slot::{Slot, arg::ArgNo, output::OutputId as FieldId},
 };
+
+mod data;
 
 macro_rules! value {
     ($op:expr) => {
@@ -60,10 +64,12 @@ macro_rules! expect_type {
 pub struct LlzkStructLowering<'c, 's> {
     state: &'s LlzkCodegenState<'c>,
     builder: OpBuilder<'c, 'c>,
+    members_builder: OpBuilder<'c, 'c>,
     struct_op: StructDefOpRefMut<'c, 's>,
     constraints_counter: Rc<Counter>,
     callees_counter: CallTracker,
     io: StructIO,
+    data: LoweringData<'c, 's>,
 }
 
 impl<'c, 's> LlzkStructLowering<'c, 's> {
@@ -71,6 +77,7 @@ impl<'c, 's> LlzkStructLowering<'c, 's> {
         state: &'s LlzkCodegenState<'c>,
         struct_op: StructDefOpRefMut<'c, 's>,
         io: StructIO,
+        members: Members<'c, 's>,
     ) -> Result<Self, Error> {
         let builder = OpBuilder::at_block_end(
             state.context(),
@@ -81,34 +88,45 @@ impl<'c, 's> LlzkStructLowering<'c, 's> {
                 .first_block()
                 .ok_or(Error::MissingBlock)?,
         );
+        let members_builder = OpBuilder::at_block_end(state.context(), struct_op.body());
         Ok(Self {
             state,
             struct_op,
             builder,
+            members_builder,
             constraints_counter: Rc::new(Default::default()),
             callees_counter: Default::default(),
             io,
+            data: LoweringData::new(struct_op, members)?,
         })
     }
 
+    #[inline]
     fn context(&self) -> &'c Context {
         self.state.context()
     }
 
+    #[inline]
     fn builder(&self) -> &OpBuilder<'c, 'c> {
         &self.builder
     }
 
+    #[inline]
+    fn members_builder(&self) -> &OpBuilder<'c, 'c> {
+        &self.members_builder
+    }
+
+    #[inline]
     fn struct_name(&self) -> &str {
         self.struct_op.sym_name()
     }
 
+    #[inline]
     fn get_cell_member(&self, kind: MemberKind<'_>) -> Result<MemberDefOpRef<'c, '_>, Error> {
-        let name = kind.member_name();
-        Ok(self.struct_op.find_or_create_member_def(&name, |builder| {
-            log::debug!("Creating member named '@{name}'");
-            kind.create_member_op(builder, self.state, self.struct_name())
-        })?)
+        Ok(self
+            .data
+            .members
+            .get(self.state, self.struct_name(), self.members_builder(), kind)?)
     }
 
     /// Tries to fetch an advice cell field, if it doesn't exist creates a field that represents
@@ -128,13 +146,11 @@ impl<'c, 's> LlzkStructLowering<'c, 's> {
     fn get_output(&self, field: FieldId) -> Result<MemberDefOpRef<'c, '_>, Error> {
         self.struct_op
             .find_member_def(format!("out_{field}").as_str())
-            .ok_or(Error::MissingOutput(field))
+            .ok_or_else(|| Error::MissingOutput(self.struct_op.sym_name().to_owned(), field))
     }
 
     fn get_constrain_func(&self) -> Result<FuncDefOpRef<'c, '_>, Error> {
-        self.struct_op
-            .constrain_func()
-            .ok_or(Error::MissingConstrainFunc)
+        Ok(self.data.constrain_func)
     }
 
     fn get_arg_impl(&self, idx: usize) -> Result<Value<'c, '_>, Error> {
@@ -200,7 +216,13 @@ impl<'c, 's> LlzkStructLowering<'c, 's> {
     where
         'c: 'v,
     {
-        let location = Location::unknown(self.context());
+        let location = Location::new(
+            self.context(),
+            filename(self.struct_name(), Some("constraints")).as_str(),
+            self.constraints_counter.peek(),
+            0,
+        );
+        self.constraints_counter.step();
         let i1 = Type::from(IntegerType::new(self.context(), 1));
         if expr.r#type() != i1 {
             bail_backend!(
@@ -293,9 +315,10 @@ impl Lowering for LlzkStructLowering<'_, '_> {
         let loc = Location::new(
             self.context(),
             filename(self.struct_name(), Some("constraints")).as_str(),
-            self.constraints_counter.next(),
+            self.constraints_counter.peek(),
             0,
         );
+        self.constraints_counter.step();
         let cond = match op {
             CmpOp::Eq => {
                 dialect::constrain::eq(self.builder(), loc, *lhs, *rhs);
@@ -311,26 +334,10 @@ impl Lowering for LlzkStructLowering<'_, '_> {
     }
 
     fn num_constraints(&self) -> usize {
-        self.get_constrain_func()
-            .map(|op| {
-                op.regions()
-                    .flat_map(block_list)
-                    .flat_map(operations_list)
-                    .filter(|o| {
-                        o.name()
-                            .as_string_ref()
-                            .as_str()
-                            .map(|op_name| matches!(op_name, "constrain.eq"))
-                            .unwrap_or_default()
-                    })
-                    .count()
-            })
-            .unwrap_or_default()
+        self.constraints_counter.peek()
     }
 
-    fn generate_comment(&self, s: String) -> LoweringResult<()> {
-        // If the final target is picus generate a 'picus.comment' op. Otherwise do nothing.
-        log::warn!("Comment {s:?} was not generated");
+    fn generate_comment(&self, _: String) -> LoweringResult<()> {
         Ok(())
     }
 
@@ -472,10 +479,14 @@ impl<'c> ExprLowering for LlzkStructLowering<'c, '_> {
                     .try_into()
                     .map_err(Error::Llzk)?;
 
-                let member_output = *member_impl
-                    .member_defs()
-                    .get(output_idx)
-                    .ok_or(Error::MissingCalleeMemberOutput(callee, output_idx))?;
+                let member_output =
+                    *member_impl.member_defs().get(output_idx).ok_or_else(|| {
+                        Error::MissingCalleeMemberOutput(
+                            self.struct_op.sym_name().to_owned(),
+                            callee,
+                            output_idx,
+                        )
+                    })?;
                 let member_value = self.read_field(member)?;
                 self.read_callee_output(member_output, member_value)
             }
@@ -939,10 +950,9 @@ mod tests {
     ) {
         let _ = TestLogger::init(LevelFilter::Debug, Config::default());
         let context = LlzkContext::new();
-        let state: LlzkCodegenState = LlzkParams::new(&context)
-            .with_top_level(cfg.struct_name)
-            .no_optimize()
-            .into();
+        let mut params = LlzkParams::new(&context);
+        params.with_top_level(cfg.struct_name).no_optimize();
+        let state: LlzkCodegenState = params.into();
         let codegen = LlzkCodegen::initialize(&state);
         let advice_io = cfg.advice_io();
         let instance_io = cfg.instance_io();

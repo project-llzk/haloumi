@@ -58,4 +58,3 @@ impl<F: Field, H: Types<F>> DerefMut for OCtx<'_, F, H> {
         &mut self.inner
     }
 }
-

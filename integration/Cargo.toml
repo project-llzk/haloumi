@@ -18,7 +18,19 @@ thiserror.workspace = true
 num-traits = "0.2"
 haloumi-core = { path = "../core" }
 haloumi-ir = { path = "../ir" }
-haloumi-integration-macros = { path = "../integration-macros" }
+haloumi-ir-gen = { path = "../ir-gen" }
+haloumi-synthesis = { path = "../synthesis" }
+haloumi-integration-macros = { path = "../integration-macros", optional = true }
+haloumi-extractor = { path = "../extractor/", optional = true }
+haloumi-extractor-core = { path = "../extractor-core/" }
+
 
 [dev-dependencies]
 rstest = "0"
+
+[build-dependencies]
+anyhow = "1"
+
+[features]
+extractor = ["dep:haloumi-extractor"]
+derive = ["dep:haloumi-integration-macros"]

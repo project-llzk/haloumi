@@ -77,4 +77,3 @@ impl<'a, R, E> IntoIterator for &'a mut InjectedIR<R, E> {
         (&mut self.0).into_iter()
     }
 }
-

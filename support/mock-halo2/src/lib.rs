@@ -8,11 +8,12 @@ use std::marker::PhantomData;
 
 use ff::Field;
 use haloumi_core::{
+    auto_conf::AutoConfigure,
     expressions::{EvalExpression, EvaluableExpr, ExprBuilder, ExpressionInfo, ExpressionTypes},
     info_traits::{ChallengeInfo, ConstraintSystemInfo, CreateQuery, GateInfo, QueryInfo, SelectorInfo},
     lookups::LookupData,
     query::{Advice, Fixed, Instance, QueryKind},
-    table::Rotation,
+    table::{Any, Column, Rotation},
 };
 
 /// A selector allocated by [`ConstraintSystem`].
@@ -146,12 +147,25 @@ pub struct ConstraintSystem<F: Field> {
     selectors: usize,
     gates: Vec<Gate<F>>,
     lookups: Vec<Lookup<F>>,
+    constants: Vec<Column<Fixed>>,
 }
 
 impl<F: Field> Default for ConstraintSystem<F> {
     fn default() -> Self {
-        Self { advice: 0, fixed: 0, instance: 0, selectors: 0, gates: vec![], lookups: vec![] }
+        Self { advice: 0, fixed: 0, instance: 0, selectors: 0, gates: vec![], lookups: vec![], constants: vec![] }
     }
+}
+
+impl<F: Field> AutoConfigure<ConstraintSystem<F>> for Column<Advice> {
+    fn configure(cs: &mut ConstraintSystem<F>) -> Self { Column::new(cs.advice_column(), Advice) }
+}
+
+impl<F: Field> AutoConfigure<ConstraintSystem<F>> for Column<Fixed> {
+    fn configure(cs: &mut ConstraintSystem<F>) -> Self { Column::new(cs.fixed_column(), Fixed) }
+}
+
+impl<F: Field> AutoConfigure<ConstraintSystem<F>> for Column<Instance> {
+    fn configure(cs: &mut ConstraintSystem<F>) -> Self { Column::new(cs.instance_column(), Instance) }
 }
 
 impl<F: Field> ConstraintSystem<F> {
@@ -175,6 +189,10 @@ impl<F: Field> ConstraintSystem<F> {
 
 impl<F: Field> ConstraintSystemInfo<F> for ConstraintSystem<F> {
     type Polynomial = Expression<F>;
+    type InstanceCol = Column<Instance>;
+    type AdviceCol = Column<Advice>;
+    type FixedCol = Column<Fixed>;
+    type AnyCol = Column<Any>;
     fn gates(&self) -> Vec<&dyn GateInfo<Self::Polynomial>> {
         self.gates.iter().map(|gate| gate as &dyn GateInfo<_>).collect()
     }
@@ -185,6 +203,11 @@ impl<F: Field> ConstraintSystemInfo<F> for ConstraintSystem<F> {
             table: &lookup.table,
         }).collect()
     }
+    fn constants(&self) -> &[Self::FixedCol] { &self.constants }
+    fn enable_constant(&mut self, column: Self::FixedCol) {
+        if !self.constants.contains(&column) { self.constants.push(column); }
+    }
+    fn enable_equality(&mut self, _: impl Into<Self::AnyCol>) {}
 }
 
 #[cfg(test)]

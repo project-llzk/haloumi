@@ -29,7 +29,7 @@ impl<'o, F: Field, H: Types<F>> OCtx<'o, F, H> {
         &mut self,
         layouter: &mut LayoutAdaptor<'_, impl Layouter<F, H::Error>>,
     ) -> Result<(), H::Error> {
-        self.next()?.set_to_zero(layouter)
+        self.next_io()?.set_to_zero(layouter)
     }
 
     /// Sets the next output to the given value.
@@ -39,7 +39,7 @@ impl<'o, F: Field, H: Types<F>> OCtx<'o, F, H> {
         layouter: &mut LayoutAdaptor<'_, impl Layouter<F, H::Error>>,
     ) -> Result<(), H::Error> {
         for cell in value.cells() {
-            self.next()?.assign(cell, layouter)?;
+            self.next_io()?.assign(cell, layouter)?;
         }
         Ok(())
     }

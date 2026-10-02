@@ -9,6 +9,8 @@ members = [
   "picus",
   "llzk",
   "driver",
+  "extractor",
+  "extractor-runner",
   "extractor-core",
   "integration",
   "integration-macros",

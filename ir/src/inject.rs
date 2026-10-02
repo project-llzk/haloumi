@@ -21,6 +21,7 @@ impl<R, E> InjectedIR<R, E> {
         }
     }
 }
+
 impl<R, E> Deref for InjectedIR<R, E> {
     type Target = HashMap<R, Vec<IRStmt<(usize, E)>>>;
 

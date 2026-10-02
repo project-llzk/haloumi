@@ -19,6 +19,7 @@ struct RecordedGroup {
     outputs: Vec<TestCell>,
     groups: Vec<Self>,
 }
+
 impl RecordedGroup {
     fn root() -> Self {
         Self {

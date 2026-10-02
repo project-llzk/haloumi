@@ -15,6 +15,7 @@ members = [
   "integration",
   "integration-macros",
   "inject",
+  "inject-tester",
   "support/midnight",
   "support/mdnt-test-circuits",
 ]

@@ -3,6 +3,8 @@
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]
 
+pub mod auto_conf;
+pub mod circuit;
 pub mod cmp;
 pub mod constraints;
 pub mod eqv;

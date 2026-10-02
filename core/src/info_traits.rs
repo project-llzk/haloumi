@@ -3,6 +3,7 @@
 use ff::Field;
 
 use crate::{
+    auto_conf::AutoConfigure,
     expressions::{EvaluableExpr, ExprBuilder, ExpressionInfo},
     lookups::LookupData,
     query::QueryKind,
@@ -14,6 +15,26 @@ pub trait ConstraintSystemInfo<F: Field> {
     /// Type for polynomial expressions.
     type Polynomial: EvaluableExpr<F> + Clone + ExpressionInfo + ExprBuilder<F>;
 
+    /// Type representing instance columns.
+    type InstanceCol: AutoConfigure<Self> + Copy
+    where
+        Self: Sized;
+
+    /// Type representing advice columns.
+    type AdviceCol: AutoConfigure<Self> + Copy
+    where
+        Self: Sized;
+
+    /// Type representing fixed columns.
+    type FixedCol: AutoConfigure<Self> + Copy
+    where
+        Self: Sized;
+
+    /// Type representing any column type.
+    type AnyCol: From<Self::InstanceCol> + From<Self::AdviceCol> + From<Self::FixedCol> + Copy
+    where
+        Self: Sized;
+
     /// Notifies the constraint system that the circuit has completed synthesis.
     fn synthesis_completed(&mut self) {}
 
@@ -22,6 +43,62 @@ pub trait ConstraintSystemInfo<F: Field> {
 
     /// Returns a list with data about the lookups defined in the system.
     fn lookups(&self) -> Vec<LookupData<'_, Self::Polynomial>>;
+
+    /// Creates a new instance column.
+    fn instance_col(&mut self) -> Self::InstanceCol
+    where
+        Self: Sized,
+    {
+        Self::InstanceCol::configure(self)
+    }
+
+    /// Creates a new advice column.
+    fn advice_col(&mut self) -> Self::AdviceCol
+    where
+        Self: Sized,
+    {
+        Self::AdviceCol::configure(self)
+    }
+
+    /// Creates a new fixed column.
+    fn fixed_col(&mut self) -> Self::FixedCol
+    where
+        Self: Sized,
+    {
+        Self::FixedCol::configure(self)
+    }
+
+    /// Returns a list of fixed columns intended to represent constants.
+    fn constants(&self) -> &[Self::FixedCol]
+    where
+        Self: Sized;
+
+    /// Marks the given fixed column as a constants column.
+    fn enable_constant(&mut self, col: Self::FixedCol)
+    where
+        Self: Sized;
+
+    /// Creates a column for constants, if necessary.
+    ///
+    /// If it's not necessary to create one, the
+    /// implementation must return `None`.
+    fn constants_col(&mut self) -> Option<Self::FixedCol>
+    where
+        Self: Sized,
+    {
+        if self.constants().is_empty() {
+            let fixed_helper = self.fixed_col();
+            self.enable_constant(fixed_helper);
+            Some(fixed_helper)
+        } else {
+            None
+        }
+    }
+
+    /// Enabled equality constraints for the given column.
+    fn enable_equality(&mut self, column: impl Into<Self::AnyCol>)
+    where
+        Self: Sized;
 }
 
 /// Trait for querying information about the a gate in the constraint system.

@@ -1035,6 +1035,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "haloumi-extractor-core"
+version = "0.5.15"
+dependencies = [
+ "ff",
+ "haloumi-core",
+ "haloumi-ir",
+ "haloumi-ir-gen",
+ "haloumi-synthesis",
+ "num-bigint 0.4.6",
+ "thiserror",
+]
+
+[[package]]
 name = "haloumi-inject"
 version = "0.5.15"
 dependencies = [

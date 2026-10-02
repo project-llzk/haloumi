@@ -188,4 +188,3 @@ where
         self?.store_dyn(ctx, chip, layouter, injected_ir)
     }
 }
-

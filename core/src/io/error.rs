@@ -26,4 +26,3 @@ pub enum IoError {
     #[error("Parse failure")]
     BigUintParse(#[from] ParseBigIntError),
 }
-

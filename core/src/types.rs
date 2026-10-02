@@ -35,4 +35,3 @@ pub trait Types<F: Field>: Sized {
     /// Associated type for Rational.
     type Rational;
 }
-

@@ -31,4 +31,3 @@ impl<IO> fmt::Debug for BaseCtx<'_, IO> {
             .finish()
     }
 }
-

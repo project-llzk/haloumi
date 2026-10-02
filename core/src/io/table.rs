@@ -143,4 +143,3 @@ impl<F: Field, Ts: Types<F>> OutputDescr<F, Ts> {
         Ok(())
     }
 }
-

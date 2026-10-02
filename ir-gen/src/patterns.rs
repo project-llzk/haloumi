@@ -88,15 +88,16 @@ where
     F: Field,
     E: ExprBuilder<F> + EvaluableExpr<F> + std::fmt::Debug,
 {
-    let mut patterns = RewritePatternSet::default();
-    let user_patterns = gate_cbs.patterns();
-    log::debug!("Loading {} user patterns", user_patterns.len());
-    patterns.extend(user_patterns);
     log::debug!(
         "Loading fallback pattern {}",
         std::any::type_name::<FallbackGateRewriter>()
     );
-    patterns.add(FallbackGateRewriter::new(gate_cbs.ignore_disabled_gates()));
+    let mut patterns =
+        RewritePatternSet::new(FallbackGateRewriter::new(gate_cbs.ignore_disabled_gates()));
+    let user_patterns = gate_cbs.patterns();
+    log::debug!("Loading {} user patterns", user_patterns.len());
+    patterns.extend(user_patterns);
+
     patterns
 }
 

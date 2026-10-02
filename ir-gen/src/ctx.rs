@@ -103,7 +103,7 @@ impl std::fmt::Debug for AdviceCells {
 pub(crate) struct GroupIRCtx<'lc, 'gc, 'syn, F: Field, E> {
     regions_by_index: RegionByIndex<'syn>,
     syn: &'syn SynthesizedCircuit<F, E>,
-    patterns: RewritePatternSet<F, E>,
+    patterns: RewritePatternSet<'gc, F, E>,
     params: IRGenParams<'lc, 'gc, F, E>,
 }
 

@@ -74,7 +74,7 @@ impl std::fmt::Debug for Instance {
     }
 }
 
-/// Supporting trait for implementing the [`LayoutHelper::copy_advice`].
+/// Supporting trait for implementing the `LayoutHelper::copy_advice` method.
 pub trait AdviceCopy<V, F, T>: Sized
 where
     F: ff::Field,

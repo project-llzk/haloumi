@@ -19,10 +19,8 @@ pub enum Error {
     #[error(transparent)]
     Io(#[from] IoError),
     /// Circuit synthesis requires global constants, but circuit configuration
-    /// did not call [`ConstraintSystem::enable_constant`] on fixed columns
+    /// did not call `ConstraintSystem::enable_constant` on fixed columns
     /// with sufficient space.
-    ///
-    /// [`ConstraintSystem::enable_constant`]: crate::plonk::ConstraintSystem::enable_constant
     #[error("Too few fixed columns are enabled for global constants usage")]
     NotEnoughColumnsForConstants,
     /// Raised when the default value is missing while synthesizing a table.

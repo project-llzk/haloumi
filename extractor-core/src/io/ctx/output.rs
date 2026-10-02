@@ -10,7 +10,7 @@ use haloumi_core::{
     types::Types,
 };
 
-/// Context type for the [`StoreIntoCells`](super::store::StoreIntoCells) trait.
+/// Context type for the [`crate::io::store::StoreIntoCells`] trait.
 #[derive(Debug)]
 pub struct OCtx<'o, F: Field, H: Types<F>> {
     inner: BaseCtx<'o, OutputDescr<F, H>>,
@@ -58,4 +58,3 @@ impl<F: Field, H: Types<F>> DerefMut for OCtx<'_, F, H> {
         &mut self.inner
     }
 }
-

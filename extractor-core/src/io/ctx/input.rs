@@ -17,7 +17,7 @@ use haloumi_ir::inject::InjectedIR;
 
 use crate::io::load::LoadFromCells;
 
-/// Context type for the [`LoadFromCells`](super::load::LoadFromCells) trait.
+/// Context type for the [`LoadFromCells`] trait.
 pub struct ICtx<'i, 's, F: Field, H: Types<F>> {
     inner: BaseCtx<'i, InputDescr<F, H>>,
     constants: Box<dyn Iterator<Item = &'s str> + 's>,
@@ -116,4 +116,3 @@ pub fn parse_field<F: PrimeField>(mut s: &str) -> Result<F, Error> {
     }
     F::from_str_vartime(s).ok_or(IoError::FieldParsingError.into())
 }
-

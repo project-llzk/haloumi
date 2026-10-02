@@ -1,6 +1,6 @@
 [package]
-name = "haloumi-integration"
-description = "Helpers for integrating Haloumi with Halo2 implementations."
+name = "haloumi-extractor-core"
+description = "Haloumi's extraction core types."
 categories = {workspace = true}
 version = {workspace = true}
 authors = {workspace = true}
@@ -12,13 +12,11 @@ license-file = {workspace = true}
 keywords = {workspace = true}
 
 [dependencies]
+haloumi-ir-gen = { path = "../ir-gen/" }
+haloumi-ir = { path = "../ir/" }
+haloumi-synthesis = { path = "../synthesis/" }
+haloumi-core = { path = "../core/" }
 ff.workspace = true
-num-bigint.workspace = true
 thiserror.workspace = true
-num-traits = "0.2"
-haloumi-core = { path = "../core" }
-haloumi-ir = { path = "../ir" }
-haloumi-integration-macros = { path = "../integration-macros" }
+num-bigint.workspace = true
 
-[dev-dependencies]
-rstest = "0"

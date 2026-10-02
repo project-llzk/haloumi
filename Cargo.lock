@@ -837,6 +837,8 @@ dependencies = [
  "num-bigint 0.4.6",
  "quickcheck",
  "quickcheck_macros",
+ "serde",
+ "serde_json",
  "similar-asserts",
  "simplelog",
  "thiserror",
@@ -861,6 +863,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "haloumi-extractor-core"
+version = "0.5.15"
+dependencies = [
+ "ff",
+ "haloumi-core",
+ "haloumi-ir",
+ "haloumi-ir-gen",
+ "haloumi-synthesis",
+ "num-bigint 0.4.6",
+ "thiserror",
+]
+
+[[package]]
 name = "haloumi-integration"
 version = "0.5.15"
 dependencies = [
@@ -870,6 +885,7 @@ dependencies = [
  "haloumi-ir",
  "num-bigint 0.4.6",
  "num-traits",
+ "rstest",
  "thiserror",
 ]
 
@@ -906,6 +922,8 @@ dependencies = [
  "quickcheck",
  "quickcheck_macros",
  "rstest 0.26.1",
+ "serde",
+ "serde_json",
  "similar-asserts",
  "thiserror",
 ]
@@ -1353,6 +1371,7 @@ checksum = "a5e44f723f1133c9deac646763579fdb3ac745e418f2a7af9cd0c431da1f20b9"
 dependencies = [
  "num-integer",
  "num-traits",
+ "serde",
 ]
 
 [[package]]

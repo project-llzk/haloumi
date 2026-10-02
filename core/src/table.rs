@@ -37,7 +37,6 @@ pub enum Any {
 #[cfg(any(test, feature = "arbitrary"))]
 impl Arbitrary for Any {
     fn arbitrary(g: &mut quickcheck::Gen) -> Self {
-        let _ = ();
         match u8::arbitrary(g) % 3 {
             0 => Self::Fixed,
             1 => Self::Advice,

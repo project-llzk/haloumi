@@ -1,0 +1,6 @@
+[package]
+name = "detailed-dependency"
+version = "1.0.0"
+
+[dependencies]
+alias = { package = "upstream", version = "2", features = ["feature-a"], optional = true, default-features = false, git = "https://example.invalid/upstream" }

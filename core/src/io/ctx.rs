@@ -4,8 +4,8 @@ use std::fmt;
 
 use crate::{error::Error, io::error::IoError};
 
-/// Context type for the [`LoadFromCells`](super::load::LoadFromCells) and
-/// [`StoreIntoCells`](super::store::StoreIntoCells) traits.
+/// Context type for the extractor traits in charge of loading and storing
+/// complex types from table cells.
 pub struct BaseCtx<'io, IO> {
     io: Box<dyn Iterator<Item = IO> + 'io>,
 }

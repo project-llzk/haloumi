@@ -255,24 +255,15 @@ pub trait Layouter<F: Field, E> {
     fn get_challenge(&self, challenge: impl ChallengeInfo) -> Option<F>;
 
     /// Gets the "root" of this assignment, bypassing the namespacing.
-    ///
-    /// Not intended for downstream consumption; use [`Layouter::namespace`]
-    /// instead.
     fn get_root(&mut self) -> &mut Self::Root;
 
     /// Creates a new (sub)namespace and enters into it.
-    ///
-    /// Not intended for downstream consumption; use [`Layouter::namespace`]
-    /// instead.
     fn push_namespace<NR, N>(&mut self, name_fn: N)
     where
         NR: Into<String>,
         N: FnOnce() -> NR;
 
     /// Exits out of the existing namespace.
-    ///
-    /// Not intended for downstream consumption; use [`Layouter::namespace`]
-    /// instead.
     fn pop_namespace(&mut self, gadget_name: Option<String>);
 }
 

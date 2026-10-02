@@ -64,7 +64,7 @@ impl<'a, R, E> IntoIterator for &'a InjectedIR<R, E> {
     type IntoIter = <&'a HashMap<R, Vec<IRStmt<(usize, E)>>> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
-        (&self.0).into_iter()
+        self.0.iter()
     }
 }
 
@@ -74,6 +74,6 @@ impl<'a, R, E> IntoIterator for &'a mut InjectedIR<R, E> {
     type IntoIter = <&'a mut HashMap<R, Vec<IRStmt<(usize, E)>>> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
-        (&mut self.0).into_iter()
+        self.0.iter_mut()
     }
 }

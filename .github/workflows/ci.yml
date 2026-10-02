@@ -198,6 +198,10 @@ jobs:
         if: always()
         run: cargo clippy -p haloumi-ir-gen --all-targets --all-features -- -Dwarnings --no-deps
 
+      - name: Run Clippy on `haloumi-extractor-core`
+        if: always()
+        run: cargo clippy -p haloumi-extractor-core --all-targets --all-features -- -Dwarnings --no-deps
+
       - name: Run Clippy on `haloumi-backend`
         if: always()
         run: cargo clippy -p haloumi-backend --all-targets --all-features -- -Dwarnings --no-deps

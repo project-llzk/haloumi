@@ -1,63 +1,6 @@
 //! Error type for the support crate.
 
-use std::{num::ParseIntError, str::ParseBoolError, sync::Arc};
-
-use num_bigint::{BigInt, ParseBigIntError, TryFromBigIntError};
-use thiserror::Error;
-
-/// Error type.
-#[derive(Error, Debug)]
-pub enum Error {
-    /// Parsing error while loading a field element from a string.
-    #[error("Failure while parsing field element")]
-    FieldParsingError,
-    /// The circuit requested more constants than provided.
-    #[error("Not enough constants")]
-    NotEnoughConstants,
-    /// The circuit did not declare enough cells for input or output.
-    #[error("IO cell iterator was exhausted")]
-    NotEnoughIOCells,
-    /// Integer parse error.
-    #[error("Parse failure")]
-    IntParse(#[from] ParseIntError),
-    /// Boolean parse error.
-    #[error("Parse failure")]
-    BoolParse(#[from] ParseBoolError),
-    /// BigUint parse error.
-    #[error("Parse failure")]
-    BigUintParse(#[from] ParseBigIntError),
-    /// Plonk synthesis error.
-    #[error("Synthesis error")]
-    Plonk(Arc<dyn std::error::Error>),
-    /// An error represented with an static string.
-    #[error("Error")]
-    StrError(&'static str),
-    /// Int cast error.
-    #[error(transparent)]
-    IntCast(#[from] std::num::TryFromIntError),
-    /// Big int cast error.
-    #[error(transparent)]
-    BigIntCast(#[from] TryFromBigIntError<BigInt>),
-    /// Error when an encountered an unexpected number of elements.
-    #[error("{header}Was expecting {expected} elements but got {actual}")]
-    UnexpectedElements {
-        /// Context header for the error
-        header: String,
-        /// The expected number of elements.
-        expected: usize,
-        /// The number of elements.
-        actual: usize,
-    },
-}
-
-impl From<&'static str> for Error {
-    fn from(value: &'static str) -> Self {
-        Self::StrError(value)
-    }
-}
-
-unsafe impl Send for Error {}
-unsafe impl Sync for Error {}
+pub use haloumi_core::error::Error;
 
 /// This macro implements the conversion between the error types in Halo2 and Haloumi.
 #[macro_export]
@@ -327,7 +270,7 @@ mod tests {
     #[case(Cmp::Ge)]
     fn expect_elements_complex_expr_rhs(#[case] cmp: Cmp) {
         fn do_test(cmp: Cmp) -> Result<(), Error> {
-            let v = vec![1, 2, 3];
+            let v = [1, 2, 3];
             match cmp {
                 Cmp::Eq => expect_elements!((2 == v.len()), "unexpected elements error"),
                 Cmp::Ne => expect_elements!((3 != v.len()), "unexpected elements error"),
@@ -356,7 +299,7 @@ mod tests {
     #[case(Cmp::Ge)]
     fn expect_elements_complex_expr_lhs(#[case] cmp: Cmp) {
         fn do_test(cmp: Cmp) -> Result<(), Error> {
-            let v = vec![1, 2, 3];
+            let v = [1, 2, 3];
             match cmp {
                 Cmp::Eq => expect_elements!((v.len() == 2), "unexpected elements error"),
                 Cmp::Ne => expect_elements!((v.len() != 3), "unexpected elements error"),

@@ -121,7 +121,7 @@ pub fn fe_to_big<F: PrimeField>(fe: F) -> BigUint {
     BigUint::from_bytes_le(fe.to_repr().as_ref())
 }
 
-/// Creates an [`Expression`] that queries the given cell relative to the
+/// Creates an `Expression` that queries the given cell relative to the
 /// beginning of the cell's region.
 ///
 /// TODO: This macro has the `midnight_proofs` crate hardcoded on it!

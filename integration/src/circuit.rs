@@ -2,7 +2,7 @@
 
 pub mod config;
 
-/// Implements [`AdviceCopy`] for an assigned cell type.
+/// Implements [`haloumi_core::query::AdviceCopy`] for an assigned cell type.
 #[macro_export]
 macro_rules! __impl_advice_copy_for_assigned_cell {
     ($($assigned_cell:ident)::+, $field:path, $types:ty, $($region:ident)::+, $advice_col:ty, $error:ty, $($rational:ident)::+) => {

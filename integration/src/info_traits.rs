@@ -1,6 +1,6 @@
 //! Macros for implementing info traits in a Halo2 implementation.
 
-/// Implements the [`::core::info_traits::SelectorInfo`] for `Selector`.
+/// Implements the [`haloumi_core::info_traits::SelectorInfo`] for `Selector`.
 #[macro_export]
 macro_rules! __impl_selector_info_for_selector {
     ($selector:ty) => {
@@ -12,7 +12,7 @@ macro_rules! __impl_selector_info_for_selector {
     };
 }
 
-/// Implements the [`::core::info_traits::QueryInfo`] trait.
+/// Implements the [`haloumi_core::info_traits::QueryInfo`] trait.
 #[macro_export]
 macro_rules! __impl_query_info {
     ($query:ty, $kind:ident) => {
@@ -30,7 +30,7 @@ macro_rules! __impl_query_info {
     };
 }
 
-/// Implements the [`::core::info_traits::CreateQuery`] trait.
+/// Implements the [`haloumi_core::info_traits::CreateQuery`] trait.
 #[macro_export]
 macro_rules! __impl_create_query {
     ($query:ty, $field:path, $rotation:path, $new:expr, $($expr:ident)::+) => {
@@ -42,7 +42,7 @@ macro_rules! __impl_create_query {
     };
 }
 
-/// Implements the [`::core::info_traits::ChallengeInfo`] trait.
+/// Implements the [`haloumi_core::info_traits::ChallengeInfo`] trait.
 #[macro_export]
 macro_rules! __impl_challenge_info_for_challenge {
     ($challenge:ty) => {
@@ -58,7 +58,7 @@ macro_rules! __impl_challenge_info_for_challenge {
     };
 }
 
-/// Implements the [`::core::info_traits::GateInfo`] trait.
+/// Implements the [`haloumi_core::info_traits::GateInfo`] trait.
 #[macro_export]
 macro_rules! __impl_gate_info_for_gate {
     ($($gate:ident)::+, $field:path, $($expr:ident)::+) => {
@@ -74,7 +74,7 @@ macro_rules! __impl_gate_info_for_gate {
     };
 }
 
-/// Implements the [`::core::info_traits::ConstraintSystemInfo`] trait.
+/// Implements the [`haloumi_core::info_traits::ConstraintSystemInfo`] trait.
 #[macro_export]
 macro_rules! __impl_constraint_system_info_for_constraint_system {
     ($($cs:ident)::+, $field:path, $($expr:ident)::+, $instance_col:ty, $advice_col:ty, $fixed_col:ty, $any_col:ty) => {

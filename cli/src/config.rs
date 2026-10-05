@@ -94,14 +94,14 @@ struct PicusBackend {
 struct LlzkBackend {
     enabled: Option<bool>,
     optimize: Option<bool>,
-    field: Option<Field>,
+    field: Option<String>,
     format: Option<LlzkOutputFormat>,
 }
 
-#[derive(Debug, Default, Deserialize)]
-struct Field {
-    builtin: Option<String>,
-}
+//#[derive(Debug, Default, Deserialize)]
+//struct Field {
+//    builtin: Option<String>,
+//}
 
 /// Common enablement rules for configured output backends.
 trait BackendConfig {
@@ -284,14 +284,14 @@ impl Config {
         formats
     }
 
-    /// Returns the built-in LLZK field name, when LLZK is configured completely.
+    /// Returns the LLZK field name, when LLZK is configured completely.
     pub(crate) fn llzk_field(&self) -> Option<&str> {
         let llzk = self.backends()?.llzk.as_ref()?;
         llzk.enabled()
             .then_some(llzk)?
             .field
-            .as_ref()?
-            .builtin
+            //.as_ref()?
+            //.builtin
             .as_deref()
     }
 

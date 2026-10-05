@@ -15,6 +15,7 @@ members = [
   "integration",
   "integration-macros",
   "support/mock-halo2",
+  "support/test-circuits"
 ]
 resolver = "2"
 

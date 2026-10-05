@@ -35,6 +35,7 @@ haloumi-picus = { path = "../picus" }
 haloumi-llzk = { path = "../llzk" }
 haloumi-ir = { path = "../ir" }
 haloumi-ir-gen = { path = "../ir-gen" }
+haloumi-test-circuits = { path = "../support/test-circuits"}
 halo2curves.workspace = true
 group = "0.13"
 simplelog = { version = "0.12", features = ["test"] }

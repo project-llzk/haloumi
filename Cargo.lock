@@ -921,6 +921,7 @@ dependencies = [
  "haloumi-mock-halo2",
  "haloumi-picus",
  "haloumi-synthesis",
+ "haloumi-test-circuits",
  "inventory",
  "llzk",
  "log",
@@ -1110,6 +1111,17 @@ dependencies = [
  "haloumi-core",
  "log",
  "thiserror",
+]
+
+[[package]]
+name = "haloumi-test-circuits"
+version = "0.5.15"
+dependencies = [
+ "anyhow",
+ "ff",
+ "haloumi-integration",
+ "haloumi-ir",
+ "haloumi-mock-halo2",
 ]
 
 [[package]]

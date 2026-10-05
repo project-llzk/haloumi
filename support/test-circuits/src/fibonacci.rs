@@ -157,7 +157,7 @@ pub struct FibonacciCircuit<F>(pub PhantomData<F>);
 
 impl<F: ff::PrimeField> ExtractableFixture<F> for FibonacciCircuit<F> {
     type Input = [AssignedCell<F, F>; 2];
-    type Output = [AssignedCell<F, F>; 2];
+    type Output = AssignedCell<F, F>;
     type Config = FibonacciConfig;
 
     fn synthesize_extraction<L>(
@@ -173,12 +173,12 @@ impl<F: ff::PrimeField> ExtractableFixture<F> for FibonacciCircuit<F> {
     {
         let chip = FibonacciChip::new(config.clone());
         let [mut fib0, mut fib1] = input;
-        for _ in 0..7 {
+        for _ in 0..=7 {
             let tmp = fib1.clone();
             fib1 = chip.step(layouter, &fib0, &fib1)?;
             fib0 = tmp;
         }
-        Ok([fib0, fib1])
+        Ok(fib1)
     }
 }
 

@@ -458,6 +458,16 @@ impl<F: Field> ConstraintSystem<F> {
         self.selectors += 1;
         Selector(index)
     }
+    /// Allocates a selector that may be used in lookup expressions.
+    pub fn complex_selector(&mut self) -> Selector {
+        self.selector()
+    }
+    /// Allocates a fixed column for use as a lookup table column.
+    pub fn lookup_table_column(&mut self) -> TableColumn {
+        TableColumn {
+            inner: self.fixed_column(),
+        }
+    }
     /// Records a gate and its constraint expressions.
     pub fn create_gate(
         &mut self,
@@ -474,10 +484,17 @@ impl<F: Field> ConstraintSystem<F> {
     pub fn lookup(
         &mut self,
         name: impl Into<String>,
-        arguments: Vec<Expression<F>>,
-        mut table: impl FnMut(&mut VirtualCells<F>) -> Vec<Expression<F>>,
+        mut lookup: impl FnMut(&mut VirtualCells<F>) -> Vec<(Expression<F>, TableColumn)>,
     ) {
-        let table = table(&mut VirtualCells::new());
+        let (arguments, table): (Vec<_>, Vec<_>) = lookup(&mut VirtualCells::new())
+            .into_iter()
+            .map(|(argument, table)| {
+                (
+                    argument,
+                    Expression::Fixed(Query::new(table.inner().index(), 0)),
+                )
+            })
+            .unzip();
         self.lookups.push(Lookup {
             name: name.into(),
             arguments,

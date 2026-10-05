@@ -4,7 +4,10 @@ use syn::{DeriveInput, Ident};
 
 use crate::{
     attrs::{find_attr_or_code, get_attr, get_haloumi_integration_module},
-    keys::{EXPRESSION_KEY, FIELD_KEY, KIND_KEY, NEW_KEY, ROTATION_KEY},
+    keys::{
+        ADVICE_COL_KEY, ANY_COL_KEY, EXPRESSION_KEY, FIELD_KEY, FIXED_COL_KEY, INSTANCE_COL_KEY,
+        KIND_KEY, NEW_KEY, ROTATION_KEY,
+    },
 };
 
 /// Internal implementation of [`super::derive_selector_info`].
@@ -75,9 +78,30 @@ pub fn derive_constraint_system_info_impl(input: DeriveInput) -> syn::Result<Tok
     let module = get_haloumi_integration_module()?;
     let field = find_attr_or_code::<syn::Path>(&input, FIELD_KEY, "ff::Field")?;
     let expr = find_attr_or_code::<syn::Path>(&input, EXPRESSION_KEY, "crate::plonk::Expression")?;
+    let instance = find_attr_or_code::<syn::Path>(
+        &input,
+        INSTANCE_COL_KEY,
+        "crate::plonk::Column<crate::plonk::Instance>",
+    )?;
+    let advice = find_attr_or_code::<syn::Path>(
+        &input,
+        ADVICE_COL_KEY,
+        "crate::plonk::Column<crate::plonk::Advice>",
+    )?;
+    let fixed = find_attr_or_code::<syn::Path>(
+        &input,
+        FIXED_COL_KEY,
+        "crate::plonk::Column<crate::plonk::Fixed>",
+    )?;
+    let any = find_attr_or_code::<syn::Path>(
+        &input,
+        ANY_COL_KEY,
+        "crate::plonk::Column<crate::plonk::Any>",
+    )?;
+
     let name = input.ident;
 
     Ok(quote! {
-        #module :: __impl_constraint_system_info_for_constraint_system!(#name, #field, #expr);
+        #module :: __impl_constraint_system_info_for_constraint_system!(#name, #field, #expr, #instance, #advice, #fixed, #any);
     })
 }

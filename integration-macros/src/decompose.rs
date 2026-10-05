@@ -91,8 +91,20 @@ fn handle_fields(
     let field_calls = fields
         .iter()
         .enumerate()
-        .filter(|(_, f)| !f.attrs.iter().any(|a| a.path().is_ident("skip")))
-        .map(|(idx, f)| {
+        .filter_map(|(idx, f)| {
+            if f.attrs.iter().any(|a| a.path().is_ident("skip")) {
+                // Enum patterns must account for skipped fields without binding them. Tuple
+                // patterns retain the field position with `_`, while named patterns use
+                // `field: _`.
+                if let Some(var_names) = &mut var_names {
+                    match &f.ident {
+                        Some(ident) => var_names.push(quote! { #ident: _ }),
+                        None => var_names.push(quote! { _ }),
+                    }
+                }
+                return None;
+            }
+
             let ty = &f.ty;
             let ident = f.ident.as_ref().map(ToTokens::to_token_stream);
 
@@ -105,7 +117,7 @@ fn handle_fields(
                 );
             }
 
-            ident.unwrap_or_else(|| format_tuple_field(idx, receiver.is_none()))
+            Some(ident.unwrap_or_else(|| format_tuple_field(idx, receiver.is_none())))
         })
         .map(|f| quote! { .chain(#receiver #f.cells()) });
     quote! {

@@ -26,3 +26,6 @@ rstest = "0"
 prettyplease = "0.2"
 similar-asserts = "1.7"
 simplelog = {version = "0.12", features = ["test"] }
+ff.workspace = true
+haloumi-integration = { path = "../integration" }
+syn2 = { package = "syn", version = "2.0", features = ["full"] }

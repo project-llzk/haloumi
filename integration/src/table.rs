@@ -1,6 +1,6 @@
-//! Macros for integrating types in the [`::core::table`] module.
+//! Macros for integrating types in the [`haloumi_core::table`] module.
 
-/// Implements `From<RegionIndex>` for [`::core::table::RegionIndex`].
+/// Implements `From<RegionIndex>` for [`haloumi_core::table::RegionIndex`].
 ///
 /// The macro needs to be injected in the same file where `RegionIndex` is defined.
 #[macro_export]
@@ -14,7 +14,7 @@ macro_rules! __impl_from_region_index_for_haloumi_region_index {
     };
 }
 
-/// Implements `From<Cell>` for [`::core::table::Cell`].
+/// Implements `From<Cell>` for [`haloumi_core::table::Cell`].
 ///
 /// The macro needs to be injected in the same file where `Cell` is defined.
 #[macro_export]
@@ -42,7 +42,7 @@ macro_rules! __impl_from_cell_for_haloumi_cell {
     };
 }
 
-/// Implements `FromCell` for [`::core::table::Cell`].
+/// Implements `FromCell` for [`haloumi_core::table::Cell`].
 #[macro_export]
 macro_rules! __impl_from_cell_for_asigned_cell {
     ($($assigned_cell:ident)::+, $field:path) => {
@@ -58,7 +58,7 @@ macro_rules! __impl_from_cell_for_asigned_cell {
     };
 }
 
-/// Implements the required traits for integrating with [`::core::table::Column`].
+/// Implements the required traits for integrating with [`haloumi_core::table::Column`].
 #[macro_export]
 macro_rules! __impl_column_support {
     ($column_trait:path, $($column:ident)::+, $any:path, $instance:ty, $advice:ty,$fixed:ty) => {

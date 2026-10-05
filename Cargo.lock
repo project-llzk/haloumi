@@ -842,7 +842,10 @@ version = "0.5.15"
 dependencies = [
  "anyhow",
  "ff",
+<<<<<<< HEAD
  "halo2curves 0.7.0",
+=======
+>>>>>>> 0983031 (Backport more changes to the integration crate)
  "haloumi-core",
  "haloumi-extractor-core",
  "haloumi-integration-macros",
@@ -859,8 +862,11 @@ dependencies = [
 name = "haloumi-integration-macros"
 version = "0.5.15"
 dependencies = [
+<<<<<<< HEAD
  "ff",
  "haloumi-integration",
+=======
+>>>>>>> 0983031 (Backport more changes to the integration crate)
  "log",
  "macro_expand",
  "macrotest",
@@ -871,7 +877,10 @@ dependencies = [
  "rstest",
  "similar-asserts",
  "simplelog",
+<<<<<<< HEAD
  "syn 2.0.118",
+=======
+>>>>>>> 0983031 (Backport more changes to the integration crate)
  "syn 3.0.6",
 ]
 

@@ -2,7 +2,7 @@ use common::basic_test;
 use halo2curves::bn256::Fr;
 use haloumi_test_circuits::fibonacci;
 
-mod mdnt_common;
+mod common;
 
 basic_test!(
     fibonacci_circuit,

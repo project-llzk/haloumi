@@ -7,6 +7,7 @@ use haloumi_core::{
     query::{Advice, Fixed, Instance},
     table::{Any, Column},
 };
+use haloumi_integration::extractor::core::io::load::LoadFromCells;
 
 use crate::{
     plonk::{Challenge, Error, Selector, TableColumn},
@@ -131,6 +132,29 @@ where
 
 impl<V, F> CellReprSize for AssignedCell<V, F> {
     const SIZE: usize = 1;
+}
+
+impl<V, F> LoadFromCells<F, C, crate::ExtrationSupport> for AssignedCell<V, F> {
+    fn load(
+        ctx: &mut haloumi_integration::extractor::core::io::ctx::input::ICtx<
+            F,
+            crate::ExtrationSupport,
+        >,
+        chip: &C,
+        layouter: &mut haloumi_core::layouter::LayoutAdaptor<
+            '_,
+            impl haloumi_core::layouter::Layouter<
+                F,
+                <crate::ExtrationSupport as haloumi_integration::Types>::Error,
+            >,
+        >,
+        injected_ir: &mut haloumi_integration::ir::inject::InjectedIR<
+            <crate::ExtrationSupport as haloumi_integration::Types>::RegionIndex,
+            <crate::ExtrationSupport as haloumi_integration::Types>::Expression,
+        >,
+    ) -> Result<Self, <crate::ExtrationSupport as haloumi_integration::Types>::Error> {
+        ctx.assign_next::<V, Rational<F>>(layouter)
+    }
 }
 
 mod value;

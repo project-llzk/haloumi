@@ -1,8 +1,17 @@
 use ff::Field;
-use halo2::circuit::{AssignedCell, Layouter};
-use halo2::plonk::{Advice, Column, ConstraintSystem, Constraints, Error, Instance, Selector};
+use halo2::circuit::{AssignedCell, Cell, Layouter, RegionIndex};
+use halo2::plonk::{
+    Advice, Column, ConstraintSystem, Constraints, Error, Expression, Instance, Selector,
+};
 use halo2::poly::Rotation;
+use haloumi_integration::core::auto_conf::AutoConfigure;
+use haloumi_integration::core::groups::RegionsGroupHooks;
+use haloumi_integration::core::layouter::LayoutAdaptor;
+use haloumi_integration::core::table::RotationExt;
+use haloumi_ir::inject::InjectedIR;
 use std::marker::PhantomData;
+
+use crate::extraction::ExtractableFixture;
 
 pub mod grouped;
 
@@ -55,15 +64,11 @@ struct FibonacciChip<F: Field> {
 }
 
 impl<F: Field> FibonacciChip<F> {
-    pub fn construct(config: FibonacciConfig) -> Self {
+    pub fn new(config: FibonacciConfig) -> Self {
         Self {
             config,
             _marker: PhantomData,
         }
-    }
-
-    pub fn configure(meta: &mut ConstraintSystem<F>) -> FibonacciConfig {
-        fibonacci_gates(meta)
     }
 
     #[allow(clippy::type_complexity)]
@@ -104,9 +109,9 @@ impl<F: Field> FibonacciChip<F> {
         )
     }
 
-    pub fn assign_row(
+    pub fn step(
         &self,
-        mut layouter: impl Layouter<F>,
+        layouter: &mut impl Layouter<F>,
         prev_b: &AssignedCell<F, F>,
         prev_c: &AssignedCell<F, F>,
     ) -> Result<AssignedCell<F, F>, Error> {
@@ -141,39 +146,40 @@ impl<F: Field> FibonacciChip<F> {
     }
 }
 
+impl<F: Field> AutoConfigure<ConstraintSystem<F>, FibonacciConfig> for FibonacciCircuit<F> {
+    fn configure(meta: &mut ConstraintSystem<F>) -> FibonacciConfig {
+        fibonacci_gates(meta)
+    }
+}
+
 #[derive(Default)]
 pub struct FibonacciCircuit<F>(pub PhantomData<F>);
 
-impl<F: Field> Circuit<F> for FibonacciCircuit<F> {
+impl<F: ff::PrimeField> ExtractableFixture<F> for FibonacciCircuit<F> {
+    type Input = [AssignedCell<F, F>; 2];
+    type Output = [AssignedCell<F, F>; 2];
     type Config = FibonacciConfig;
-    type FloorPlanner = SimpleFloorPlanner;
-    type Params = ();
 
-    fn without_witnesses(&self) -> Self {
-        Self::default()
-    }
-
-    fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
-        FibonacciChip::configure(meta)
-    }
-
-    fn synthesize(
+    fn synthesize_extraction<L>(
         &self,
-        config: Self::Config,
-        mut layouter: impl Layouter<F>,
-    ) -> Result<(), Error> {
-        let chip = FibonacciChip::construct(config);
-
-        let (_, mut prev_b, mut prev_c) =
-            chip.assign_first_row(layouter.namespace(|| "first row"))?;
-
-        for _i in 3..10 {
-            let c_cell = chip.assign_row(layouter.namespace(|| "next row"), &prev_b, &prev_c)?;
-            prev_b = prev_c;
-            prev_c = c_cell;
+        config: &Self::Config,
+        layouter: &mut LayoutAdaptor<L>,
+        input: Self::Input,
+        _: &mut InjectedIR<RegionIndex, Expression<F>>,
+    ) -> Result<Self::Output, Error>
+    where
+        L: haloumi_integration::core::layouter::Layouter<F, Error>
+            + RegionsGroupHooks<F, Cell, Error = Error>,
+    {
+        let chip = FibonacciChip::new(config.clone());
+        let [mut fib0, mut fib1] = input;
+        for _ in 0..7 {
+            let tmp = fib1.clone();
+            fib1 = chip.step(layouter, &fib0, &fib1)?;
+            fib0 = tmp;
         }
-
-        chip.expose_public(layouter.namespace(|| "out"), &prev_c, 2)?;
-        Ok(())
+        Ok([fib0, fib1])
     }
 }
+
+crate::impl_extractable_fixture!(FibonacciCircuit<F>);

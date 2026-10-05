@@ -6,6 +6,7 @@
 
 pub mod circuit;
 pub mod plonk;
+pub mod utils;
 
 pub mod poly {
     pub use haloumi_core::table::Rotation;

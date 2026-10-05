@@ -971,10 +971,15 @@ dependencies = [
 name = "haloumi-integration"
 version = "0.5.15"
 dependencies = [
+ "anyhow",
  "ff",
  "haloumi-core",
+ "haloumi-extractor",
+ "haloumi-extractor-core",
  "haloumi-integration-macros",
  "haloumi-ir",
+ "haloumi-ir-gen",
+ "haloumi-synthesis",
  "num-bigint 0.4.6",
  "num-traits",
  "rstest 0.27.0",
@@ -985,6 +990,8 @@ dependencies = [
 name = "haloumi-integration-macros"
 version = "0.5.15"
 dependencies = [
+ "ff",
+ "haloumi-integration",
  "log",
  "macro_expand",
  "macrotest",
@@ -995,6 +1002,7 @@ dependencies = [
  "rstest 0.27.0",
  "similar-asserts",
  "simplelog",
+ "syn 2.0.118",
  "syn 3.0.5",
 ]
 
@@ -1078,6 +1086,7 @@ dependencies = [
  "ff",
  "halo2curves 0.7.0",
  "haloumi-core",
+ "haloumi-integration",
 ]
 
 [[package]]

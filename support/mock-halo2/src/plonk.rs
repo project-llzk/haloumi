@@ -1,4 +1,8 @@
-use std::marker::PhantomData;
+use std::{
+    iter::{Product, Sum},
+    marker::PhantomData,
+    ops::{Add, Mul, Neg, Sub},
+};
 
 use ff::Field;
 use haloumi_core::{
@@ -12,7 +16,9 @@ use haloumi_core::{
     table::{Any, Rotation},
 };
 
-pub struct Error;
+pub enum Error {
+    Synthesis(String),
+}
 
 /// A selector allocated by [`ConstraintSystem`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -24,11 +30,36 @@ impl SelectorInfo for Selector {
     }
 }
 
+impl Selector {
+    /// Enable this selector at the given offset within the given region.
+    pub fn enable<F: Field>(&self, region: &mut Region<F>, offset: usize) -> Result<(), Error> {
+        region.enable_selector(|| "", self, offset)
+    }
+
+    /// Is this selector "simple"? Simple selectors can only be multiplied
+    /// by expressions that contain no other simple selectors.
+    pub fn is_simple(&self) -> bool {
+        true
+    }
+
+    /// Returns index of this selector
+    pub fn index(&self) -> usize {
+        self.0
+    }
+
+    /// Return expression from selector
+    pub fn expr<F: Field>(&self) -> Expression<F> {
+        Expression::Selector(*self)
+    }
+}
+
 pub use haloumi_core::query::{Advice, Fixed, Instance};
 pub use haloumi_core::table::Column;
 
+use crate::circuit::Region;
+
 /// The expression language retained by the mock constraint system.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Expression<F: Field> {
     Constant(F),
     Selector(Selector),
@@ -40,6 +71,188 @@ pub enum Expression<F: Field> {
     Sum(Box<Self>, Box<Self>),
     Product(Box<Self>, Box<Self>),
     Scaled(Box<Self>, F),
+}
+
+impl<F: Field> Expression<F> {
+    /// Returns whether or not this expression contains a simple `Selector`.
+    fn contains_simple_selector(&self) -> bool {
+        match self {
+            Expression::Constant(_)
+            | Expression::Fixed(_)
+            | Expression::Advice(_)
+            | Expression::Instance(_)
+            | Expression::Challenge(_) => false,
+            Expression::Selector(selector) => selector.is_simple(),
+            Expression::Negated(expression) | Expression::Scaled(expression, _) => {
+                expression.contains_simple_selector()
+            }
+            Expression::Sum(lhs, rhs) | Expression::Product(lhs, rhs) => {
+                lhs.contains_simple_selector() || rhs.contains_simple_selector()
+            }
+        }
+    }
+}
+
+impl<F: Field + From<u64>> From<u64> for Expression<F> {
+    fn from(value: u64) -> Self {
+        Expression::Constant(F::from(value))
+    }
+}
+
+impl<F: Field> Neg for Expression<F> {
+    type Output = Expression<F>;
+    fn neg(self) -> Self::Output {
+        Expression::Negated(Box::new(self))
+    }
+}
+
+impl<F: Field> Neg for &Expression<F> {
+    type Output = Expression<F>;
+    fn neg(self) -> Self::Output {
+        -self.clone()
+    }
+}
+
+impl<F: Field> Add for Expression<F> {
+    type Output = Expression<F>;
+    fn add(self, rhs: Expression<F>) -> Expression<F> {
+        if self.contains_simple_selector() || rhs.contains_simple_selector() {
+            panic!("attempted to use a simple selector in an addition");
+        }
+        if self == Expression::Constant(F::ZERO) {
+            return rhs;
+        }
+        if rhs == Expression::Constant(F::ZERO) {
+            return self;
+        }
+        Expression::Sum(Box::new(self), Box::new(rhs))
+    }
+}
+
+impl<'a, F: Field> Add for &'a Expression<F> {
+    type Output = Expression<F>;
+    fn add(self, rhs: &'a Expression<F>) -> Expression<F> {
+        self.clone() + rhs.clone()
+    }
+}
+
+impl<F: Field> Add<Expression<F>> for &Expression<F> {
+    type Output = Expression<F>;
+    fn add(self, rhs: Expression<F>) -> Expression<F> {
+        self.clone() + rhs
+    }
+}
+
+impl<'a, F: Field> Add<&'a Expression<F>> for Expression<F> {
+    type Output = Expression<F>;
+    fn add(self, rhs: &'a Expression<F>) -> Expression<F> {
+        self + rhs.clone()
+    }
+}
+
+impl<F: Field> Sub for Expression<F> {
+    type Output = Expression<F>;
+    fn sub(self, rhs: Expression<F>) -> Expression<F> {
+        if self.contains_simple_selector() || rhs.contains_simple_selector() {
+            panic!("attempted to use a simple selector in a subtraction");
+        }
+        if self == Expression::Constant(F::ZERO) {
+            return -rhs;
+        }
+        if rhs == Expression::Constant(F::ZERO) {
+            return self;
+        }
+        Expression::Sum(Box::new(self), Box::new(-rhs))
+    }
+}
+
+impl<'a, F: Field> Sub for &'a Expression<F> {
+    type Output = Expression<F>;
+    fn sub(self, rhs: &'a Expression<F>) -> Expression<F> {
+        self.clone() - rhs.clone()
+    }
+}
+
+impl<F: Field> Sub<Expression<F>> for &Expression<F> {
+    type Output = Expression<F>;
+    fn sub(self, rhs: Expression<F>) -> Expression<F> {
+        self.clone() - rhs
+    }
+}
+
+impl<'a, F: Field> Sub<&'a Expression<F>> for Expression<F> {
+    type Output = Expression<F>;
+    fn sub(self, rhs: &'a Expression<F>) -> Expression<F> {
+        self - rhs.clone()
+    }
+}
+
+impl<F: Field> Mul for Expression<F> {
+    type Output = Expression<F>;
+    fn mul(self, rhs: Expression<F>) -> Expression<F> {
+        if self.contains_simple_selector() && rhs.contains_simple_selector() {
+            panic!("attempted to multiply two expressions containing simple selectors");
+        }
+        if self == Expression::Constant(F::ZERO) || rhs == Expression::Constant(F::ZERO) {
+            return Expression::Constant(F::ZERO);
+        }
+        if self == Expression::Constant(F::ONE) {
+            return rhs;
+        }
+        if rhs == Expression::Constant(F::ONE) {
+            return self;
+        }
+        Expression::Product(Box::new(self), Box::new(rhs))
+    }
+}
+
+impl<'a, F: Field> Mul for &'a Expression<F> {
+    type Output = Expression<F>;
+    fn mul(self, rhs: &'a Expression<F>) -> Expression<F> {
+        self.clone() * rhs.clone()
+    }
+}
+
+impl<F: Field> Mul<Expression<F>> for &Expression<F> {
+    type Output = Expression<F>;
+    fn mul(self, rhs: Expression<F>) -> Expression<F> {
+        self.clone() * rhs
+    }
+}
+
+impl<'a, F: Field> Mul<&'a Expression<F>> for Expression<F> {
+    type Output = Expression<F>;
+    fn mul(self, rhs: &'a Expression<F>) -> Expression<F> {
+        self * rhs.clone()
+    }
+}
+
+impl<F: Field> Mul<F> for Expression<F> {
+    type Output = Expression<F>;
+    fn mul(self, rhs: F) -> Expression<F> {
+        Expression::Scaled(Box::new(self), rhs)
+    }
+}
+
+impl<F: Field> Mul<F> for &Expression<F> {
+    type Output = Expression<F>;
+    fn mul(self, rhs: F) -> Expression<F> {
+        self.clone() * rhs
+    }
+}
+
+impl<F: Field> Sum<Self> for Expression<F> {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.reduce(|acc, x| acc + x)
+            .unwrap_or(Expression::Constant(F::ZERO))
+    }
+}
+
+impl<F: Field> Product<Self> for Expression<F> {
+    fn product<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.reduce(|acc, x| acc * x)
+            .unwrap_or(Expression::Constant(F::ONE))
+    }
 }
 
 impl<F: Field> ExpressionTypes for Expression<F> {
@@ -127,7 +340,7 @@ pub struct Query<K: QueryKind> {
 
 impl<K: QueryKind> Query<K> {
     /// Creates a query for a column and relative row.
-    pub fn new(index: usize, rotation: Rotation) -> Self {
+    fn new(index: usize, rotation: Rotation) -> Self {
         Self {
             index,
             rotation,
@@ -233,9 +446,9 @@ impl<F: Field> ConstraintSystem<F> {
     pub fn create_gate(
         &mut self,
         name: impl Into<String>,
-        mut polynomials: impl FnMut(&mut Self) -> Vec<Expression<F>>,
+        mut polynomials: impl FnMut(&mut VirtualCells<F>) -> Vec<Expression<F>>,
     ) {
-        let polynomials = polynomials(self);
+        let polynomials = polynomials(&mut VirtualCells::new());
         self.gates.push(Gate {
             name: name.into(),
             polynomials,
@@ -246,13 +459,54 @@ impl<F: Field> ConstraintSystem<F> {
         &mut self,
         name: impl Into<String>,
         arguments: Vec<Expression<F>>,
-        table: Vec<Expression<F>>,
+        mut table: impl FnMut(&mut VirtualCells<F>) -> Vec<Expression<F>>,
     ) {
+        let table = table(&mut VirtualCells::new());
         self.lookups.push(Lookup {
             name: name.into(),
             arguments,
             table,
         });
+    }
+
+    pub fn enable_equality(&mut self, _: impl Into<Column<Any>>) {}
+}
+
+#[derive(Debug)]
+pub struct VirtualCells<F>(PhantomData<F>);
+
+impl<F: Field> VirtualCells<F> {
+    fn new() -> Self {
+        VirtualCells(PhantomData)
+    }
+
+    pub fn query_selector(&mut self, selector: Selector) -> Expression<F> {
+        Expression::Selector(selector)
+    }
+
+    pub fn query_fixed(&mut self, column: Column<Fixed>, at: Rotation) -> Expression<F> {
+        Expression::Fixed(Query::new(column.index(), at))
+    }
+
+    pub fn query_advice(&mut self, column: Column<Advice>, at: Rotation) -> Expression<F> {
+        Expression::Advice(Query::new(column.index(), at))
+    }
+
+    pub fn query_instance(&mut self, column: Column<Instance>, at: Rotation) -> Expression<F> {
+        Expression::Instance(Query::new(column.index(), at))
+    }
+
+    pub fn query_any<C: Into<Column<Any>>>(&mut self, column: C, at: Rotation) -> Expression<F> {
+        let column = column.into();
+        match column.column_type() {
+            Any::Advice => self.query_advice(Column::<Advice>::try_from(column).unwrap(), at),
+            Any::Fixed => self.query_fixed(Column::<Fixed>::try_from(column).unwrap(), at),
+            Any::Instance => self.query_instance(Column::<Instance>::try_from(column).unwrap(), at),
+        }
+    }
+
+    pub fn query_challenge(&mut self, challenge: Challenge) -> Expression<F> {
+        Expression::Challenge(challenge)
     }
 }
 
@@ -341,5 +595,17 @@ impl Constraints {
             .into_iter()
             .map(|e| Expression::Product(Box::new(Expression::Selector(selector)), Box::new(e)))
             .collect()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+pub struct TableColumn {
+    inner: Column<Fixed>,
+}
+
+impl TableColumn {
+    /// Returns inner column
+    pub fn inner(&self) -> Column<Fixed> {
+        self.inner
     }
 }

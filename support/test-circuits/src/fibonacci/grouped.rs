@@ -1,9 +1,10 @@
 use ff::Field;
-use halo2::circuit::{AssignedCell, Cell, RegionIndex};
+use halo2::circuit::{AssignedCell, Cell, Layouter, RegionIndex};
 use halo2::plonk::{ConstraintSystem, Error, Expression};
+use haloumi_integration::core::auto_conf::AutoConfigure;
 use haloumi_integration::core::default_group_key;
 use haloumi_integration::core::groups::RegionsGroupHooks;
-use haloumi_integration::core::layouter::{LayoutAdaptor, Layouter};
+use haloumi_integration::core::layouter::{LayoutAdaptor, Layouter as HLayouter};
 use haloumi_ir::inject::InjectedIR;
 use std::marker::PhantomData;
 
@@ -19,15 +20,11 @@ struct FibonacciChip<F: Field> {
 type FibNums<F> = (AssignedCell<F, F>, AssignedCell<F, F>);
 
 impl<F: Field> FibonacciChip<F> {
-    pub fn construct(config: FibonacciConfig) -> Self {
+    pub fn new(config: FibonacciConfig) -> Self {
         Self {
             config,
             _marker: PhantomData,
         }
-    }
-
-    pub fn configure(meta: &mut ConstraintSystem<F>) -> FibonacciConfig {
-        fibonacci_gates(meta)
     }
 
     #[allow(clippy::type_complexity)]
@@ -63,11 +60,11 @@ impl<F: Field> FibonacciChip<F> {
         layouter: &mut impl Layouter<F>,
         (fib0, fib1): &FibNums<F>,
     ) -> Result<FibNums<F>, Error> {
-        layouter.group(
+        layouter.group_impl(
             || "fib",
             default_group_key!(),
             |layouter, group| {
-                group.annotate_inputs([fib0.cell(), fib1.cell()])?;
+                group.annotate_inputs([fib0.cell(), fib1.cell()]);
                 layouter.assign_region(
                     || "fib",
                     |mut region| {
@@ -82,60 +79,23 @@ impl<F: Field> FibonacciChip<F> {
                             || fib0.value().copied() + fib1.value(),
                         )?;
 
-                        group.annotate_outputs([fib1.cell(), fib2.cell()])?;
+                        group.annotate_outputs([fib1.cell(), fib2.cell()]);
                         Ok((fib1.clone(), fib2))
                     },
                 )
             },
         )
     }
+}
 
-    pub fn expose_outputs(
-        &self,
-        layouter: &mut impl Layouter<F>,
-        cells: &[AssignedCell<F, F>],
-        row: usize,
-    ) -> Result<(), Error> {
-        for (n, cell) in cells.iter().enumerate() {
-            layouter.constrain_instance(cell.cell(), self.config.instance, row + n)?;
-        }
-        Ok(())
+impl<F: Field> AutoConfigure<ConstraintSystem<F>, FibonacciConfig> for FibonacciCircuit<F> {
+    fn configure(meta: &mut ConstraintSystem<F>) -> FibonacciConfig {
+        fibonacci_gates(meta)
     }
 }
 
 #[derive(Default)]
 pub struct FibonacciCircuit<F>(pub PhantomData<F>);
-
-//impl<F: Field> Circuit<F> for FibonacciCircuit<F> {
-//    type Config = FibonacciConfig;
-//    type FloorPlanner = SimpleFloorPlanner;
-//    type Params = ();
-//
-//    fn without_witnesses(&self) -> Self {
-//        Self::default()
-//    }
-//
-//    fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
-//        FibonacciChip::configure(meta)
-//    }
-//
-//    fn synthesize(
-//        &self,
-//        config: Self::Config,
-//        mut layouter: impl Layouter<F>,
-//    ) -> Result<(), Error> {
-//        let chip = FibonacciChip::construct(config);
-//
-//        let mut fib = chip.assign_inputs(&mut layouter)?;
-//
-//        for _ in 0..7 {
-//            fib = chip.step(&mut layouter, &fib)?;
-//        }
-//
-//        chip.expose_outputs(&mut layouter, &[fib.0, fib.1], 2)?;
-//        Ok(())
-//    }
-//}
 
 impl<F: ff::PrimeField> ExtractableFixture<F> for FibonacciCircuit<F> {
     type Input = [AssignedCell<F, F>; 2];
@@ -150,9 +110,9 @@ impl<F: ff::PrimeField> ExtractableFixture<F> for FibonacciCircuit<F> {
         _: &mut InjectedIR<RegionIndex, Expression<F>>,
     ) -> Result<Self::Output, Error>
     where
-        L: Layouter<F, Error> + RegionsGroupHooks<F, Cell, Error = Error>,
+        L: HLayouter<F, Error> + RegionsGroupHooks<F, Cell, Error = Error>,
     {
-        let chip = FibonacciChip::construct(config.clone());
+        let chip = FibonacciChip::new(config.clone());
         let [fib0, fib1] = input;
         let mut fib = (fib0, fib1);
         for _ in 0..7 {

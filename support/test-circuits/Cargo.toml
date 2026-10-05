@@ -18,5 +18,5 @@ package = "haloumi-mock-halo2"
 [dependencies]
 ff = {workspace = true}
 anyhow = "1"
-haloumi-integration.path = "../../integration/"
-haloumi-ir.path = "../../ir/"
+haloumi-integration = { path = "../../integration/", features = ["extraction"] }
+haloumi-ir = { path = "../../ir/" }

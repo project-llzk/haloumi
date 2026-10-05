@@ -16,7 +16,9 @@ macro_rules! impl_extractable_fixture {
             type ConfigCols = ();
         }
 
-        impl<F: ff::PrimeField> haloumi_integration::circuit::AbstractCircuit<F> for $circuit {
+        impl<F: ff::PrimeField> haloumi_integration::extractor::circuit::AbstractCircuit<F>
+            for $circuit
+        {
             type Error = halo2::plonk::Error;
             type Expression = halo2::plonk::Expression<F>;
             type Cell = halo2::circuit::Cell;

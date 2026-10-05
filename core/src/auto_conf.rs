@@ -17,9 +17,7 @@ where
 }
 
 impl<CS> AutoConfigure<CS> for () {
-    fn configure(_: &mut CS) -> Self {
-        ()
-    }
+    fn configure(_: &mut CS) -> Self {}
 }
 
 macro_rules! tuple_auto_conf_impl {

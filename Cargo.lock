@@ -858,6 +858,8 @@ dependencies = [
 name = "haloumi-integration-macros"
 version = "0.5.15"
 dependencies = [
+ "ff",
+ "haloumi-integration",
  "log",
  "macro_expand",
  "macrotest",
@@ -868,6 +870,7 @@ dependencies = [
  "rstest",
  "similar-asserts",
  "simplelog",
+ "syn 2.0.118",
  "syn 3.0.6",
 ]
 

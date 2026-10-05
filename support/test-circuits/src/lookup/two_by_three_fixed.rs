@@ -1,11 +1,18 @@
 use ff::Field;
-use halo2::circuit::{AssignedCell, Layouter, SimpleFloorPlanner, Value};
+use halo2::circuit::{AssignedCell, Cell, Layouter, RegionIndex, Value};
 use halo2::plonk::{
-    Advice, Circuit, Column, ConstraintSystem, Error, Fixed, Instance, Selector, TableColumn,
+    Advice, Column, ConstraintSystem, Error, Expression, Fixed, Instance, Selector, TableColumn,
 };
 use halo2::poly::Rotation;
-use std::iter;
-use std::marker::PhantomData;
+use haloumi_integration::core::auto_conf::AutoConfigure;
+use haloumi_integration::core::groups::RegionsGroupHooks;
+use haloumi_integration::core::info_traits::ConstraintSystemInfo;
+use haloumi_integration::core::layouter::LayoutAdaptor;
+use haloumi_integration::core::table::RotationExt;
+use haloumi_ir::inject::InjectedIR;
+use std::{iter, marker::PhantomData};
+
+use crate::extraction::ExtractableFixture;
 
 #[derive(Debug, Clone)]
 pub struct Lookup2x3Config {
@@ -51,7 +58,6 @@ impl<F: Field> Lookup2x3Chip<F> {
         meta.enable_equality(instance);
 
         let lookup_column = [meta.lookup_table_column(), meta.lookup_table_column()];
-
         meta.lookup("lookup test", |meta| {
             let s = meta.query_selector(selector);
             let f = meta.query_fixed(col_fixed, Rotation::cur());
@@ -72,8 +78,6 @@ impl<F: Field> Lookup2x3Chip<F> {
         }
     }
 
-    // Utility function for creating a field element from a native value. Complexity is O(n) where
-    // n is the value of the number so don't use very large numbers with this.
     fn f(&self, n: usize) -> Value<F> {
         Value::known(iter::repeat(F::ONE).take(n).sum())
     }
@@ -87,17 +91,17 @@ impl<F: Field> Lookup2x3Chip<F> {
                 let snd = [7, 11, 13];
 
                 fst.into_iter()
-                    .zip(snd.into_iter())
+                    .zip(snd)
                     .enumerate()
                     .flat_map(|(offset, (x, y))| [(offset, x), (offset, y)])
                     .map(|(offset, n)| (offset, self.f(n)))
                     .zip(self.config.lookup_column.iter().cycle())
-                    .try_for_each(|((offset, v), t)| {
+                    .try_for_each(|((offset, value), table_column)| {
                         table.assign_cell(
-                            || format!("lookup col {}", t.inner().index()),
-                            *t,
+                            || format!("lookup col {}", table_column.inner().index()),
+                            *table_column,
                             offset,
-                            || -> Value<F> { v },
+                            || -> Value<F> { value },
                         )
                     })
             },
@@ -108,6 +112,7 @@ impl<F: Field> Lookup2x3Chip<F> {
     pub fn assign_first_row(
         &self,
         mut layouter: impl Layouter<F>,
+        input: &AssignedCell<F, F>,
     ) -> Result<AssignedCell<F, F>, Error> {
         layouter.assign_region(
             || "first row",
@@ -121,13 +126,7 @@ impl<F: Field> Lookup2x3Chip<F> {
                     || -> Value<F> { Value::known(-F::ONE) },
                 )?;
 
-                let a_cell = region.assign_advice_from_instance(
-                    || "a",
-                    self.config.instance,
-                    0,
-                    self.config.col_a,
-                    0,
-                )?;
+                let a_cell = input.copy_advice(|| "a", &mut region, self.config.col_a, 0)?;
 
                 let b_cell = region.assign_advice(
                     || "-1 * a",
@@ -147,43 +146,43 @@ impl<F: Field> Lookup2x3Chip<F> {
             },
         )
     }
-
-    pub fn expose_public(
-        &self,
-        mut layouter: impl Layouter<F>,
-        cell: &AssignedCell<F, F>,
-        row: usize,
-    ) -> Result<(), Error> {
-        layouter.constrain_instance(cell.cell(), self.config.instance, row)
-    }
 }
 
 #[derive(Default)]
 pub struct Lookup2x3Circuit<F>(pub PhantomData<F>);
 
-impl<F: Field> Circuit<F> for Lookup2x3Circuit<F> {
-    type Config = Lookup2x3Config;
-    type FloorPlanner = SimpleFloorPlanner;
-    type Params = ();
-
-    fn without_witnesses(&self) -> Self {
-        Self::default()
-    }
-
-    fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
+impl<F: Field> AutoConfigure<ConstraintSystem<F>, Lookup2x3Config> for Lookup2x3Circuit<F> {
+    fn configure(meta: &mut ConstraintSystem<F>) -> Lookup2x3Config {
         Lookup2x3Chip::configure(meta)
     }
+}
 
-    fn synthesize(
+impl<F: ff::PrimeField> ExtractableFixture<F> for Lookup2x3Circuit<F> {
+    type Input = AssignedCell<F, F>;
+    type Output = AssignedCell<F, F>;
+    type Config = Lookup2x3Config;
+
+    fn synthesize_extraction<L>(
         &self,
-        config: Self::Config,
-        mut layouter: impl Layouter<F>,
-    ) -> Result<(), Error> {
-        let chip = Lookup2x3Chip::construct(config);
-        chip.assign_table(layouter.namespace(|| "table"))?;
-        let prev_c = chip.assign_first_row(layouter.namespace(|| "first row"))?;
+        config: &Self::Config,
+        layouter: &mut LayoutAdaptor<L>,
+        input: Self::Input,
+        _: &mut InjectedIR<RegionIndex, Expression<F>>,
+    ) -> Result<Self::Output, Error>
+    where
+        L: haloumi_integration::core::layouter::Layouter<F, Error>
+            + RegionsGroupHooks<F, Cell, Error = Error>,
+    {
+        Lookup2x3Chip::construct(config.clone())
+            .assign_first_row(layouter.namespace(|| "first row"), &input)
+    }
 
-        chip.expose_public(layouter.namespace(|| "out"), &prev_c, 1)?;
-        Ok(())
+    fn load_extraction(
+        config: &Self::Config,
+        layouter: &mut impl Layouter<F>,
+    ) -> Result<(), Error> {
+        Lookup2x3Chip::construct(config.clone()).assign_table(layouter.namespace(|| "table"))
     }
 }
+
+crate::impl_extractable_fixture!(Lookup2x3Circuit<F>);

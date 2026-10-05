@@ -1,10 +1,18 @@
 use ff::Field;
-use halo2::circuit::{AssignedCell, Layouter, SimpleFloorPlanner, Value};
+use halo2::circuit::{AssignedCell, Cell, Layouter, RegionIndex, Value};
 use halo2::plonk::{
-    Advice, Circuit, Column, ConstraintSystem, Error, Fixed, Instance, Selector, TableColumn,
+    Advice, Column, ConstraintSystem, Error, Expression, Fixed, Instance, Selector, TableColumn,
 };
 use halo2::poly::Rotation;
+use haloumi_integration::core::auto_conf::AutoConfigure;
+use haloumi_integration::core::groups::RegionsGroupHooks;
+use haloumi_integration::core::info_traits::ConstraintSystemInfo;
+use haloumi_integration::core::layouter::LayoutAdaptor;
+use haloumi_integration::core::table::RotationExt;
+use haloumi_ir::inject::InjectedIR;
 use std::marker::PhantomData;
+
+use crate::extraction::ExtractableFixture;
 
 pub mod two_by_three;
 pub mod two_by_three_fixed;
@@ -54,7 +62,6 @@ impl<F: Field> LookupChip<F> {
         meta.enable_equality(instance);
 
         let lookup_column = meta.lookup_table_column();
-
         meta.lookup("lookup test", |meta| {
             let s = meta.query_selector(selector);
             let f = meta.query_advice(col_f, Rotation::cur());
@@ -110,6 +117,7 @@ impl<F: Field> LookupChip<F> {
     pub fn assign_first_row(
         &self,
         mut layouter: impl Layouter<F>,
+        input: &AssignedCell<F, F>,
     ) -> Result<AssignedCell<F, F>, Error> {
         layouter.assign_region(
             || "first row",
@@ -123,13 +131,7 @@ impl<F: Field> LookupChip<F> {
                     || -> Value<F> { Value::known(-F::ONE) },
                 )?;
 
-                let a_cell = region.assign_advice_from_instance(
-                    || "a",
-                    self.config.instance,
-                    0,
-                    self.config.col_a,
-                    0,
-                )?;
+                let a_cell = input.copy_advice(|| "a", &mut region, self.config.col_a, 0)?;
 
                 let b_cell = region.assign_advice(
                     || "-1 * a",
@@ -149,43 +151,43 @@ impl<F: Field> LookupChip<F> {
             },
         )
     }
-
-    pub fn expose_public(
-        &self,
-        mut layouter: impl Layouter<F>,
-        cell: &AssignedCell<F, F>,
-        row: usize,
-    ) -> Result<(), Error> {
-        layouter.constrain_instance(cell.cell(), self.config.instance, row)
-    }
 }
 
 #[derive(Default)]
 pub struct LookupCircuit<F>(pub PhantomData<F>);
 
-impl<F: Field> Circuit<F> for LookupCircuit<F> {
-    type Config = LookupConfig;
-    type FloorPlanner = SimpleFloorPlanner;
-    type Params = ();
-
-    fn without_witnesses(&self) -> Self {
-        Self::default()
-    }
-
-    fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
+impl<F: Field> AutoConfigure<ConstraintSystem<F>, LookupConfig> for LookupCircuit<F> {
+    fn configure(meta: &mut ConstraintSystem<F>) -> LookupConfig {
         LookupChip::configure(meta)
     }
+}
 
-    fn synthesize(
+impl<F: ff::PrimeField> ExtractableFixture<F> for LookupCircuit<F> {
+    type Input = AssignedCell<F, F>;
+    type Output = AssignedCell<F, F>;
+    type Config = LookupConfig;
+
+    fn synthesize_extraction<L>(
         &self,
-        config: Self::Config,
-        mut layouter: impl Layouter<F>,
-    ) -> Result<(), Error> {
-        let chip = LookupChip::construct(config);
-        chip.assign_table(layouter.namespace(|| "table"))?;
-        let prev_c = chip.assign_first_row(layouter.namespace(|| "first row"))?;
+        config: &Self::Config,
+        layouter: &mut LayoutAdaptor<L>,
+        input: Self::Input,
+        _: &mut InjectedIR<RegionIndex, Expression<F>>,
+    ) -> Result<Self::Output, Error>
+    where
+        L: haloumi_integration::core::layouter::Layouter<F, Error>
+            + RegionsGroupHooks<F, Cell, Error = Error>,
+    {
+        LookupChip::construct(config.clone())
+            .assign_first_row(layouter.namespace(|| "first row"), &input)
+    }
 
-        chip.expose_public(layouter.namespace(|| "out"), &prev_c, 1)?;
-        Ok(())
+    fn load_extraction(
+        config: &Self::Config,
+        layouter: &mut impl Layouter<F>,
+    ) -> Result<(), Error> {
+        LookupChip::construct(config.clone()).assign_table(layouter.namespace(|| "table"))
     }
 }
+
+crate::impl_extractable_fixture!(LookupCircuit<F>);

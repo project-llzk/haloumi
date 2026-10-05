@@ -95,7 +95,7 @@ struct LlzkBackend {
     enabled: Option<bool>,
     optimize: Option<bool>,
     field: Option<Field>,
-    format: LlzkOutputFormat,
+    format: Option<LlzkOutputFormat>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -303,7 +303,7 @@ impl Config {
         if !llzk.enabled() {
             return false;
         }
-        matches!(llzk.format, LlzkOutputFormat::Assembly)
+        matches!(llzk.format, Some(LlzkOutputFormat::Assembly))
     }
 
     /// Returns whether Picus optimization is enabled.

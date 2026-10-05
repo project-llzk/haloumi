@@ -9,6 +9,7 @@ publish = false
 [dependencies]
 ff.workspace = true
 haloumi-core = { path = "../../core" }
+haloumi-integration = { path = "../../integration" }
 
 [dev-dependencies]
 halo2curves.workspace = true

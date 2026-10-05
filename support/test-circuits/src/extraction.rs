@@ -3,18 +3,20 @@ use std::marker::PhantomData;
 use ff::PrimeField;
 use halo2::{
     circuit::{AssignedCell, Layouter as MidnightLayouter, RegionIndex, Value},
-    plonk::{Advice, Circuit, Column, ConstraintSystem, Error, Expression, Fixed, Selector},
+    plonk::{Advice, Column, ConstraintSystem, Error, Expression, Fixed, Selector},
 };
-use haloumi_integration::{
-    circuit::{ExtraibleChip, io::CellReprSize},
-    core::{
-        groups::RegionsGroupHooks,
-        layouter::{LayoutAdaptor, Layouter},
-    },
+use haloumi_integration::core::{
+    auto_conf::AutoConfigure,
+    circuit::ExtraibleChip,
+    groups::RegionsGroupHooks,
+    layouter::{LayoutAdaptor, Layouter},
+    table::CellReprSize,
 };
 use haloumi_ir::inject::InjectedIR;
 
-pub trait ExtractableFixture<F: PrimeField>: Circuit<F> {
+pub trait ExtractableFixture<F: PrimeField>:
+    AutoConfigure<ConstraintSystem<F>, Self::Config>
+{
     type Input: CellReprSize;
     type Output: CellReprSize;
     type Config;

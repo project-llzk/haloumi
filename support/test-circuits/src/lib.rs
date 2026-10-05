@@ -52,7 +52,7 @@ macro_rules! impl_extractable_fixture {
             }
         }
 
-        impl<F: ff::PrimeField> haloumi_integration::circuit::NoChipArgs for $circuit {}
+        impl<F: ff::PrimeField> haloumi_integration::core::circuit::NoChipArgs for $circuit {}
     };
 }
 

@@ -20,7 +20,7 @@ use haloumi_core::{
 #[derive(Debug)]
 pub enum Error {
     Synthesis(String),
-    Other(Arc<dyn std::error::Error + 'static>),
+    Other(Arc<dyn std::error::Error + Send + Sync + 'static>),
 }
 
 haloumi_integration::__impl_into_and_from_error!(Error, |value| Self::Other(Arc::new(value)));

@@ -17,8 +17,17 @@ num-bigint.workspace = true
 thiserror.workspace = true
 num-traits = "0.2"
 haloumi-core = { path = "../core" }
+haloumi-extractor-core = { path = "../extractor-core" }
 haloumi-ir = { path = "../ir" }
-haloumi-integration-macros = { path = "../integration-macros" }
+haloumi-synthesis = { path = "../synthesis" }
+haloumi-ir-gen = { path = "../ir-gen" }
+haloumi-integration-macros = { path = "../integration-macros", optional = true }
 
 [dev-dependencies]
 rstest = "0"
+
+[build-dependencies]
+anyhow = "1"
+
+[features]
+derive = ["dep:haloumi-integration-macros"]

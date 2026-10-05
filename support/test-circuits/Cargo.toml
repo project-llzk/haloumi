@@ -1,5 +1,5 @@
 [package]
-name = "haloumi-midnight-integration"
+name = "haloumi-test-circuits"
 categories = {workspace = true}
 version = {workspace = true}
 authors = {workspace = true}
@@ -11,17 +11,12 @@ license-file = {workspace = true}
 keywords = {workspace = true}
 publish = false
 
-[dependencies]
-haloumi-core = { path = "../../core", version = "0.5.3" }
-ff = {workspace = true }
-
-[dependencies.midnight-proofs]
+[dependencies.halo2]
 path = "../mock-halo2/"
 package = "haloumi-mock-halo2"
-# git = "https://github.com/Veridise/midnight-zk.git"
-# default-features = false
-# features = [
-#     "circuit-params",
-#     "committed-instances",
-#     "region-groups"
-# ]
+
+[dependencies]
+ff = {workspace = true}
+anyhow = "1"
+haloumi-integration.path = "../../integration/"
+haloumi-ir.path = "../../ir/"

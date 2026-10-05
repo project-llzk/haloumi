@@ -5,9 +5,12 @@ pub use haloumi_core::table::{Cell, CellReprSize, RegionIndex};
 use haloumi_core::{
     groups::RegionsGroupHooks,
     query::{Advice, Fixed, Instance},
-    table::{Any, Column},
+    table::{Any, Column, FromCell},
 };
-use haloumi_integration::extractor::core::io::load::LoadFromCells;
+use haloumi_integration::extractor::core::io::{
+    load::LoadFromCells,
+    store::StoreIntoCells,
+};
 
 use crate::{
     plonk::{Challenge, Error, Selector, TableColumn},
@@ -134,26 +137,68 @@ impl<V, F> CellReprSize for AssignedCell<V, F> {
     const SIZE: usize = 1;
 }
 
-impl<V, F> LoadFromCells<F, C, crate::ExtrationSupport> for AssignedCell<V, F> {
+impl<V, F, C> LoadFromCells<F, C, crate::ExtractionSupport> for AssignedCell<V, F>
+where
+    F: Field,
+    V: Clone,
+    for<'v> Rational<F>: From<&'v V>,
+{
     fn load(
         ctx: &mut haloumi_integration::extractor::core::io::ctx::input::ICtx<
             F,
-            crate::ExtrationSupport,
+            crate::ExtractionSupport,
         >,
-        chip: &C,
+        _chip: &C,
         layouter: &mut haloumi_core::layouter::LayoutAdaptor<
             '_,
             impl haloumi_core::layouter::Layouter<
                 F,
-                <crate::ExtrationSupport as haloumi_integration::Types>::Error,
+                <crate::ExtractionSupport as haloumi_integration::Types<F>>::Error,
             >,
         >,
-        injected_ir: &mut haloumi_integration::ir::inject::InjectedIR<
-            <crate::ExtrationSupport as haloumi_integration::Types>::RegionIndex,
-            <crate::ExtrationSupport as haloumi_integration::Types>::Expression,
+        _injected_ir: &mut haloumi_integration::ir::inject::InjectedIR<
+            <crate::ExtractionSupport as haloumi_integration::Types<F>>::RegionIndex,
+            <crate::ExtractionSupport as haloumi_integration::Types<F>>::Expression,
         >,
-    ) -> Result<Self, <crate::ExtrationSupport as haloumi_integration::Types>::Error> {
-        ctx.assign_next::<V, Rational<F>>(layouter)
+    ) -> Result<Self, <crate::ExtractionSupport as haloumi_integration::Types<F>>::Error> {
+        ctx.assign_next::<V>(layouter)
+    }
+}
+
+impl<V, F, C> StoreIntoCells<F, C, crate::ExtractionSupport> for AssignedCell<V, F>
+where
+    F: Field,
+{
+    fn store(
+        self,
+        ctx: &mut haloumi_integration::extractor::core::io::ctx::output::OCtx<
+            F,
+            crate::ExtractionSupport,
+        >,
+        _chip: &C,
+        layouter: &mut haloumi_core::layouter::LayoutAdaptor<
+            '_,
+            impl haloumi_core::layouter::Layouter<
+                F,
+                <crate::ExtractionSupport as haloumi_integration::Types<F>>::Error,
+            >,
+        >,
+        _injected_ir: &mut haloumi_integration::ir::inject::InjectedIR<
+            <crate::ExtractionSupport as haloumi_integration::Types<F>>::RegionIndex,
+            <crate::ExtractionSupport as haloumi_integration::Types<F>>::Expression,
+        >,
+    ) -> Result<(), <crate::ExtractionSupport as haloumi_integration::Types<F>>::Error> {
+        ctx.assign_next(self.cell(), layouter)
+    }
+}
+
+impl<V, F> FromCell for AssignedCell<V, F> {
+    fn from_cell(cell: Cell) -> Self {
+        Self {
+            cell,
+            value: Value::unknown(),
+            _marker: PhantomData,
+        }
     }
 }
 
@@ -707,6 +752,8 @@ haloumi_integration::__impl_table_layouter_adaptor!(
     Rational,
     TableColumn,
 );
+
+haloumi_integration::__impl_from_region_adaptor!(Region, RegionLayouter, Field, Error);
 
 haloumi_integration::__impl_layouter_for_group_layouter!(
     Field,

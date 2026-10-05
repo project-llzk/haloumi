@@ -2,6 +2,7 @@ use std::{
     iter::{Product, Sum},
     marker::PhantomData,
     ops::{Add, Mul, Neg, Sub},
+    sync::Arc,
 };
 
 use ff::Field;
@@ -16,9 +17,24 @@ use haloumi_core::{
     table::{Any, Rotation},
 };
 
+#[derive(Debug)]
 pub enum Error {
     Synthesis(String),
+    Other(Arc<dyn std::error::Error + 'static>),
 }
+
+haloumi_integration::__impl_into_and_from_error!(Error, |value| Self::Other(Arc::new(value)));
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::Synthesis(err) => write!(f, "Synthesis: {err}"),
+            Error::Other(error) => write!(f, "Error: {error}"),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
 
 /// A selector allocated by [`ConstraintSystem`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

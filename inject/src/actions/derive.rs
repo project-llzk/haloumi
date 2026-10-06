@@ -144,7 +144,7 @@ impl<'i> DeriveItem<'i> {
                 .iter_mut()
                 .find(|param| match param {
                     syn::GenericParam::Lifetime(param) => {
-                        name.starts_with("'") && param.lifetime.ident == &name[1..]
+                        name.starts_with("'") && param.lifetime.ident == name[1..]
                     }
                     syn::GenericParam::Type(param) => param.ident == name,
                     syn::GenericParam::Const(param) => param.ident == name,

@@ -375,7 +375,7 @@ impl<'m> IntoIterator for AttrsMap<'m> {
     fn into_iter(self) -> Self::IntoIter {
         match self.mapping {
             Some(mapping) => AttrsMapIter {
-                mapping: Box::new(mapping.into_iter()),
+                mapping: Box::new(mapping.iter()),
             },
             None => AttrsMapIter {
                 mapping: Box::new(std::iter::empty()),

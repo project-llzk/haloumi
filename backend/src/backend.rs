@@ -4,7 +4,10 @@ use haloumi_ir_gen::{circuit::resolved::ResolvedIRCircuit, ctx::IRCtx};
 
 use crate::codegen::{
     Codegen, CodegenParams, CodegenStrategy,
-    strats::{groups::GroupConstraintsStrat, inline::InlineConstraintsStrat},
+    strats::{
+        groups::GroupConstraintsStrat, inline::InlineConstraintsStrat,
+        preludes::PreludesCodegenStrat,
+    },
 };
 
 /// Entrypoint for the backend.
@@ -66,6 +69,7 @@ where
             std::any::type_name_of_val(&strat)
         );
 
+        PreludesCodegenStrat::default().codegen(&codegen, ctx, ir)?;
         strat.codegen(&codegen, ctx, ir)?;
 
         log::debug!("Code generation completed");

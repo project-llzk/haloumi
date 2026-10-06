@@ -6,6 +6,9 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+#[cfg(any(test, feature = "arbitrary"))]
+use quickcheck::Arbitrary;
+
 use ff::Field;
 
 #[cfg(any(test, feature = "arbitrary"))]

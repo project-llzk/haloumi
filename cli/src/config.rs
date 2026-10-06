@@ -6,6 +6,7 @@ use std::{
 };
 
 use cargo_toml::{Dependency, DepsSet, VersionReq};
+use haloumi_core::llzk::LlzkOutputFormat;
 use serde::Deserialize;
 
 use crate::Error;
@@ -93,13 +94,14 @@ struct PicusBackend {
 struct LlzkBackend {
     enabled: Option<bool>,
     optimize: Option<bool>,
-    field: Option<Field>,
+    field: Option<String>,
+    format: Option<LlzkOutputFormat>,
 }
 
-#[derive(Debug, Default, Deserialize)]
-struct Field {
-    builtin: Option<String>,
-}
+//#[derive(Debug, Default, Deserialize)]
+//struct Field {
+//    builtin: Option<String>,
+//}
 
 /// Common enablement rules for configured output backends.
 trait BackendConfig {
@@ -282,15 +284,26 @@ impl Config {
         formats
     }
 
-    /// Returns the built-in LLZK field name, when LLZK is configured completely.
+    /// Returns the LLZK field name, when LLZK is configured completely.
     pub(crate) fn llzk_field(&self) -> Option<&str> {
         let llzk = self.backends()?.llzk.as_ref()?;
         llzk.enabled()
             .then_some(llzk)?
             .field
-            .as_ref()?
-            .builtin
+            //.as_ref()?
+            //.builtin
             .as_deref()
+    }
+
+    /// Returns if LLZK should emit assembly output, when LLZK is configured completely.
+    pub(crate) fn llzk_emit_assembly(&self) -> bool {
+        let Some(llzk) = self.backends().and_then(|b| b.llzk.as_ref()) else {
+            return false;
+        };
+        if !llzk.enabled() {
+            return false;
+        }
+        matches!(llzk.format, Some(LlzkOutputFormat::Assembly))
     }
 
     /// Returns whether Picus optimization is enabled.

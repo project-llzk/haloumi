@@ -256,6 +256,7 @@ dependencies = [
  "cargo_toml",
  "clap",
  "env_logger",
+ "haloumi-core",
  "haloumi-inject",
  "log",
  "serde",
@@ -1120,11 +1121,15 @@ name = "haloumi-ir-gen"
 version = "0.5.15"
 dependencies = [
  "ff",
+ "halo2curves 0.7.0",
  "haloumi-core",
  "haloumi-ir",
  "haloumi-synthesis",
  "log",
+ "quickcheck",
+ "quickcheck_macros",
  "serde",
+ "serde_json",
  "thiserror",
 ]
 

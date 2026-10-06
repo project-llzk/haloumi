@@ -134,7 +134,7 @@ impl<'lc, 'gc, 'syn, F: Field, E> GroupIRCtx<'lc, 'gc, 'syn, F, E> {
         self.syn
     }
 
-    pub(super) fn patterns(&self) -> &RewritePatternSet<F, E> {
+    pub(super) fn patterns(&self) -> &RewritePatternSet<'_, F, E> {
         &self.patterns
     }
 

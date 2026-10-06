@@ -99,11 +99,6 @@ impl<'p, F, E> RewritePatternSet<'p, F, E> {
             fallback: Box::new(fallback),
         }
     }
-
-    /// Adds a pattern to the set.
-    pub fn add(&mut self, p: &'p (dyn GateRewritePattern<F, E> + 'static)) {
-        self.user_patterns.push(p)
-    }
 }
 
 impl<'p, F, E> Extend<&'p dyn GateRewritePattern<F, E>> for RewritePatternSet<'p, F, E> {

@@ -83,7 +83,9 @@ where
 
 /// Configures a rewrite pattern set from patterns potentially provided by the user and
 /// the fallback pattern for gates that don't require special handling.
-pub fn load_patterns<F, E>(gate_cbs: &dyn GateCallbacks<F, E>) -> RewritePatternSet<F, E>
+pub fn load_patterns<'gc, F, E>(
+    gate_cbs: &'gc dyn GateCallbacks<F, E>,
+) -> RewritePatternSet<'gc, F, E>
 where
     F: Field,
     E: ExprBuilder<F> + EvaluableExpr<F> + std::fmt::Debug,

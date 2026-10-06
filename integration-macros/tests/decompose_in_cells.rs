@@ -27,7 +27,7 @@ struct SkippedWithoutImplementation;
 struct Named {
     included: Included,
     #[skip]
-    skipped: SkippedWithImplementation,
+    _skipped: SkippedWithImplementation,
 }
 
 #[derive(DecomposeInCells)]
@@ -40,7 +40,7 @@ enum Variants {
     Named {
         included: Included,
         #[skip]
-        skipped: SkippedWithImplementation,
+        _skipped: SkippedWithImplementation,
     },
     SkipFirst(#[skip] SkippedWithoutImplementation, Included),
     SkipLast(Included, #[skip] SkippedWithoutImplementation),
@@ -55,7 +55,7 @@ fn skipped_fields_are_not_decomposed_or_bounded() {
     assert_eq!(
         cells(Named {
             included: Included(1),
-            skipped: SkippedWithImplementation(99),
+            _skipped: SkippedWithImplementation(99),
         }),
         [Cell(1)],
     );
@@ -66,7 +66,7 @@ fn skipped_fields_are_not_decomposed_or_bounded() {
     assert_eq!(
         cells(Variants::Named {
             included: Included(3),
-            skipped: SkippedWithImplementation(99),
+            _skipped: SkippedWithImplementation(99),
         }),
         [Cell(3)],
     );

@@ -83,16 +83,16 @@ impl ExtractorMain {
 
         let mut extractor_cfg = ExtractorCfg::new();
         extractor_cfg.set_constants(cli.constants().to_vec());
-        extractor_cfg.set_debug_comments(
-            cli.debug_comments
-                .then_some(Comments::Debug)
-                .unwrap_or_default(),
-        );
-        extractor_cfg.set_injected_ir(
-            cli.allow_injected_ir_for_outputs
-                .then_some(InjectedIRPolicy::AllowAll)
-                .unwrap_or_default(),
-        );
+        extractor_cfg.set_debug_comments(if cli.debug_comments {
+            Comments::Debug
+        } else {
+            Default::default()
+        });
+        extractor_cfg.set_injected_ir(if cli.allow_injected_ir_for_outputs {
+            InjectedIRPolicy::AllowAll
+        } else {
+            Default::default()
+        });
         Ok(Self { cli, extractor_cfg })
     }
 
@@ -284,7 +284,7 @@ impl ExtractorMain {
         summary.generated += 1;
         match extract() {
             Err(err) => match self.cli.fail_mode() {
-                FailMode::Fast => Err(err.into()),
+                FailMode::Fast => Err(err),
                 FailMode::Continue => {
                     log::error!("{err}");
                     summary.errors += 1;

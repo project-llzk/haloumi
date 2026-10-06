@@ -10,8 +10,7 @@ use haloumi_core::{
 use haloumi_driver::driver::Driver;
 
 use haloumi_ir_gen::{
-    IRGenParams, circuit::resolved::ResolvedIRCircuit, gates::callbacks::SimpleGateCallbacks,
-    lookups::callbacks::LookupCallbacks,
+    IRGenParams, circuit::resolved::ResolvedIRCircuit, lookups::callbacks::LookupCallbacks,
 };
 use haloumi_synthesis::CircuitSynthesis;
 

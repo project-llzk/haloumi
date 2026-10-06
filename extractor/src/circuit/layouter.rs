@@ -44,12 +44,7 @@ impl<'s, F: Field, E> ExtractionLayouter<'s, F, E> {
     ) -> Self {
         Self {
             synthesizer,
-            constants: Vec::from_iter(
-                constants
-                    .iter()
-                    .map(|c| Column::<Fixed>::from(c.clone().into())),
-            )
-            .into(),
+            constants: Vec::from_iter(constants.iter().map(|c| c.clone().into())).into(),
             regions: Default::default(),
             columns: Default::default(),
             table_columns: Default::default(),
@@ -408,7 +403,7 @@ impl<F: Field, E: From<Error>> RegionLayouter<F, E> for ExtractionRegion<'_, '_,
         self.synthesizer.on_fixed_assigned(
             column,
             self.row(offset),
-            to().ok_or(Error::MissingFixedValue(column.index(), offset).into())?,
+            to().ok_or(Error::MissingFixedValue(column.index(), offset))?,
         );
 
         Ok(Cell {
@@ -483,7 +478,7 @@ impl<F: Field, E: From<Error>> TableLayouter<F, E> for ExtractionTable<'_, '_, F
         self.synthesizer.on_fixed_assigned(
             column,
             offset, // tables are always assigned starting at row 0
-            value.ok_or(Error::MissingTableValue.into())?,
+            value.ok_or(Error::MissingTableValue)?,
         );
 
         match (entry.0.is_none(), offset) {
@@ -625,11 +620,6 @@ impl RegionShape {
             columns: HashSet::default(),
             row_count: 0,
         }
-    }
-
-    /// Get the `region_index` of a `RegionShape`.
-    pub fn region_index(&self) -> RegionIndex {
-        self.region_index
     }
 
     /// Get a reference to the set of `columns` used in a `RegionShape`.

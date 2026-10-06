@@ -4,7 +4,6 @@
 #![deny(missing_docs)]
 
 use haloumi_extractor_core::prelude::Prelude;
-use haloumi_ir::{expr::IRAexpr, groups::IRGroup};
 use haloumi_ir_gen::circuit::resolved::ResolvedIRCircuit;
 
 use crate::extractor::Extractor;

@@ -158,7 +158,7 @@ impl<C> Config<C>
 where
     C: AbstractCircuitIO,
 {
-    pub fn configure<L, F: Field, CS: ConstraintSystemInfo<F>>(meta: &mut CS) -> Self
+    pub fn configure<L, F, CS: ConstraintSystemInfo<F>>(meta: &mut CS) -> Self
     where
         F: PrimeField,
         C::Chip: ExtraibleChip<L, Config = C::Config, ConfigCols = C::ConfigCols, CS = CS>,

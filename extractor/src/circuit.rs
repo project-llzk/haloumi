@@ -91,6 +91,9 @@ where
     _marker: PhantomData<(M, CS, T)>,
 }
 
+type InjectedStmt<'ir, CS, F> =
+    IRStmt<ExpressionInRow<'ir, <CS as ConstraintSystemInfo<F>>::Polynomial, F>>;
+
 impl<'a, F, C, CS, M, T, E> CircuitImpl<'a, F, C, CS, T, M>
 where
     F: PrimeField,
@@ -117,7 +120,7 @@ where
     pub fn take_injected_ir<'ir>(
         self,
         sorted: bool,
-    ) -> Vec<(RegionIndex, IRStmt<ExpressionInRow<'ir, CS::Polynomial, F>>)> {
+    ) -> Vec<(RegionIndex, InjectedStmt<'ir, CS, F>)> {
         let mut ir = self
             .injected_ir
             .into_inner()
@@ -134,7 +137,7 @@ where
             })
             .collect::<Vec<(RegionIndex, IRStmt<_>)>>();
         if sorted {
-            ir.sort_by(|&(lhs, _), &(rhs, _)| (*lhs).cmp(&*rhs));
+            ir.sort_by_key(|&(idx, _)| *idx);
         }
         ir
     }

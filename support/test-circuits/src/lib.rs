@@ -2,7 +2,7 @@
 
 pub mod fibonacci;
 pub mod lookup;
-//pub mod mul;
+pub mod mul;
 
 pub mod extraction;
 

@@ -1,11 +1,17 @@
 use ff::Field;
-use halo2::circuit::{AssignedCell, Layouter, SimpleFloorPlanner, Value};
-use halo2::default_group_key;
+use halo2::circuit::{AssignedCell, Cell, Layouter, RegionIndex, Value};
 use halo2::plonk::{
-    Advice, Circuit, Column, ConstraintSystem, Constraints, Error, Fixed, Instance, Selector,
+    Advice, Column, ConstraintSystem, Constraints, Error, Expression, Fixed, Instance, Selector,
 };
 use halo2::poly::Rotation;
+use haloumi_integration::core::{
+    auto_conf::AutoConfigure, default_group_key, groups::RegionsGroupHooks,
+    info_traits::ConstraintSystemInfo, layouter::LayoutAdaptor, table::RotationExt,
+};
+use haloumi_ir::inject::InjectedIR;
 use std::marker::PhantomData;
+
+use crate::extraction::ExtractableFixture;
 
 #[derive(Debug, Clone)]
 pub struct MulConfig {
@@ -147,59 +153,19 @@ impl<F: Field> MulChip<F> {
         )
     }
 
-    pub fn expose_public(
-        &self,
-        layouter: &mut impl Layouter<F>,
-        cell: &AssignedCell<F, F>,
-        row: usize,
-    ) -> Result<(), Error> {
-        layouter.constrain_instance(cell.cell(), self.config.instance, row)
-    }
-
-    pub fn assign_a(&self, layouter: &mut impl Layouter<F>) -> Result<AssignedCell<F, F>, Error> {
-        layouter.assign_region(
-            || "set a",
-            |mut region| {
-                region.assign_advice_from_instance(
-                    || "a",
-                    self.config.instance,
-                    0,
-                    self.config.col_a,
-                    0,
-                )
-            },
-        )
-    }
-
-    pub fn assign_c(
-        &self,
-        layouter: &mut impl Layouter<F>,
-        cell: &AssignedCell<F, F>,
-    ) -> Result<AssignedCell<F, F>, Error> {
-        layouter.assign_region(
-            || "set c",
-            |mut region| {
-                let c =
-                    region.assign_advice(|| "c", self.config.col_c, 0, || cell.value().copied())?;
-                region.constrain_equal(cell.cell(), c.cell())?;
-                Ok(c)
-            },
-        )
-    }
-
     pub fn inner_group(
         &self,
         layouter: &mut impl Layouter<F>,
         input: &AssignedCell<F, F>,
         selector: Selector,
     ) -> Result<AssignedCell<F, F>, Error> {
-        layouter.group(
+        layouter.group_impl(
             || "inner group",
             default_group_key!(),
             |layouter, group| {
-                group.annotate_input(input.cell())?;
+                group.annotate_input(input.cell());
                 let prev_c = self.assign_first_row(layouter, input, selector)?;
-                group.annotate_output(prev_c.cell())?;
+                group.annotate_output(prev_c.cell());
                 Ok(prev_c)
             },
         )
@@ -212,14 +178,14 @@ impl<F: Field> MulChip<F> {
         selector: Selector,
         selector3: Selector,
     ) -> Result<AssignedCell<F, F>, Error> {
-        layouter.group(
+        layouter.group_impl(
             || "outer group",
             default_group_key!(),
             |layouter, group| {
-                group.annotate_input(input.cell())?;
+                group.annotate_input(input.cell());
                 let c = self.inner_group(layouter, input, selector3)?;
                 let c = self.assign_first_row(layouter, &c, selector)?;
-                group.annotate_output(c.cell())?;
+                group.annotate_output(c.cell());
                 Ok(c)
             },
         )
@@ -232,14 +198,14 @@ impl<F: Field> MulChip<F> {
         input: &AssignedCell<F, F>,
         selector: Selector,
     ) -> Result<AssignedCell<F, F>, Error> {
-        layouter.group(
+        layouter.group_impl(
             || "test group",
             // Defined here to get always the same key.
             default_group_key!(),
             |layouter, group| {
-                group.annotate_input(input.cell())?;
+                group.annotate_input(input.cell());
                 let prev_c = self.assign_first_row(layouter, input, selector)?;
-                group.annotate_output(prev_c.cell())?;
+                group.annotate_output(prev_c.cell());
                 Ok(prev_c)
             },
         )
@@ -249,33 +215,34 @@ impl<F: Field> MulChip<F> {
 #[derive(Default)]
 pub struct MulCircuit<F>(pub PhantomData<F>);
 
-impl<F: Field> Circuit<F> for MulCircuit<F> {
-    type Config = MulConfig;
-    type FloorPlanner = SimpleFloorPlanner;
-    type Params = ();
-
-    fn without_witnesses(&self) -> Self {
-        Self::default()
-    }
-
-    fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
+impl<F: Field> AutoConfigure<ConstraintSystem<F>, MulConfig> for MulCircuit<F> {
+    fn configure(meta: &mut ConstraintSystem<F>) -> MulConfig {
         MulChip::configure(meta)
     }
+}
 
-    fn synthesize(
+impl<F: ff::PrimeField> ExtractableFixture<F> for MulCircuit<F> {
+    type Input = AssignedCell<F, F>;
+    type Output = AssignedCell<F, F>;
+    type Config = MulConfig;
+
+    fn synthesize_extraction<L>(
         &self,
-        config: Self::Config,
-        mut layouter: impl Layouter<F>,
-    ) -> Result<(), Error> {
+        config: &Self::Config,
+        layouter: &mut LayoutAdaptor<L>,
+        input: Self::Input,
+        _: &mut InjectedIR<RegionIndex, Expression<F>>,
+    ) -> Result<Self::Output, Error>
+    where
+        L: haloumi_integration::core::layouter::Layouter<F, Error>
+            + RegionsGroupHooks<F, Cell, Error = Error>,
+    {
         let chip = MulChip::construct(config.clone());
-        let a = chip.assign_a(&mut layouter)?;
-        let c = chip.call_group(&mut layouter, &a, config.selector)?;
-        let c = chip.call_group(&mut layouter, &c, config.selector)?;
-        let c = chip.call_group(&mut layouter, &c, config.selector2)?;
-        let c = chip.outer_group(&mut layouter, &c, config.selector, config.selector3)?;
-        let pub_c = chip.assign_c(&mut layouter, &c)?;
-        chip.expose_public(&mut layouter, &pub_c, 1)?;
-
-        Ok(())
+        let c = chip.call_group(layouter, &input, config.selector)?;
+        let c = chip.call_group(layouter, &c, config.selector)?;
+        let c = chip.call_group(layouter, &c, config.selector2)?;
+        chip.outer_group(layouter, &c, config.selector, config.selector3)
     }
 }
+
+crate::impl_extractable_fixture!(MulCircuit<F>);

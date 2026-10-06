@@ -1,12 +1,15 @@
 use ff::Field;
+use halo2::circuit::{AssignedCell, Cell, Layouter, RegionIndex};
+use halo2::plonk::{ConstraintSystem, Error, Expression};
 use halo2::poly::Rotation;
-use halo2::{
-    circuit::{AssignedCell, Layouter, SimpleFloorPlanner},
-    default_group_key,
-    plonk::{Circuit, ConstraintSystem, Error},
+use haloumi_integration::core::{
+    auto_conf::AutoConfigure, default_group_key, groups::RegionsGroupHooks,
+    layouter::LayoutAdaptor, table::RotationExt,
 };
+use haloumi_ir::inject::InjectedIR;
 use std::marker::PhantomData;
 
+use crate::extraction::ExtractableFixture;
 use crate::mul::MulConfig;
 
 const N_INPUTS: usize = 4;
@@ -59,15 +62,6 @@ impl<F: Field> MulChip<F> {
         }
     }
 
-    pub fn expose_public(
-        &self,
-        layouter: &mut impl Layouter<F>,
-        cell: &AssignedCell<F, F>,
-        row: usize,
-    ) -> Result<(), Error> {
-        layouter.constrain_instance(cell.cell(), self.config.instance, row)
-    }
-
     pub fn mul_many(
         &self,
         layouter: &mut impl Layouter<F>,
@@ -76,11 +70,11 @@ impl<F: Field> MulChip<F> {
         if operands.len() == 1 {
             return Ok(operands[0].clone());
         }
-        layouter.group(
+        layouter.group_impl(
             || "mul_many",
             default_group_key!(),
             |layouter, group| {
-                group.annotate_inputs(operands.iter().map(|op| op.cell()))?;
+                group.annotate_inputs(operands.iter().map(|op| op.cell()));
                 let lhs = &operands[0];
                 let rhs = self.mul_many(layouter, &operands[1..])?;
                 layouter.assign_region(
@@ -109,7 +103,7 @@ impl<F: Field> MulChip<F> {
                             0,
                             || a.value().copied() * b.value(),
                         )?;
-                        group.annotate_output(c.cell())?;
+                        group.annotate_output(c.cell());
                         Ok(c)
                     },
                 )
@@ -119,54 +113,41 @@ impl<F: Field> MulChip<F> {
 
     pub fn assign_inputs(
         &self,
-        layouter: &mut impl Layouter<F>,
-        input_count: usize,
+        inputs: &[AssignedCell<F, F>; N_INPUTS],
     ) -> Result<Vec<AssignedCell<F, F>>, Error> {
-        layouter.assign_region(
-            || "input loading",
-            |mut region| {
-                (0..input_count)
-                    .map(|n| {
-                        region.assign_advice_from_instance(
-                            || format!("input {n}"),
-                            self.config.instance,
-                            n,
-                            self.config.col_a,
-                            n,
-                        )
-                    })
-                    .collect()
-            },
-        )
+        Ok(inputs.to_vec())
     }
 }
 
 #[derive(Default)]
 pub struct MulCircuit<F>(pub PhantomData<F>);
 
-impl<F: Field> Circuit<F> for MulCircuit<F> {
-    type Config = MulConfig;
-    type FloorPlanner = SimpleFloorPlanner;
-    type Params = ();
-
-    fn without_witnesses(&self) -> Self {
-        Self::default()
-    }
-
-    fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
+impl<F: Field> AutoConfigure<ConstraintSystem<F>, MulConfig> for MulCircuit<F> {
+    fn configure(meta: &mut ConstraintSystem<F>) -> MulConfig {
         MulChip::configure(meta)
     }
+}
 
-    fn synthesize(
+impl<F: ff::PrimeField> ExtractableFixture<F> for MulCircuit<F> {
+    type Input = [AssignedCell<F, F>; N_INPUTS];
+    type Output = AssignedCell<F, F>;
+    type Config = MulConfig;
+
+    fn synthesize_extraction<L>(
         &self,
-        config: Self::Config,
-        mut layouter: impl Layouter<F>,
-    ) -> Result<(), Error> {
-        let chip = MulChip::construct(config);
-        let inputs = chip.assign_inputs(&mut layouter, N_INPUTS)?;
-        let output = chip.mul_many(&mut layouter, &inputs)?;
-        chip.expose_public(&mut layouter, &output, inputs.len())?;
-
-        Ok(())
+        config: &Self::Config,
+        layouter: &mut LayoutAdaptor<L>,
+        input: Self::Input,
+        _: &mut InjectedIR<RegionIndex, Expression<F>>,
+    ) -> Result<Self::Output, Error>
+    where
+        L: haloumi_integration::core::layouter::Layouter<F, Error>
+            + RegionsGroupHooks<F, Cell, Error = Error>,
+    {
+        let chip = MulChip::construct(config.clone());
+        let inputs = chip.assign_inputs(&input)?;
+        chip.mul_many(layouter, &inputs)
     }
 }
+
+crate::impl_extractable_fixture!(MulCircuit<F>);

@@ -1,7 +1,5 @@
 //! IR metadata
 
-#[cfg(any(test, feature = "arbitrary"))]
-use haloumi_core::felt::Felt;
 use haloumi_core::{
     constraints::CopyConstraint,
     query::Fixed,

@@ -312,7 +312,7 @@ impl<E> IRGroup<E> {
             && self.callsites.eq(&other.callsites)
             && self.lookups.exact_eq(&other.lookups)
             && self.injected.len() == other.injected.len()
-            && std::iter::zip(&self.injected, &other.injected).all(|(lhs, rhs)| lhs.exact_eq(&rhs))
+            && std::iter::zip(&self.injected, &other.injected).all(|(lhs, rhs)| lhs.exact_eq(rhs))
             && self.generate_debug_comments == other.generate_debug_comments
     }
 }

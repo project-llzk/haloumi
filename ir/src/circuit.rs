@@ -122,7 +122,7 @@ impl<E, C> IRCircuit<E, C> {
         C: PartialEq,
     {
         self.body.len() == other.body.len()
-            && std::iter::zip(&self.body, &other.body).all(|(lhs, rhs)| lhs.exact_eq(&rhs))
+            && std::iter::zip(&self.body, &other.body).all(|(lhs, rhs)| lhs.exact_eq(rhs))
             && self.context.eq(&other.context)
     }
 }

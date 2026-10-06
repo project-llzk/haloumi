@@ -14,8 +14,12 @@ use crate::{
 
 use super::GroupKey;
 
+#[cfg(any(test, feature = "arbitrary"))]
+use quickcheck::Arbitrary;
+
 /// Data related to a single callsite
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CallSite<E> {
     no: usize,
     name: String,
@@ -24,6 +28,22 @@ pub struct CallSite<E> {
     callee_id: usize,
     inputs: Vec<E>,
     outputs: Vec<E>,
+}
+
+#[cfg(any(test, feature = "arbitrary"))]
+impl<E: Arbitrary> Arbitrary for CallSite<E> {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let inputs_len = usize::arbitrary(g) % g.size().min(10);
+        let outputs_len = usize::arbitrary(g) % g.size().min(10);
+        Self::new(
+            usize::arbitrary(g),
+            String::arbitrary(g),
+            u64::arbitrary(g),
+            usize::arbitrary(g),
+            (0..inputs_len).map(|_| E::arbitrary(g)).collect(),
+            (0..outputs_len).map(|_| E::arbitrary(g)).collect(),
+        )
+    }
 }
 
 impl<E> CallSite<E> {
@@ -171,5 +191,19 @@ where
             IRStmt::eq(lhs, rhs).lower(l)?
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "serde")]
+    use quickcheck_macros::quickcheck;
+
+    use super::*;
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn callsite_round_trips(value: CallSite<()>) {
+        assert_eq!(value, crate::serde_tests_helpers::round_trip(&value));
     }
 }

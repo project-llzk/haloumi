@@ -2,6 +2,9 @@
 
 use std::fmt;
 
+#[cfg(any(test, feature = "arbitrary"))]
+use quickcheck::Arbitrary;
+
 use crate::{
     eqv::{EqvRelation, SymbolicEqv},
     slot::{arg::ArgNo, cell::CellRef, output::OutputId},
@@ -16,6 +19,7 @@ pub mod output;
 /// A slot can represent IO (Arg, Output, Challenge, ...) or cells in the PLONK table
 /// (Advice, Fixed, TableLookup).
 #[derive(Clone, Copy, Hash, Eq, PartialEq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Slot {
     /// Points to the n-th input argument
     Arg(ArgNo),
@@ -33,6 +37,28 @@ pub enum Slot {
     Temp(usize),
     /// Challenge argument (index, phase, n-th arg)
     Challenge(usize, u8, ArgNo),
+}
+
+#[cfg(any(test, feature = "arbitrary"))]
+impl Arbitrary for Slot {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        match u8::arbitrary(g) % 8 {
+            0 => Self::Arg(ArgNo::arbitrary(g)),
+            1 => Self::Output(OutputId::arbitrary(g)),
+            2 => Self::Advice(CellRef::arbitrary(g)),
+            3 => Self::Fixed(CellRef::arbitrary(g)),
+            4 => Self::TableLookup(
+                u64::arbitrary(g),
+                usize::arbitrary(g),
+                usize::arbitrary(g),
+                usize::arbitrary(g),
+                usize::arbitrary(g),
+            ),
+            5 => Self::CallOutput(usize::arbitrary(g), usize::arbitrary(g)),
+            6 => Self::Temp(usize::arbitrary(g)),
+            _ => Self::Challenge(usize::arbitrary(g), u8::arbitrary(g), ArgNo::arbitrary(g)),
+        }
+    }
 }
 
 impl Slot {
@@ -154,5 +180,49 @@ impl From<ArgNo> for Slot {
 impl From<OutputId> for Slot {
     fn from(value: OutputId) -> Self {
         Self::Output(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "serde")]
+    use quickcheck_macros::quickcheck;
+
+    use super::*;
+
+    #[derive(Debug, PartialEq, Eq)]
+    enum SlotParts {
+        Arg(usize),
+        Output(usize),
+        Advice((usize, Option<usize>, usize)),
+        Fixed((usize, Option<usize>, usize)),
+        TableLookup(u64, usize, usize, usize, usize),
+        CallOutput(usize, usize),
+        Temp(usize),
+        Challenge(usize, u8, usize),
+    }
+
+    impl SlotParts {
+        fn new(value: &Slot) -> Self {
+            match value {
+                Slot::Arg(arg) => SlotParts::Arg(**arg),
+                Slot::Output(output) => SlotParts::Output(**output),
+                Slot::Advice(cell) => SlotParts::Advice(cell.into_parts()),
+                Slot::Fixed(cell) => SlotParts::Fixed(cell.into_parts()),
+                Slot::TableLookup(id, column, row, index, region) => {
+                    SlotParts::TableLookup(*id, *column, *row, *index, *region)
+                }
+                Slot::CallOutput(call, output) => SlotParts::CallOutput(*call, *output),
+                Slot::Temp(id) => SlotParts::Temp(*id),
+                Slot::Challenge(index, phase, arg) => SlotParts::Challenge(*index, *phase, **arg),
+            }
+        }
+    }
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn slot_round_trips(value: Slot) {
+        let decoded = crate::serde_tests_helpers::round_trip(value);
+        assert_eq!(SlotParts::new(&value), SlotParts::new(&decoded));
     }
 }

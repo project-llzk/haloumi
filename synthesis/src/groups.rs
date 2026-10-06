@@ -8,6 +8,9 @@ use std::{
 
 use ff::Field;
 
+#[cfg(any(test, feature = "arbitrary"))]
+use quickcheck::Arbitrary;
+
 use crate::io::{AdviceIO, CircuitIO, IOCell, InstanceIO};
 use haloumi_core::{
     expressions::ExprBuilder,
@@ -347,10 +350,26 @@ impl Deref for Groups {
 }
 
 /// Contains information about the groups input and output cells.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct GroupsIO {
     advice_io: HashMap<usize, AdviceIO>,
     instance_io: HashMap<usize, InstanceIO>,
+}
+
+#[cfg(any(test, feature = "arbitrary"))]
+impl Arbitrary for GroupsIO {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let len = usize::arbitrary(g) % (g.size().min(4) + 1);
+        Self {
+            advice_io: (0..len)
+                .map(|index| (index, AdviceIO::arbitrary(g)))
+                .collect(),
+            instance_io: (0..len)
+                .map(|index| (index, InstanceIO::arbitrary(g)))
+                .collect(),
+        }
+    }
 }
 
 impl GroupsIO {
@@ -370,6 +389,33 @@ impl GroupsIO {
     /// If the group number is not in the mapping.
     pub fn instance_io(&self, group: usize) -> &InstanceIO {
         &self.instance_io[&group]
+    }
+}
+
+#[cfg(all(test, feature = "serde"))]
+mod serde_tests {
+    use super::*;
+    use quickcheck_macros::quickcheck;
+
+    fn round_trip<T: serde::Serialize + serde::de::DeserializeOwned>(value: T) -> T {
+        serde_json::from_slice(&serde_json::to_vec(&value).unwrap()).unwrap()
+    }
+
+    #[quickcheck]
+    fn groups_io_round_trips(value: GroupsIO) {
+        let decoded = round_trip(value.clone());
+        assert_eq!(value.advice_io.len(), decoded.advice_io.len());
+        assert_eq!(value.instance_io.len(), decoded.instance_io.len());
+        for (key, io) in &value.advice_io {
+            let other = &decoded.advice_io[key];
+            assert_eq!(io.inputs(), other.inputs());
+            assert_eq!(io.outputs(), other.outputs());
+        }
+        for (key, io) in &value.instance_io {
+            let other = &decoded.instance_io[key];
+            assert_eq!(io.inputs(), other.inputs());
+            assert_eq!(io.outputs(), other.outputs());
+        }
     }
 }
 

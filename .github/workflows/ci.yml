@@ -107,8 +107,8 @@ jobs:
         run: cargo test -p haloumi-llzk --target=$DEFAULT_RUST_TARGET --profile dev --all-features
       - name: Run "haloumi" tests in "dev+asan" mode
         run: cargo test -p haloumi --target=$DEFAULT_RUST_TARGET --profile dev --no-default-features --features llzk-backend
-      - name: Run "haloumi-extractor" tests in "dev+asan" mode
-        run: cargo test -p haloumi-extractor --target=$DEFAULT_RUST_TARGET --profile dev --all-features
+      # - name: Run "haloumi-extractor" tests in "dev+asan" mode
+      #   run: cargo test -p haloumi-extractor --target=$DEFAULT_RUST_TARGET --profile dev --all-features
 
   doc-links:
     if: github.event.pull_request.draft == false

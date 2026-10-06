@@ -25,14 +25,6 @@ impl<V> Value<V> {
     }
 
     /// Constructs a known value.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use midnight_proofs::circuit::Value;
-    ///
-    /// let v = Value::known(37);
-    /// ```
     pub const fn known(value: V) -> Self {
         Self { inner: Some(value) }
     }
@@ -652,19 +644,6 @@ impl<V> Value<V> {
     }
 
     /// Doubles this field element.
-    ///
-    /// # Examples
-    ///
-    /// If you have a `Value<F: Field>`, convert it to `Value<Rational<F>>`
-    /// first:
-    /// ```
-    /// # use midnight_curves::Fq as F;
-    /// use midnight_proofs::{circuit::Value, utils::rational::Rational};
-    ///
-    /// let v = Value::known(F::from(2));
-    /// let v: Value<Rational<F>> = v.into();
-    /// v.double();
-    /// ```
     pub fn double<F: Field>(&self) -> Value<Rational<F>>
     where
         V: Borrow<Rational<F>>,

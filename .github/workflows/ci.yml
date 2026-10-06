@@ -79,6 +79,8 @@ jobs:
           arguments: "'.#nightly'"
         env:
           CI_BOT_PAT: "${{ secrets.CI_BUILD_TOKEN }}"
+      - name: Install cargo-expand
+        run: cargo install cargo-expand
       - name: Set sanitizer options
         run: |
           supp=$(pwd)/.lsan.supp
@@ -90,8 +92,6 @@ jobs:
       - name: Add sanitizer rust flag
         run: |
           echo RUSTFLAGS="$RUSTFLAGS -Zsanitizer=address" >> $GITHUB_ENV
-      - name: Install cargo-expand
-        run: cargo install cargo-expand
       - name: Cache cargo crates
         uses: actions/cache@v5
         with:

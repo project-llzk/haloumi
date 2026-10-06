@@ -39,8 +39,6 @@ mod layouter;
 ///
 /// The actual logic of the circuit is defined in an implementation of this trait with the circuit
 /// implementation struct acting as scaffolding and glue.
-///
-/// For harnesses that return `()` see [`AbstractUnitCircuit`].
 pub trait AbstractCircuit<F: PrimeField>: AbstractCircuitIO {
     /// Error type.
     type Error;

@@ -229,9 +229,9 @@ jobs:
         if: always()
         run: cargo clippy -p haloumi-llzk --all-targets --all-features -- -Dwarnings --no-deps
 
-      - name: Run Clippy on `haloumi`
+      - name: Run Clippy on `haloumi-driver`
         if: always()
-        run: cargo clippy -p haloumi --all-targets --all-features -- -Dwarnings --no-deps
+        run: cargo clippy -p haloumi-driver --all-targets --all-features -- -Dwarnings --no-deps
 
       - name: Run Clippy on `haloumi-integration-macros`
         if: always()

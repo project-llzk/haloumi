@@ -34,7 +34,8 @@ impl InjectAction for AttributeAction<'_> {
                 ));
             }
         }
-        debug_assert!(self.apply_target(&target, &mut file.items, self.attribute.attributes()?));
+        let applied = self.apply_target(&target, &mut file.items, self.attribute.attributes()?);
+        debug_assert!(applied);
         Ok(())
     }
 }

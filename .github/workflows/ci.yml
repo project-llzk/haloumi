@@ -105,8 +105,8 @@ jobs:
       # since the goal of testing with ASAN is catching misuses of the native CAPI.
       - name: Run "haloumi-llzk" tests in "dev+asan" mode
         run: cargo test -p haloumi-llzk --target=$DEFAULT_RUST_TARGET --profile dev --all-features
-      - name: Run "haloumi" tests in "dev+asan" mode
-        run: cargo test -p haloumi --target=$DEFAULT_RUST_TARGET --profile dev --no-default-features --features llzk-backend
+      - name: Run "haloumi-driver" tests in "dev+asan" mode
+        run: cargo test -p haloumi-driver --target=$DEFAULT_RUST_TARGET --profile dev --no-default-features --features llzk-backend
       - name: Run "haloumi-extractor" tests in "dev+asan" mode
         run: cargo test -p haloumi-extractor --target=$DEFAULT_RUST_TARGET --profile dev --all-features
 

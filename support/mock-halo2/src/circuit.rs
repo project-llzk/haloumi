@@ -7,10 +7,7 @@ use haloumi_core::{
     query::{Advice, Fixed, Instance},
     table::{Any, Column, FromCell},
 };
-use haloumi_integration::extractor::core::io::{
-    load::LoadFromCells,
-    store::StoreIntoCells,
-};
+use haloumi_integration::extractor::core::io::{load::LoadFromCells, store::StoreIntoCells};
 
 use crate::{
     plonk::{Challenge, Error, Selector, TableColumn},

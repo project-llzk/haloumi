@@ -5,13 +5,15 @@ use halo2::{
     poly::Rotation,
 };
 use haloumi_integration::core::{
-    auto_conf::AutoConfigure, groups::RegionsGroupHooks,
+    auto_conf::AutoConfigure,
+    groups::RegionsGroupHooks,
     info_traits::{ConstraintSystemInfo, CreateQuery},
-    layouter::LayoutAdaptor, table::RotationExt,
+    layouter::LayoutAdaptor,
+    table::RotationExt,
 };
+use haloumi_ir::CmpOp;
 use haloumi_ir::inject::InjectedIR;
 use haloumi_ir::stmt::IRStmt;
-use haloumi_ir::CmpOp;
 use std::marker::PhantomData;
 
 use crate::extraction::ExtractableFixture;
@@ -145,9 +147,10 @@ impl<F: ff::PrimeField> ExtractableFixture<F> for MulCircuit<F> {
         for (region, offset) in [(1, 0), (1, 1), (2, 0), (2, 1), (3, 0), (3, 1)] {
             let value = halo2::plonk::Query::<halo2::plonk::Advice>::query_expr(0, offset);
             let op = if offset == 0 { CmpOp::Lt } else { CmpOp::Ge };
-            injected_ir.entry(RegionIndex::from(region)).or_default().push(
-                IRStmt::constraint(op, value, bound.clone()).map(&mut |e| (0, e)),
-            );
+            injected_ir
+                .entry(RegionIndex::from(region))
+                .or_default()
+                .push(IRStmt::constraint(op, value, bound.clone()).map(&mut |e| (0, e)));
         }
         Ok(output)
     }

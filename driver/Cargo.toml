@@ -29,9 +29,6 @@ quickcheck = "1"
 quickcheck_macros = "1"
 rstest = "0.26"
 group = "0.13"
-# These legacy Midnight test dependencies require the integration layer.
-# haloumi-mdnt-test-circuits = { path = "../support/mdnt-test-circuits" }
-# haloumi-midnight-integration = { path = "../support/midnight" }
 paste = "1"
 anyhow = "1"
 halo2curves.workspace = true
@@ -44,6 +41,3 @@ llzk.workspace = true
 default = ["llzk-backend", "picus-backend"]
 llzk-backend = ["dep:haloumi-llzk"]
 picus-backend = ["dep:haloumi-picus"]
-# Deprecated Midnight snapshots are retained as source reference only. They
-# cannot be enabled without restoring the retired Midnight integration.
-legacy-midnight-tests = []

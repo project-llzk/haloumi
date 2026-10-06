@@ -9,9 +9,13 @@ fn grouped(layouter: &mut (), #[input] input: (), #[output] output: &mut ()) {
 #[group]
 fn renamed_layouter(#[layouter] region: &mut (), #[input] input: ()) {
     let _ = region;
-    let _ = input;
+    #[allow(path_statements)]
+    input;
 }
 
+// With group extraction disabled, `#[group]` must transparently forward the
+// layouter. This is a smoke test for that expansion; recording groups requires
+// a layouter that implements the extraction hooks.
 #[test]
 fn group_is_transparent_without_group_extraction() {
     let mut layouter = ();

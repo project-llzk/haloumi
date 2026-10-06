@@ -3,8 +3,8 @@
 use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident, quote};
 use syn::{
-    Attribute, DataStruct, DeriveInput, Expr, Field, Ident, ImplGenerics, Index, ItemTrait, Path,
-    TraitItem, Type, TypeGenerics, WhereClause, parse_str, parse2,
+    Attribute, DataStruct, DeriveInput, Field, Ident, ImplGenerics, Index, ItemTrait, Path,
+    TraitItem, Type, TypeGenerics, WhereClause, parse2,
 };
 
 use crate::{
@@ -206,7 +206,7 @@ fn get_data(input: &DeriveInput) -> syn::Result<&DataStruct> {
     match &input.data {
         syn::Data::Struct(data) => Ok(data),
         syn::Data::Enum(_) | syn::Data::Union(_) => Err(syn::Error::new_spanned(
-            &input,
+            input,
             "derive macro expects a struct",
         )),
     }

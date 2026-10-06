@@ -105,7 +105,7 @@ where
         for group in &mut groups {
             relativize_eq_constraints(group, &ctx)?;
         }
-        Ok(ResolvedIRCircuit(IRCircuit::new(
+        Ok(ResolvedIRCircuit::new(IRCircuit::new(
             groups,
             ResolvedCtx(ctx, Prime::new::<F>()),
         )))

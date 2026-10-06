@@ -37,6 +37,8 @@ jobs:
         uses: nicknovitski/nix-develop@v1
         env:
           CI_BOT_PAT: "${{ secrets.CI_BUILD_TOKEN }}"
+      - name: Install cargo-expand
+        run: cargo install cargo-expand
       - name: Cache cargo crates
         uses: actions/cache@v5
         with:
@@ -99,10 +101,14 @@ jobs:
       - name: Get default rustc target
         run: |
           rustc -vV | sed -n 's|host: |DEFAULT_RUST_TARGET=|p' >> $GITHUB_ENV
-      - name: Build in "dev+asan" mode
-        run: cargo build --target=$DEFAULT_RUST_TARGET --profile dev --all-features
-      - name: Run tests in "dev+asan" mode
-        run: cargo test --target=$DEFAULT_RUST_TARGET --profile dev --all-features
+      # In the ASAN job we only care about testing the parts of the code related to LLZK,
+      # since the goal of testing with ASAN is catching misuses of the native CAPI.
+      - name: Run "haloumi-llzk" tests in "dev+asan" mode
+        run: cargo test -p haloumi-llzk --target=$DEFAULT_RUST_TARGET --profile dev --all-features
+      - name: Run "haloumi" tests in "dev+asan" mode
+        run: cargo test -p haloumi --target=$DEFAULT_RUST_TARGET --profile dev --no-default-features --features llzk-backend
+      - name: Run "haloumi-extractor" tests in "dev+asan" mode
+        run: cargo test -p haloumi-extractor --target=$DEFAULT_RUST_TARGET --profile dev --all-features
 
   doc-links:
     if: github.event.pull_request.draft == false
@@ -146,8 +152,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@nightly
-      - run: rustup component add rustfmt --toolchain nightly
-      - run: cargo +nightly fmt --all -- --check
+      - run: rustup component add rustfmt 
+      - run: cargo fmt --all -- --check
 
   clippy:
     if: github.event.pull_request.draft == false

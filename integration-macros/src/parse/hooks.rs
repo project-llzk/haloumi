@@ -97,11 +97,9 @@ impl Hooks {
     pub fn cell(&self) -> Type {
         let path = self.cell.clone().unwrap_or_else(|| Path {
             leading_colon: None,
-            segments: Punctuated::from_iter(DEFAULT_CELL_TYPE.split("::").into_iter().map(|p| {
-                PathSegment {
-                    ident: format_ident!("{p}"),
-                    arguments: syn::PathArguments::None,
-                }
+            segments: Punctuated::from_iter(DEFAULT_CELL_TYPE.split("::").map(|p| PathSegment {
+                ident: format_ident!("{p}"),
+                arguments: syn::PathArguments::None,
             })),
         });
         Type::Path(TypePath {
@@ -114,11 +112,9 @@ impl Hooks {
     pub fn error(&self) -> Type {
         let path = self.error.clone().unwrap_or_else(|| Path {
             leading_colon: None,
-            segments: Punctuated::from_iter(DEFAULT_ERROR_TYPE.split("::").into_iter().map(|p| {
-                PathSegment {
-                    ident: format_ident!("{p}"),
-                    arguments: syn::PathArguments::None,
-                }
+            segments: Punctuated::from_iter(DEFAULT_ERROR_TYPE.split("::").map(|p| PathSegment {
+                ident: format_ident!("{p}"),
+                arguments: syn::PathArguments::None,
             })),
         });
         Type::Path(TypePath {

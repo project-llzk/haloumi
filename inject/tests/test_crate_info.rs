@@ -43,6 +43,27 @@ fn clone_skips_root_target_preserves_symlinks_and_rebases_paths() {
 }
 
 #[test]
+fn relative_source_path_rebases_dependencies_absolutely() {
+    let temp = tempfile::tempdir().unwrap();
+    let copy = temp.path().join("copy");
+    let source = Path::new("tests/crates/copy-source");
+    Crate::open(source).unwrap().clone_in_path(&copy).unwrap();
+
+    let manifest = cargo_toml::Manifest::from_path(copy.join("Cargo.toml")).unwrap();
+    let copied_path = manifest.dependencies["copy-sibling"]
+        .detail()
+        .unwrap()
+        .path
+        .as_deref()
+        .unwrap();
+    assert!(Path::new(copied_path).is_absolute());
+    assert_eq!(
+        Path::new(copied_path).canonicalize().unwrap(),
+        fixture("crates/copy-sibling").canonicalize().unwrap()
+    );
+}
+
+#[test]
 fn copied_workspace_member_has_a_standalone_readable_manifest() {
     let temp = tempfile::tempdir().unwrap();
     let copy = temp.path().join("copy");

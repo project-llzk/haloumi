@@ -18,17 +18,18 @@ pub struct Crate {
 impl Crate {
     /// Opens a crate at the given location in read-only mode.
     ///
-    /// Will try to parse `Cargo.toml` relative to that path. Fails if the file could not be found
-    /// or if it is malformed.
+    /// Canonicalizes the base path, then parses its `Cargo.toml`. Fails if the directory or
+    /// manifest could not be found, or if the manifest is malformed.
     pub fn open(base_path: impl AsRef<Path>) -> Result<Self, Error> {
-        let manifest = Manifest::from_path(base_path.as_ref().join("Cargo.toml"))?;
+        let base_path = base_path.as_ref().canonicalize()?;
+        let manifest = Manifest::from_path(base_path.join("Cargo.toml"))?;
         Ok(Self {
-            base_path: base_path.as_ref().to_path_buf(),
+            base_path,
             manifest,
         })
     }
 
-    /// Returns the base path of the crate.
+    /// Returns the canonical base path of the crate.
     pub fn base_path(&self) -> &Path {
         &self.base_path
     }
@@ -125,9 +126,8 @@ impl Crate {
     }
 
     fn validate_clone_destination(&self, dest: &Path) -> Result<(), Error> {
-        let source = self.base_path().canonicalize()?;
         let destination = resolve_path(dest)?;
-        if destination.starts_with(source) {
+        if destination.starts_with(self.base_path()) {
             return Err(Error::InvalidCloneDestination(dest.to_path_buf()));
         }
         Ok(())

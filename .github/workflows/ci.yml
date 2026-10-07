@@ -105,10 +105,10 @@ jobs:
       # since the goal of testing with ASAN is catching misuses of the native CAPI.
       - name: Run "haloumi-llzk" tests in "dev+asan" mode
         run: cargo test -p haloumi-llzk --target=$DEFAULT_RUST_TARGET --profile dev --all-features
-      - name: Run "haloumi" tests in "dev+asan" mode
-        run: cargo test -p haloumi --target=$DEFAULT_RUST_TARGET --profile dev --no-default-features --features llzk-backend
-      # - name: Run "haloumi-extractor" tests in "dev+asan" mode
-      #   run: cargo test -p haloumi-extractor --target=$DEFAULT_RUST_TARGET --profile dev --all-features
+      - name: Run "haloumi-driver" tests in "dev+asan" mode
+        run: cargo test -p haloumi-driver --target=$DEFAULT_RUST_TARGET --profile dev --no-default-features --features llzk-backend
+      - name: Run "haloumi-extractor" tests in "dev+asan" mode
+        run: cargo test -p haloumi-extractor --target=$DEFAULT_RUST_TARGET --profile dev --all-features
 
   doc-links:
     if: github.event.pull_request.draft == false
@@ -208,6 +208,14 @@ jobs:
         if: always()
         run: cargo clippy -p haloumi-extractor-core --all-targets --all-features -- -Dwarnings --no-deps
 
+      - name: Run Clippy on `haloumi-extractor`
+        if: always()
+        run: cargo clippy -p haloumi-extractor --all-targets --all-features -- -Dwarnings --no-deps
+
+      - name: Run Clippy on `haloumi-extractor-runner`
+        if: always()
+        run: cargo clippy -p haloumi-extractor-runner --all-targets --all-features -- -Dwarnings --no-deps
+
       - name: Run Clippy on `haloumi-backend`
         if: always()
         run: cargo clippy -p haloumi-backend --all-targets --all-features -- -Dwarnings --no-deps
@@ -221,9 +229,9 @@ jobs:
         if: always()
         run: cargo clippy -p haloumi-llzk --all-targets --all-features -- -Dwarnings --no-deps
 
-      - name: Run Clippy on `haloumi`
+      - name: Run Clippy on `haloumi-driver`
         if: always()
-        run: cargo clippy -p haloumi --all-targets --all-features -- -Dwarnings --no-deps
+        run: cargo clippy -p haloumi-driver --all-targets --all-features -- -Dwarnings --no-deps
 
       - name: Run Clippy on `haloumi-integration-macros`
         if: always()

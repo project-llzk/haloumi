@@ -87,43 +87,43 @@ impl<'c> LlzkParams<'c> {
     // Builder methods
 
     /// Sets the name of the top-level struct.
-    pub fn with_top_level<S: ToString>(mut self, s: S) -> Self {
+    pub fn with_top_level<S: ToString>(&mut self, s: S) -> &mut Self {
         self.top_level = Some(s.to_string());
         self
     }
 
     /// Removes the name of the top-level struct.
-    pub fn no_top_level(mut self) -> Self {
+    pub fn no_top_level(&mut self) -> &mut Self {
         self.top_level = None;
         self
     }
 
     /// Sets lowering to inlining everything into one module.
-    pub fn with_inline(mut self) -> Self {
+    pub fn with_inline(&mut self) -> &mut Self {
         self.inline = true;
         self
     }
 
     /// Sets lowering to creating separate modules for each group.
-    pub fn no_inline(mut self) -> Self {
+    pub fn no_inline(&mut self) -> &mut Self {
         self.inline = false;
         self
     }
 
     /// Enables optimizations.
-    pub fn with_optimization(mut self) -> Self {
+    pub fn with_optimization(&mut self) -> &mut Self {
         self.optimize = true;
         self
     }
 
     /// Disables optimizations.
-    pub fn no_optimize(mut self) -> Self {
+    pub fn no_optimize(&mut self) -> &mut Self {
         self.optimize = false;
         self
     }
 
     /// Sets the prime field spec.
-    pub fn with_prime_field(mut self, name: &str, prime: Prime) -> Self {
+    pub fn with_prime_field(&mut self, name: &str, prime: Prime) -> &mut Self {
         self.spec = Some(FieldSpecParam {
             name: name.to_owned(),
             prime: Some(prime),
@@ -132,7 +132,7 @@ impl<'c> LlzkParams<'c> {
     }
 
     /// Sets the prime field from a builtin spec.
-    pub fn with_builtin_field(mut self, name: &str) -> Self {
+    pub fn with_builtin_field(&mut self, name: &str) -> &mut Self {
         self.spec = Some(FieldSpecParam {
             name: name.to_owned(),
             prime: None,
@@ -141,31 +141,31 @@ impl<'c> LlzkParams<'c> {
     }
 
     /// Removes the prime field spec.
-    pub fn no_prime_field(mut self) -> Self {
+    pub fn no_prime_field(&mut self) -> &mut Self {
         self.spec = None;
         self
     }
 
     /// Sets the `members_are_signals` flag to true.
-    pub fn with_members_as_signals(mut self) -> Self {
+    pub fn with_members_as_signals(&mut self) -> &mut Self {
         self.members_are_signals = true;
         self
     }
 
     /// Sets the `members_are_signals` flag to false.
-    pub fn without_members_as_signals(mut self) -> Self {
+    pub fn without_members_as_signals(&mut self) -> &mut Self {
         self.members_are_signals = false;
         self
     }
 
     /// Sets the `members_are_columns` flag to true.
-    pub fn with_members_as_columns(mut self) -> Self {
+    pub fn with_members_as_columns(&mut self) -> &mut Self {
         self.members_are_columns = true;
         self
     }
 
     /// Sets the `members_are_columns` flag to false.
-    pub fn without_members_as_columns(mut self) -> Self {
+    pub fn without_members_as_columns(&mut self) -> &mut Self {
         self.members_are_columns = false;
         self
     }

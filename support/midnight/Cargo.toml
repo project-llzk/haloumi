@@ -16,10 +16,12 @@ haloumi-core = { path = "../../core", version = "0.5.3" }
 ff = {workspace = true }
 
 [dependencies.midnight-proofs]
-git = "https://github.com/Veridise/midnight-zk.git"
-default-features = false
-features = [
-    "circuit-params",
-    "committed-instances",
-    "region-groups"
-]
+path = "../mock-halo2/"
+package = "haloumi-mock-halo2"
+# git = "https://github.com/Veridise/midnight-zk.git"
+# default-features = false
+# features = [
+#     "circuit-params",
+#     "committed-instances",
+#     "region-groups"
+# ]

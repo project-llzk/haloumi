@@ -1,0 +1,22 @@
+[package]
+name = "haloumi-test-circuits"
+categories = {workspace = true}
+version = {workspace = true}
+authors = {workspace = true}
+edition = {workspace = true}
+rust-version = {workspace = true}
+readme = "README.md"
+repository = {workspace = true}
+license-file = {workspace = true}
+keywords = {workspace = true}
+publish = false
+
+[dependencies.halo2]
+path = "../mock-halo2/"
+package = "haloumi-mock-halo2"
+
+[dependencies]
+ff = {workspace = true}
+anyhow = "1"
+haloumi-integration = { path = "../../integration/", features = ["extractor"] }
+haloumi-ir = { path = "../../ir/" }

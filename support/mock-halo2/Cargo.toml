@@ -1,0 +1,15 @@
+[package]
+name = "haloumi-mock-halo2"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+ff.workspace = true
+haloumi-core = { path = "../../core" }
+haloumi-integration = { path = "../../integration" }
+
+[dev-dependencies]
+halo2curves.workspace = true

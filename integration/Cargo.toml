@@ -25,6 +25,7 @@ haloumi-integration-macros = { path = "../integration-macros", optional = true }
 
 [dev-dependencies]
 rstest = "0"
+halo2curves.workspace = true
 
 [build-dependencies]
 anyhow = "1"

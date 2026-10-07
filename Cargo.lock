@@ -842,6 +842,7 @@ version = "0.5.15"
 dependencies = [
  "anyhow",
  "ff",
+ "halo2curves 0.7.0",
  "haloumi-core",
  "haloumi-extractor-core",
  "haloumi-integration-macros",

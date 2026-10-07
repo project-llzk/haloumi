@@ -165,3 +165,47 @@ fn open_rust_file_rejects_parent_directory_path() {
         Err(Error::InvalidCrateRelativePath(_))
     ));
 }
+
+#[test]
+fn clone_in_path_rejects_destination_inside_source() {
+    let source = fixture("crates/test1");
+    let destination = source.join("patched");
+
+    let result = Crate::open(&source).unwrap().clone_in_path(&destination);
+
+    assert!(matches!(
+        result,
+        Err(Error::InvalidCloneDestination(path)) if path == destination
+    ));
+    assert!(!destination.exists());
+}
+
+#[test]
+fn clone_in_path_rejects_source_as_destination() {
+    let source = fixture("crates/test1");
+
+    let result = Crate::open(&source).unwrap().clone_in_path(&source);
+
+    assert!(matches!(
+        result,
+        Err(Error::InvalidCloneDestination(path)) if path == source
+    ));
+}
+
+#[cfg(unix)]
+#[test]
+fn clone_in_path_rejects_destination_inside_source_via_symlink() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = fixture("crates/test1");
+    let source_alias = temp.path().join("source-alias");
+    let destination = source_alias.join("patched");
+    std::os::unix::fs::symlink(&source, &source_alias).unwrap();
+
+    let result = Crate::open(&source).unwrap().clone_in_path(&destination);
+
+    assert!(matches!(
+        result,
+        Err(Error::InvalidCloneDestination(path)) if path == destination
+    ));
+    assert!(!source.join("patched").exists());
+}

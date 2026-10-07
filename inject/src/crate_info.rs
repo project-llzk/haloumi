@@ -55,7 +55,8 @@ impl Crate {
 
     /// Creates a copy of the crate in the provided path.
     ///
-    /// Creates the directory if it doesn't exists.
+    /// Creates the directory if it doesn't exists. The destination cannot be the source crate or
+    /// a descendant of it.
     ///
     /// This is the only way to create a [`CrateMut`] from the public API.
     pub fn clone_in_path(&self, dest: impl AsRef<Path>) -> Result<CrateMut, Error> {
@@ -65,6 +66,8 @@ impl Crate {
             dest.as_ref().display()
         );
         let dest = dest.as_ref();
+
+        self.validate_clone_destination(dest)?;
 
         self.warn_manifest_overrides();
 
@@ -121,6 +124,15 @@ impl Crate {
         manifest.workspace = None;
     }
 
+    fn validate_clone_destination(&self, dest: &Path) -> Result<(), Error> {
+        let source = self.base_path().canonicalize()?;
+        let destination = resolve_path(dest)?;
+        if destination.starts_with(source) {
+            return Err(Error::InvalidCloneDestination(dest.to_path_buf()));
+        }
+        Ok(())
+    }
+
     #[expect(
         deprecated,
         reason = "[replace] manifests remain supported for copied crates"
@@ -139,6 +151,21 @@ impl Crate {
             );
         }
     }
+}
+
+fn resolve_path(path: &Path) -> Result<PathBuf, Error> {
+    let path = std::path::absolute(path)?;
+    let mut existing_ancestor = path.as_path();
+    while !existing_ancestor.exists() {
+        existing_ancestor = existing_ancestor
+            .parent()
+            .expect("an absolute path has an existing ancestor");
+    }
+
+    let suffix = path
+        .strip_prefix(existing_ancestor)
+        .expect("an ancestor is a path prefix");
+    Ok(existing_ancestor.canonicalize()?.join(suffix))
 }
 
 fn copy_files_rec(base: &Path, dest: &Path, current: &Path) -> Result<(), Error> {

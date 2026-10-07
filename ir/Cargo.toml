@@ -22,10 +22,12 @@ haloumi-lowering = { path = "../lowering", version = "0.5.5" }
 num-bigint.workspace = true
 bit-set.workspace = true
 
+
 [dev-dependencies]
 rstest = "0.26"
 similar-asserts = "1.7"
 ff = { workspace = true, features = ["derive"] }
 halo2curves = "0.9"
-quickcheck = "1"
-quickcheck_macros = "1"
+quickcheck.workspace = true
+quickcheck_macros.workspace = true
+

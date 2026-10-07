@@ -98,7 +98,7 @@ impl<'i> DeriveItem<'i> {
                         .map(|(_, items)| items)
                         .unwrap()
                         .iter_mut(),
-                    target,
+                    &target[1..],
                 )
             }
             syn::Item::Struct(item_struct) if is_single_ident!(item_struct, target) => {
@@ -257,4 +257,24 @@ fn attr_target_not_found_error(
 
 fn invalid_target_error(location: impl ToString, target_type: impl ToString) -> Error {
     Error::InvalidAttributeTarget(location.to_string(), target_type.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn find_locates_type_in_inline_module() {
+        let mut file: syn::File = syn::parse_quote! {
+            mod foo {
+                struct Bar;
+            }
+        };
+        let target: syn::Path = syn::parse_quote!(foo::Bar);
+        let segments = Vec::from_iter(target.segments);
+
+        let item = DeriveItem::find(file.items.iter_mut(), &segments).unwrap();
+
+        assert!(matches!(item, DeriveItem::Struct(item) if item.ident == "Bar"));
+    }
 }

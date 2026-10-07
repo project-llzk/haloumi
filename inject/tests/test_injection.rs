@@ -150,3 +150,17 @@ fn test_inject1(_setup: (), dest: DestFixture, specs: SpecRegistry) {
 fn test_inject2(_setup: (), dest: DestFixture, specs: SpecRegistry) {
     do_inject(&dest, specs, "tests/crates/test2");
 }
+
+#[rstest]
+fn inject_derives_trait_on_nested_type(_setup: (), dest: DestFixture, specs: SpecRegistry) {
+    do_inject(&dest, specs, "tests/crates/nested-derive");
+    dest.rust_file_contents_eq(
+        "src/lib.rs",
+        r#"
+            mod foo {
+                #[derive(Debug)]
+                pub struct Bar;
+            }
+        "#,
+    );
+}

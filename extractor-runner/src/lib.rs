@@ -74,6 +74,7 @@ impl ExtractorMain {
             return;
         };
         eprintln!("Extraction failed: {err}");
+        exit(1);
     }
 
     fn new() -> Result<Self, Error> {

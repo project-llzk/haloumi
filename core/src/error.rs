@@ -34,7 +34,7 @@ pub enum Error {
     MissingFixedValue(usize, usize),
     /// Plonk synthesis error.
     #[error("Synthesis error")]
-    Plonk(Arc<dyn std::error::Error>),
+    Plonk(Arc<dyn std::error::Error + Send + Sync>),
     /// Int cast error.
     #[error(transparent)]
     IntCast(#[from] std::num::TryFromIntError),
@@ -54,6 +54,24 @@ pub enum Error {
         /// The number of elements.
         actual: usize,
     },
+}
+
+impl From<&'static str> for Error {
+    fn from(value: &'static str) -> Self {
+        Self::StrError(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Error;
+
+    #[test]
+    fn is_send_and_sync() {
+        fn assert_send_and_sync<T: Send + Sync>() {}
+
+        assert_send_and_sync::<Error>();
+    }
 }
 
 impl From<&'static str> for Error {

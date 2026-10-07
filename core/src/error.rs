@@ -73,12 +73,3 @@ mod tests {
         assert_send_and_sync::<Error>();
     }
 }
-
-impl From<&'static str> for Error {
-    fn from(value: &'static str) -> Self {
-        Self::StrError(value)
-    }
-}
-
-unsafe impl Send for Error {}
-unsafe impl Sync for Error {}

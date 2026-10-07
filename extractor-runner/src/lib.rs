@@ -102,10 +102,11 @@ impl ExtractorMain {
         harnesses: impl Iterator<Item = &'static Harness>,
         preludes: Vec<&'static PreludeEntry>,
     ) -> Result<(), Error> {
+        let harnesses = Self::validate_harnesses(harnesses)?;
         match self.cli.action() {
             Action::List => {
                 if self.cli.list {
-                    self.print_harness_list(harnesses);
+                    self.print_harness_list(harnesses.into_iter());
                 }
                 if self.cli.list_preludes {
                     self.print_prelude_list(&preludes);
@@ -114,9 +115,23 @@ impl ExtractorMain {
             }
             Action::Extract => {
                 let preludes = self.select_preludes(preludes)?;
-                self.extract(harnesses, &preludes)
+                self.extract(harnesses.into_iter(), &preludes)
             }
         }
+    }
+
+    fn validate_harnesses(
+        harnesses: impl Iterator<Item = &'static Harness>,
+    ) -> Result<Vec<&'static Harness>, Error> {
+        let mut names = std::collections::HashSet::new();
+        let mut registered = Vec::new();
+        for harness in harnesses {
+            if !names.insert(harness.name()) {
+                return Err(Error::DuplicateRegisteredHarness(harness.name().to_owned()));
+            }
+            registered.push(harness);
+        }
+        Ok(registered)
     }
 
     fn print_harness_list(&self, harnesses: impl Iterator<Item = &'static Harness>) {
@@ -371,4 +386,49 @@ pub enum Error {
     /// Raised when multiple linked crates register the same prelude name.
     #[error("Prelude {0:?} is registered more than once")]
     DuplicateRegisteredPrelude(String),
+    /// Raised when multiple linked crates register the same harness name.
+    #[error("Harness {0:?} is registered more than once")]
+    DuplicateRegisteredHarness(String),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn unused_harness(_: &Extractor) -> haloumi_extractor::Output {
+        unreachable!()
+    }
+
+    static FIRST_HARNESS: Harness = Harness::new("first", unused_harness);
+    static SECOND_HARNESS: Harness = Harness::new("second", unused_harness);
+    static DUPLICATE_HARNESS: Harness = Harness::new("first", unused_harness);
+
+    #[test]
+    fn rejects_duplicate_registered_harnesses() {
+        let error = ExtractorMain::validate_harnesses(
+            [&FIRST_HARNESS, &DUPLICATE_HARNESS].into_iter(),
+        )
+        .unwrap_err();
+
+        assert!(matches!(
+            error,
+            Error::DuplicateRegisteredHarness(name) if name == "first"
+        ));
+    }
+
+    #[test]
+    fn accepts_unique_registered_harnesses_in_registration_order() {
+        let harnesses = ExtractorMain::validate_harnesses(
+            [&SECOND_HARNESS, &FIRST_HARNESS].into_iter(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            harnesses
+                .into_iter()
+                .map(Harness::name)
+                .collect::<Vec<_>>(),
+            ["second", "first"]
+        );
+    }
 }

@@ -2,7 +2,7 @@
 
 use haloumi_ir::{
     IRCircuit, Prime,
-    diagnostics::DiagnosticsError,
+    diagnostics::{DiagnosticsError, SimpleDiagnostic},
     expr::IRAexpr,
     groups::{ConstantFoldingError, IRGroup},
     printer::{self, IRPrintable, IRPrinter, IRPrinterCtx},
@@ -133,19 +133,9 @@ impl ResolvedIRCircuit {
 
     /// Validates the IR, returning errors if it failed.
     pub fn validate(&self) -> Result<(), Error> {
-        let groups = self
-            .0
-            .body()
-            .iter()
-            .chain(self.1.iter())
-            .cloned()
-            .collect::<Vec<_>>();
         let mut errors = Vec::new();
-        for group in &groups {
-            if let Err(group_errors) = group.validate_with_context(&groups) {
-                errors.extend(group_errors);
-            }
-        }
+        collect_validation_errors(self.0.body(), &mut errors);
+        collect_validation_errors(&self.1, &mut errors);
         if !errors.is_empty() {
             return Err(ResolvedIRError::Validation {
                 count: errors.len(),
@@ -154,6 +144,14 @@ impl ResolvedIRCircuit {
             .into());
         }
         Ok(())
+    }
+}
+
+fn collect_validation_errors(groups: &[IRGroup<IRAexpr>], errors: &mut Vec<SimpleDiagnostic>) {
+    for group in groups {
+        if let Err(group_errors) = group.validate_with_context(groups) {
+            errors.extend(group_errors);
+        }
     }
 }
 
@@ -210,5 +208,53 @@ pub(crate) enum ResolvedIRError {
 impl From<ResolvedIRError> for Error {
     fn from(value: ResolvedIRError) -> Self {
         Error::new(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use haloumi_ir::groups::{GroupKey, callsite::CallSite};
+
+    fn prelude_group(id: usize) -> IRGroup<IRAexpr> {
+        IRGroup::new(format!("prelude-{id}"), id).with_key(Some(id as GroupKey))
+    }
+
+    #[test]
+    fn validates_callsite_between_rebased_prelude_groups() {
+        let caller_id = PRELUDE_GROUP_ID_MASK;
+        let callee_id = PRELUDE_GROUP_ID_MASK | 1;
+        let caller = prelude_group(caller_id).with_callsites([CallSite::new(
+            0,
+            "prelude-callee".to_owned(),
+            1,
+            callee_id,
+            vec![],
+            vec![],
+        )]);
+        let callee = prelude_group(callee_id);
+        let preludes = vec![caller, callee];
+        let mut errors = Vec::new();
+
+        collect_validation_errors(&preludes, &mut errors);
+
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn prelude_callsite_cannot_target_a_group_outside_the_prelude_context() {
+        let caller = prelude_group(PRELUDE_GROUP_ID_MASK).with_callsites([CallSite::new(
+            0,
+            "normal-group".to_owned(),
+            1,
+            1,
+            vec![],
+            vec![],
+        )]);
+        let mut errors = Vec::new();
+
+        collect_validation_errors(&[caller], &mut errors);
+
+        assert!(!errors.is_empty());
     }
 }

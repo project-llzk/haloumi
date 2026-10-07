@@ -227,16 +227,9 @@ impl<E> IRGroup<E> {
     ) -> Result<(), ValidationErrors> {
         let callee_id = callsite.callee_id();
         let callee = groups
-            .get(callee_id)
+            .iter()
+            .find(|group| group.id() == callee_id)
             .ok_or(ValidationErrors::CalleeNotFound { callee_id })?;
-        if callee.id() != callsite.callee_id() {
-            return Err(ValidationErrors::WrongCallee {
-                callsite_name: callsite.name().to_string(),
-                callsite_id: callee_id,
-                callee_name: callee.name().to_string(),
-                callee_id: callee.id(),
-            });
-        }
         if callee.input_count != callsite.inputs().len() {
             return Err(ValidationErrors::UnexpectedInputs {
                 callee_name: callee.name().to_string(),
@@ -327,15 +320,6 @@ enum ValidationErrors {
     #[error("Callee with id {callee_id} was not found")]
     CalleeNotFound { callee_id: usize },
     #[error(
-        "Callsite points to \"{callsite_name}\" ({callsite_id}) but callee was \"{callee_name}\" ({callee_id})"
-    )]
-    WrongCallee {
-        callsite_name: String,
-        callsite_id: usize,
-        callee_name: String,
-        callee_id: usize,
-    },
-    #[error(
         "Callee \"{callee_name}\" ({callee_id}) was expecting {callee_count} inputs but callsite has {callsite_count}"
     )]
     UnexpectedInputs {
@@ -362,6 +346,74 @@ enum ValidationErrors {
         callsite_count: usize,
         callsite_vars_count: usize,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::expr::IRAexpr;
+
+    fn group(id: usize) -> IRGroup<IRAexpr> {
+        IRGroup::new(format!("group-{id}"), id).with_key(Some(id as GroupKey))
+    }
+
+    fn callsite(callee_id: usize) -> CallSite<IRAexpr> {
+        CallSite::new(
+            0,
+            format!("group-{callee_id}"),
+            callee_id as GroupKey,
+            callee_id,
+            vec![],
+            vec![],
+        )
+    }
+
+    #[test]
+    fn validates_callsite_with_positional_callee_id() {
+        let caller = group(0).with_callsites([callsite(1)]);
+        let callee = group(1);
+
+        assert!(
+            caller
+                .validate_with_context(&[caller.clone(), callee])
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn rejects_callsite_with_missing_callee_id() {
+        let caller = group(0).with_callsites([callsite(1)]);
+
+        assert!(
+            caller
+                .validate_with_context(std::slice::from_ref(&caller))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn rejects_callsite_with_wrong_input_arity() {
+        let caller = group(0).with_callsites([callsite(1)]);
+        let callee = group(1).with_input_count(1);
+
+        assert!(
+            caller
+                .validate_with_context(&[caller.clone(), callee])
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn rejects_callsite_with_wrong_output_arity() {
+        let caller = group(0).with_callsites([callsite(1)]);
+        let callee = group(1).with_output_count(1);
+
+        assert!(
+            caller
+                .validate_with_context(&[caller.clone(), callee])
+                .is_err()
+        );
+    }
 }
 
 impl<E: ConstantFolding> ConstantFolding for IRGroup<E>

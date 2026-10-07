@@ -61,10 +61,10 @@ where
         ctx: &IRCtx,
         strat: impl CodegenStrategy,
     ) -> Result<C::Output, C::Error> {
-        log::debug!("Initializing code generator");
+        log::info!("Initializing code generator");
         let codegen = self.create_codegen();
         codegen.set_prime_field(ir.prime())?;
-        log::debug!(
+        log::info!(
             "Starting code generation with {} strategy...",
             std::any::type_name_of_val(&strat)
         );
@@ -72,7 +72,7 @@ where
         PreludesCodegenStrat::default().codegen(&codegen, ctx, ir)?;
         strat.codegen(&codegen, ctx, ir)?;
 
-        log::debug!("Code generation completed");
+        log::info!("Code generation completed");
         codegen.generate_output()
     }
 }

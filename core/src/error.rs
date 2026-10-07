@@ -42,7 +42,7 @@ pub enum Error {
     #[error(transparent)]
     BigIntCast(#[from] TryFromBigIntError<BigInt>),
     /// An error represented with an static string.
-    #[error("Error")]
+    #[error("Error: {0}")]
     StrError(&'static str),
     /// Error when an encountered an unexpected number of elements.
     #[error("{header}Was expecting {expected} elements but got {actual}")]

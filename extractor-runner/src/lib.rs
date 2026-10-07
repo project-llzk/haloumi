@@ -405,10 +405,9 @@ mod tests {
 
     #[test]
     fn rejects_duplicate_registered_harnesses() {
-        let error = ExtractorMain::validate_harnesses(
-            [&FIRST_HARNESS, &DUPLICATE_HARNESS].into_iter(),
-        )
-        .unwrap_err();
+        let error =
+            ExtractorMain::validate_harnesses([&FIRST_HARNESS, &DUPLICATE_HARNESS].into_iter())
+                .unwrap_err();
 
         assert!(matches!(
             error,
@@ -418,16 +417,12 @@ mod tests {
 
     #[test]
     fn accepts_unique_registered_harnesses_in_registration_order() {
-        let harnesses = ExtractorMain::validate_harnesses(
-            [&SECOND_HARNESS, &FIRST_HARNESS].into_iter(),
-        )
-        .unwrap();
+        let harnesses =
+            ExtractorMain::validate_harnesses([&SECOND_HARNESS, &FIRST_HARNESS].into_iter())
+                .unwrap();
 
         assert_eq!(
-            harnesses
-                .into_iter()
-                .map(Harness::name)
-                .collect::<Vec<_>>(),
+            harnesses.into_iter().map(Harness::name).collect::<Vec<_>>(),
             ["second", "first"]
         );
     }

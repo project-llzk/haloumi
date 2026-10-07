@@ -3,7 +3,7 @@ use std::{collections::HashMap, convert::Infallible};
 use ff::Field;
 use haloumi_core::expressions::{EvaluableExpr, ExprBuilder, ExpressionInfo};
 use haloumi_ir::{Slot, meta::HasMeta as _, stmt::IRStmt};
-use haloumi_synthesis::SynthesizedCircuit;
+use haloumi_synthesis::{SynthesizedCircuit, selector::SelectorSet};
 
 use crate::{
     expressions::{ScopedExpression, UnresolvedExpr},
@@ -12,6 +12,7 @@ use crate::{
         callbacks::LookupCallbacks,
         table::{LookupTableGenerator, tables_for_lookup},
     },
+    patterns::find_selector_factors,
     regions::region_row::RegionRow,
     temps::{ExprOrTemp, Temp, Temps},
 };
@@ -40,8 +41,22 @@ where
         .collect::<Vec<_>>();
     let mut temps = Temps::new();
     let ir = lookup_cb.on_lookups(&lookups, &tables, &mut temps)?;
+    // Selectors that multiply every input of each lookup. When one of them is disabled on a
+    // row, all the lookup's inputs are zero there and the lookup is vacuous. Lookups without
+    // such selectors are conservatively treated as active on every row.
+    let gating = lookups
+        .iter()
+        .map(|lookup| lookup_gating_selectors(lookup.inputs()))
+        .collect::<Vec<_>>();
+    let lookup_is_live = |rr: &RegionRow<'syn, 'ctx, 'syn, F>, gating: &SelectorSet| {
+        gating
+            .iter()
+            .all(|selector| rr.selector_is_enabled(selector))
+    };
     region_rows
         .iter()
+        // Skip rows where every lookup is vacuous.
+        .filter(|rr| gating.iter().any(|g| lookup_is_live(rr, g)))
         .enumerate()
         .map(|(n, rr)| {
             let mut region_ir = ir.map_into(&mut |e| {
@@ -102,6 +117,18 @@ fn rebase_temps<T: std::fmt::Debug>(stmt: &mut IRStmt<ExprOrTemp<T>>, temps: &mu
         Ok(())
     })
     .unwrap();
+}
+
+/// Returns the selectors that multiply every input of a lookup.
+fn lookup_gating_selectors<F, E: EvaluableExpr<F>>(inputs: &[E]) -> SelectorSet {
+    let mut inputs = inputs.iter().map(find_selector_factors);
+    let Some(mut gating) = inputs.next() else {
+        return SelectorSet::default();
+    };
+    for factors in inputs {
+        gating.intersect_with(&factors);
+    }
+    gating
 }
 
 #[cfg(test)]

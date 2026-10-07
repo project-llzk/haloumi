@@ -1,0 +1,7 @@
+#!/bin/sh
+printf '%s' "$PWD" >> "$INJECT_TESTER_LOG"
+for argument in "$@"; do
+    printf ' %s' "$argument" >> "$INJECT_TESTER_LOG"
+done
+printf '\n' >> "$INJECT_TESTER_LOG"
+exit "${INJECT_TESTER_STATUS:-0}"

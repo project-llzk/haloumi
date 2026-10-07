@@ -134,3 +134,34 @@ fn generated_file_commits_once_and_rejects_collisions() {
     copied.commit().unwrap();
     assert!(copy.join("src/bin/generated.rs").is_file());
 }
+
+#[test]
+fn open_rust_file_rejects_absolute_path() {
+    let temp = tempfile::tempdir().unwrap();
+    let copy = temp.path().join("copy");
+    let mut copied = Crate::open(fixture("crates/test1"))
+        .unwrap()
+        .clone_in_path(&copy)
+        .unwrap();
+
+    assert!(matches!(
+        copied.open_rust_file(fixture("crates/test1/src/lib.rs")),
+        Err(Error::InvalidCrateRelativePath(_))
+    ));
+}
+
+#[test]
+fn open_rust_file_rejects_parent_directory_path() {
+    let temp = tempfile::tempdir().unwrap();
+    let copy = temp.path().join("copy");
+    std::fs::write(temp.path().join("outside.rs"), "pub struct Outside;\n").unwrap();
+    let mut copied = Crate::open(fixture("crates/test1"))
+        .unwrap()
+        .clone_in_path(&copy)
+        .unwrap();
+
+    assert!(matches!(
+        copied.open_rust_file("../outside.rs"),
+        Err(Error::InvalidCrateRelativePath(_))
+    ));
+}

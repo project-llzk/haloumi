@@ -237,13 +237,15 @@ impl CrateMut {
         })
     }
 
-    /// Opens a Rust file for editing. The path of the Rust file must be relative to the crate.
+    /// Opens a Rust file for editing. The path must be relative to the crate and cannot contain
+    /// `..`.
     ///
     /// Returns the parsed AST. That means that this method will fail
     /// if the file is not found or if the file couldn't be parsed.
     pub fn open_rust_file(&mut self, path: impl AsRef<Path>) -> Result<&mut syn::File, Error> {
-        let full_path = self.base_path().join(&path);
         let path = path.as_ref().to_path_buf();
+        self.validate_crate_relative_path(&path)?;
+        let full_path = self.base_path().join(&path);
         let entry = self.rust_files_cache.entry(path);
         match entry {
             Entry::Occupied(entry) => Ok(entry.into_mut()),
@@ -301,6 +303,16 @@ impl CrateMut {
         file: RustFile,
     ) -> Result<(), Error> {
         let path = path.as_ref();
+        self.validate_crate_relative_path(path)?;
+        if self.base_path().join(path).exists() || self.rust_files_cache.contains_key(path) {
+            return Err(Error::GeneratedFileExists(path.to_path_buf()));
+        }
+        self.rust_files_cache
+            .insert(path.to_path_buf(), file.into_inner());
+        Ok(())
+    }
+
+    fn validate_crate_relative_path(&self, path: &Path) -> Result<(), Error> {
         if path.is_absolute()
             || path
                 .components()
@@ -308,11 +320,6 @@ impl CrateMut {
         {
             return Err(Error::InvalidCrateRelativePath(path.to_path_buf()));
         }
-        if self.base_path().join(path).exists() || self.rust_files_cache.contains_key(path) {
-            return Err(Error::GeneratedFileExists(path.to_path_buf()));
-        }
-        self.rust_files_cache
-            .insert(path.to_path_buf(), file.into_inner());
         Ok(())
     }
 

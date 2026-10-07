@@ -21,7 +21,8 @@ pub fn group_impl(input_fn: ItemFn, _: GroupArgs) -> syn::Result<TokenStream> {
 
     let (layouter, io) = locate_attributes(&input_fn)?;
     let layouter = select_layouter(&layouter, input_fn.sig.span())?;
-    let io_annotations = generate_io_annotations(io, &group_ident, &integration);
+    let (input_annotations, output_annotations) =
+        generate_io_annotations(io, &group_ident, &integration);
     let cleaned_inputs = clean_inputs(input_fn.sig.inputs.iter());
 
     Ok(emit_wrapped_fn(
@@ -32,7 +33,8 @@ pub fn group_impl(input_fn: ItemFn, _: GroupArgs) -> syn::Result<TokenStream> {
         &input_fn.sig.output,
         layouter,
         &group_ident,
-        io_annotations.into_iter(),
+        input_annotations.into_iter(),
+        output_annotations.into_iter(),
         &input_fn.block,
         &integration,
         &impl_generics,
@@ -49,7 +51,8 @@ fn emit_wrapped_fn(
     output: &ReturnType,
     layouter: Ident,
     group_ident: &Ident,
-    io_annotations: impl Iterator<Item = TokenStream>,
+    input_annotations: impl Iterator<Item = TokenStream>,
+    output_annotations: impl Iterator<Item = TokenStream>,
     user_block: &Block,
     integration: &Ident,
     impl_generics: &syn::ImplGenerics,
@@ -63,8 +66,9 @@ fn emit_wrapped_fn(
                 || stringify!(#fn_ident),
                 #integration::core::default_group_key!(),
                 |#layouter, #group_ident| {
-                    #(#io_annotations)*
+                    #(#input_annotations)*
                     let inner_result = #user_block;
+                    #(#output_annotations)*
                     #integration::__annotate_output_cells!(#group_ident, inner_result);
                     inner_result
                 }
@@ -112,10 +116,19 @@ fn generate_io_annotations(
     io: Vec<AnnotatedPat>,
     group_ident: &Ident,
     integration: &Ident,
-) -> Vec<TokenStream> {
-    io.into_iter()
-        .filter_map(move |(attr, pat)| attr.emit_code(&pat.pat, group_ident, integration))
-        .collect()
+) -> (Vec<TokenStream>, Vec<TokenStream>) {
+    io.into_iter().fold(
+        (Vec::new(), Vec::new()),
+        |(mut inputs, mut outputs), (attr, pat)| {
+            if let Some(input) = attr.emit_input_code(&pat.pat, group_ident, integration) {
+                inputs.push(input);
+            }
+            if let Some(output) = attr.emit_output_code(&pat.pat, group_ident, integration) {
+                outputs.push(output);
+            }
+            (inputs, outputs)
+        },
+    )
 }
 
 fn clean_inputs<'a>(inputs: impl Iterator<Item = &'a FnArg>) -> impl Iterator<Item = FnArg> {
@@ -191,19 +204,31 @@ impl ArgAttributes {
         Some(ArgAttributes::try_from_attrs(&pat.attrs, pat.span())?.map(|attr| (attr, pat)))
     }
 
-    fn emit_code(self, pat: &Pat, group_ident: &Ident, integration: &Ident) -> Option<TokenStream> {
+    fn emit_input_code(
+        self,
+        pat: &Pat,
+        group_ident: &Ident,
+        integration: &Ident,
+    ) -> Option<TokenStream> {
         match self {
-            Self::Input => Some(quote! {
+            Self::Input | Self::InputOutput => Some(quote! {
                 #integration::__annotate_input_cells!(#group_ident, #pat);
             }),
-            Self::Output => Some(quote! {
+            Self::Output | Self::Layouter => None,
+        }
+    }
+
+    fn emit_output_code(
+        self,
+        pat: &Pat,
+        group_ident: &Ident,
+        integration: &Ident,
+    ) -> Option<TokenStream> {
+        match self {
+            Self::Output | Self::InputOutput => Some(quote! {
                 #integration::__annotate_output_cells!(#group_ident, #pat);
             }),
-            Self::InputOutput => Some(quote! {
-                #integration::__annotate_input_cells!(#group_ident, #pat);
-                #integration::__annotate_output_cells!(#group_ident, #pat);
-            }),
-            Self::Layouter => None,
+            Self::Input | Self::Layouter => None,
         }
     }
 }
@@ -277,6 +302,47 @@ mod tests {
                 haloumi_integration::__group!(layouter, || stringify!(foo), haloumi_integration::core::default_group_key!(), |layouter, __foo__group| {
                     haloumi_integration::__annotate_input_cells!(__foo__group, inputs);
                     let inner_result = { inputs.iter().try_fold(F::ZERO, |acc, i| self.bar(layouter, i, acc)) };
+                    haloumi_integration::__annotate_output_cells!(__foo__group, inner_result);
+                    inner_result
+                })
+            }
+            "#,
+        );
+    }
+
+    #[test]
+    fn annotates_output_parameters_after_the_function_body() {
+        do_test(
+            r#"
+                #[group]
+                fn foo(
+                    layouter: &mut impl Layouter<F>,
+                    #[input] input: &AssignedNative<F>,
+                    #[output] output: &mut Option<AssignedNative<F>>,
+                    #[input] #[output] input_output: &mut Option<AssignedNative<F>>,
+                ) -> Result<(), Error> {
+                    *output = Some(self.bar(layouter, input)?);
+                    *input_output = Some(self.bar(layouter, input)?);
+                    Ok(())
+                }
+                "#,
+            r#"
+            fn foo(
+                layouter: &mut impl Layouter<F>,
+                input: &AssignedNative<F>,
+                output: &mut Option<AssignedNative<F>>,
+                input_output: &mut Option<AssignedNative<F>>,
+            ) -> Result<(), Error> {
+                haloumi_integration::__group!(layouter, || stringify!(foo), haloumi_integration::core::default_group_key!(), |layouter, __foo__group| {
+                    haloumi_integration::__annotate_input_cells!(__foo__group, input);
+                    haloumi_integration::__annotate_input_cells!(__foo__group, input_output);
+                    let inner_result = {
+                        *output = Some(self.bar(layouter, input)?);
+                        *input_output = Some(self.bar(layouter, input)?);
+                        Ok(())
+                    };
+                    haloumi_integration::__annotate_output_cells!(__foo__group, output);
+                    haloumi_integration::__annotate_output_cells!(__foo__group, input_output);
                     haloumi_integration::__annotate_output_cells!(__foo__group, inner_result);
                     inner_result
                 })

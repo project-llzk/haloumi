@@ -9,6 +9,7 @@ pub mod diagnostics;
 pub mod error;
 pub mod expr;
 pub mod groups;
+pub mod inject;
 pub mod meta;
 pub mod printer;
 mod slot;

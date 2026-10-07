@@ -18,11 +18,13 @@ use crate::{ctx::IRCtx, error::Error};
 type Circuit = IRCircuit<IRAexpr, ResolvedCtx>;
 
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(super) struct ResolvedCtx(pub IRCtx, pub Prime);
 
 /// Circuit that has resolved its expressions and is no longer tied to the lifetime of the
 /// synthesis and is not parametrized on a prime field.
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ResolvedIRCircuit(Circuit, Vec<IRGroup<IRAexpr>>);
 
 const PRELUDE_GROUP_ID_MASK: usize = 1usize << (usize::BITS - 1);

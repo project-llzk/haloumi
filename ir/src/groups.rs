@@ -16,13 +16,17 @@ use haloumi_lowering::{
 use std::fmt::Write;
 use thiserror::Error;
 
+#[cfg(any(test, feature = "arbitrary"))]
+use quickcheck::Arbitrary;
+
 /// Uniquely identifies groups that represent the same semantics.
 pub type GroupKey = u64;
 
 pub mod callsite;
 
 /// Body of a group.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct IRGroup<E> {
     name: String,
     /// Index in the original groups array.
@@ -36,6 +40,23 @@ pub struct IRGroup<E> {
     lookups: IRStmt<E>,
     injected: Vec<IRStmt<E>>,
     generate_debug_comments: bool,
+}
+
+#[cfg(any(test, feature = "arbitrary"))]
+impl<E: Arbitrary> Arbitrary for IRGroup<E> {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let mut group = Self::new(String::arbitrary(g), usize::arbitrary(g))
+            .with_input_count(usize::arbitrary(g))
+            .with_output_count(usize::arbitrary(g))
+            .with_key(Option::<GroupKey>::arbitrary(g))
+            .with_gates(IRStmt::arbitrary(g))
+            .with_copy_constraints(IRStmt::arbitrary(g))
+            .with_callsites(Vec::<CallSite<E>>::arbitrary(g))
+            .with_lookups(IRStmt::arbitrary(g))
+            .do_debug_comments(bool::arbitrary(g));
+        group.inject(IRStmt::arbitrary(g));
+        group
+    }
 }
 
 impl<E> IRGroup<E> {
@@ -268,6 +289,31 @@ impl<E> IRGroup<E> {
     /// Returns a mutable reference to the copy constraints.
     pub fn eq_constraints_mut(&mut self) -> &mut IRStmt<E> {
         &mut self.eq_constraints
+    }
+
+    /// Returns true iff the two groups are structurally equal.
+    ///
+    /// This method is useful when you need to check if two groups are
+    /// exactly equal to each other.
+    ///
+    /// The implementation of `PartialEq` used by this type will check that
+    /// two groups are semantically equal.
+    pub fn exact_eq(&self, other: &Self) -> bool
+    where
+        E: PartialEq,
+    {
+        self.name.eq(&other.name)
+            && self.id == other.id
+            && self.input_count == other.input_count
+            && self.output_count == other.output_count
+            && self.key == other.key
+            && self.gates.exact_eq(&other.gates)
+            && self.eq_constraints.exact_eq(&other.eq_constraints)
+            && self.callsites.eq(&other.callsites)
+            && self.lookups.exact_eq(&other.lookups)
+            && self.injected.len() == other.injected.len()
+            && std::iter::zip(&self.injected, &other.injected).all(|(lhs, rhs)| lhs.exact_eq(rhs))
+            && self.generate_debug_comments == other.generate_debug_comments
     }
 }
 
@@ -550,5 +596,19 @@ impl<E: IRPrintable> IRPrintable for IRGroup<E> {
 
             Ok(())
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "serde")]
+    use quickcheck_macros::quickcheck;
+
+    use super::*;
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn group_round_trips(value: IRGroup<()>) {
+        assert!(value.exact_eq(&crate::serde_tests_helpers::round_trip(&value)));
     }
 }

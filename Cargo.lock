@@ -1061,6 +1061,8 @@ dependencies = [
  "quickcheck",
  "quickcheck_macros",
  "rstest 0.26.1",
+ "serde",
+ "serde_json",
  "similar-asserts",
  "thiserror",
 ]
@@ -1074,6 +1076,7 @@ dependencies = [
  "haloumi-ir",
  "haloumi-synthesis",
  "log",
+ "serde",
  "thiserror",
 ]
 
@@ -1158,6 +1161,10 @@ dependencies = [
  "ff",
  "haloumi-core",
  "log",
+ "quickcheck",
+ "quickcheck_macros",
+ "serde",
+ "serde_json",
  "thiserror",
 ]
 

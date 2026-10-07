@@ -158,3 +158,17 @@ pub mod ff {
         h.helper_seqs_with(|| i(1, R::cur()), || c(2));
     }
 }
+
+#[cfg(feature = "serde")]
+mod serde {
+    use quickcheck_macros::quickcheck;
+
+    use crate::serde_tests_helpers::round_trip;
+
+    use super::super::*;
+
+    #[quickcheck]
+    fn statement_round_trips(value: IRStmt<()>) {
+        assert!(value.exact_eq(&round_trip(&value)));
+    }
+}

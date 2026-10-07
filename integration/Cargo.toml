@@ -1,0 +1,33 @@
+[package]
+name = "haloumi-integration"
+description = "Helpers for integrating Haloumi with Halo2 implementations."
+categories = {workspace = true}
+version = {workspace = true}
+authors = {workspace = true}
+edition = {workspace = true}
+rust-version = {workspace = true}
+readme = "README.md"
+repository = {workspace = true}
+license-file = {workspace = true}
+keywords = {workspace = true}
+
+[dependencies]
+ff.workspace = true
+num-bigint.workspace = true
+thiserror.workspace = true
+num-traits = "0.2"
+haloumi-core = { path = "../core" }
+haloumi-extractor-core = { path = "../extractor-core" }
+haloumi-ir = { path = "../ir" }
+haloumi-synthesis = { path = "../synthesis" }
+haloumi-ir-gen = { path = "../ir-gen" }
+haloumi-integration-macros = { path = "../integration-macros", optional = true }
+
+[dev-dependencies]
+rstest = "0"
+
+[build-dependencies]
+anyhow = "1"
+
+[features]
+derive = ["dep:haloumi-integration-macros"]

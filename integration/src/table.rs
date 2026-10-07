@@ -1,0 +1,202 @@
+//! Macros for integrating types in the [`haloumi_core::table`] module.
+
+/// Implements `From<RegionIndex>` for [`haloumi_core::table::RegionIndex`].
+///
+/// The macro needs to be injected in the same file where `RegionIndex` is defined.
+#[macro_export]
+macro_rules! __impl_from_region_index_for_haloumi_region_index {
+    ($region_index:ty) => {
+        impl From<$region_index> for $crate::core::table::RegionIndex {
+            fn from(idx: $region_index) -> Self {
+                Self::from(idx.0)
+            }
+        }
+    };
+}
+
+/// Implements `From<Cell>` for [`haloumi_core::table::Cell`].
+///
+/// The macro needs to be injected in the same file where `Cell` is defined.
+#[macro_export]
+macro_rules! __impl_from_cell_for_haloumi_cell {
+    ($cell:ty) => {
+        impl From<$cell> for $crate::core::table::Cell {
+            fn from(cell: $cell) -> Self {
+                Self {
+                    region_index: cell.region_index.into(),
+                    row_offset: cell.row_offset,
+                    column: cell.column.into(),
+                }
+            }
+        }
+
+        impl From<$crate::core::table::Cell> for $cell {
+            fn from(cell: $crate::core::table::Cell) -> Self {
+                Self {
+                    region_index: (*cell.region_index).into(),
+                    row_offset: cell.row_offset,
+                    column: cell.column.into(),
+                }
+            }
+        }
+    };
+}
+
+/// Implements `FromCell` for [`haloumi_core::table::Cell`].
+#[macro_export]
+macro_rules! __impl_from_cell_for_asigned_cell {
+    ($($assigned_cell:ident)::+, $field:path) => {
+        impl<F: $field, V> $crate::core::table::FromCell for $($assigned_cell)::+<V, F> {
+            fn from_cell(cell: $crate::core::table::Cell) -> Self {
+                Self {
+                    value: Default::default(),
+                    cell: cell.into(),
+                    _marker: Default::default(),
+                }
+            }
+        }
+    };
+}
+
+/// Implements the required traits for integrating with [`haloumi_core::table::Column`].
+#[macro_export]
+macro_rules! __impl_column_support {
+    ($column_trait:path, $($column:ident)::+, $any:path, $instance:ty, $advice:ty,$fixed:ty) => {
+        impl<F: $column_trait + Into<T>, T: $crate::core::table::ColumnType> From<$($column)::+<F>>
+            for $crate::core::table::Column<T>
+        {
+            fn from(value: $($column)::+<F>) -> Self {
+                Self::new(value.index, value.column_type.into())
+            }
+        }
+
+        impl<F: $crate::core::table::ColumnType + Into<T>, T: $column_trait> From<$crate::core::table::Column<F>>
+            for $($column)::+<T>
+        {
+            fn from(value: $crate::core::table::Column<F>) -> Self {
+                Self {
+                    index: value.index(),
+                    column_type: (*value.column_type()).into(),
+                }
+            }
+        }
+
+        impl TryFrom<$($column)::+<$any>> for $crate::core::table::Column<$crate::core::query::Instance> {
+            type Error = <$($column)::+<$instance> as TryFrom<$($column)::+<$any>>>::Error;
+
+            fn try_from(value: $($column)::+<$any>) -> Result<Self, Self::Error> {
+                $($column)::+::<$instance>::try_from(value).map(Into::into)
+            }
+        }
+
+        impl TryFrom<$($column)::+<$any>> for $crate::core::table::Column<$crate::core::query::Advice> {
+            type Error = <$($column)::+<$advice> as TryFrom<$($column)::+<$any>>>::Error;
+
+            fn try_from(value: $($column)::+<$any>) -> Result<Self, Self::Error> {
+                $($column)::+::<$advice>::try_from(value).map(Into::into)
+            }
+        }
+
+        impl TryFrom<$($column)::+<$any>> for $crate::core::table::Column<$crate::core::query::Fixed> {
+            type Error = <$($column)::+<$fixed> as TryFrom<$($column)::+<$any>>>::Error;
+
+            fn try_from(value: $($column)::+<$any>) -> Result<Self, Self::Error> {
+                $($column)::+::<$fixed>::try_from(value).map(Into::into)
+            }
+        }
+
+        impl From<$any> for $crate::core::table::Any {
+            fn from(value: $any) -> Self {
+                use $any::*;
+                match value {
+                    Advice(_) => Self::Advice,
+                    Fixed => Self::Fixed,
+                    Instance => Self::Instance,
+                }
+            }
+        }
+
+        impl From<$crate::core::table::Any> for $any {
+            fn from(value: $crate::core::table::Any) -> Self {
+                use $crate::core::table::Any::*;
+                match value {
+                    Advice => Self::Advice(Default::default()),
+                    Fixed => Self::Fixed,
+                    Instance => Self::Instance,
+                }
+            }
+        }
+
+        impl From<$instance> for $crate::core::query::Instance {
+            fn from(_: $instance) -> Self {
+                Self
+            }
+        }
+
+        impl From<$crate::core::query::Instance> for $instance {
+            fn from(_: $crate::core::query::Instance) -> Self {
+                Self
+            }
+        }
+
+        impl From<$instance> for $crate::core::table::Any {
+            fn from(_: $instance) -> Self {
+                Self::Instance
+            }
+        }
+
+        impl From<$crate::core::query::Instance> for $any {
+            fn from(_: $crate::core::query::Instance) -> Self {
+                Self::Instance
+            }
+        }
+
+        impl From<$advice> for $crate::core::query::Advice {
+            fn from(_: $advice) -> Self {
+                Self
+            }
+        }
+
+        impl From<$crate::core::query::Advice> for $advice {
+            fn from(_: $crate::core::query::Advice) -> Self {
+                Default::default()
+            }
+        }
+
+        impl From<$advice> for $crate::core::table::Any {
+            fn from(_: $advice) -> Self {
+                Self::Advice
+            }
+        }
+
+        impl From<$crate::core::query::Advice> for $any {
+            fn from(_: $crate::core::query::Advice) -> Self {
+                Self::Advice(Default::default())
+            }
+        }
+
+        impl From<$fixed> for $crate::core::query::Fixed {
+            fn from(_: $fixed) -> Self {
+                Self
+            }
+        }
+
+        impl From<$crate::core::query::Fixed> for $fixed {
+            fn from(_: $crate::core::query::Fixed) -> Self {
+                Self
+            }
+        }
+
+        impl From<$fixed> for $crate::core::table::Any {
+            fn from(_: $fixed) -> Self {
+                Self::Fixed
+            }
+        }
+
+        impl From<$crate::core::query::Fixed> for $any {
+            fn from(_: $crate::core::query::Fixed) -> Self {
+                Self::Fixed
+            }
+        }
+    };
+}

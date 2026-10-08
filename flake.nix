@@ -100,6 +100,38 @@
             // pkgs.llzkSharedEnvironment.env
             // pkgs.llzkSharedEnvironment.devSettings
           );
+          ci = pkgs.mkShell (
+            {
+              nativeBuildInputs = pkgs.llzkSharedEnvironment.nativeBuildInputs;
+              buildInputs = pkgs.llzkSharedEnvironment.devBuildInputs ++ [
+                pkgs.rust-bin.stable.latest.minimal
+              ];
+            }
+            // pkgs.llzkSharedEnvironment.env
+            // pkgs.llzkSharedEnvironment.devSettings
+          );
+          nightly-ci = pkgs.mkShell (
+            {
+              nativeBuildInputs = pkgs.llzkSharedEnvironment.nativeBuildInputs;
+              buildInputs = pkgs.llzkSharedEnvironment.devBuildInputs ++ [
+                pkgs.rust-bin.nightly.latest.minimal
+              ];
+            }
+            // pkgs.llzkSharedEnvironment.env
+            // pkgs.llzkSharedEnvironment.devSettings
+          );
+          clippy-ci = pkgs.mkShell (
+            {
+              nativeBuildInputs = pkgs.llzkSharedEnvironment.nativeBuildInputs;
+              buildInputs = pkgs.llzkSharedEnvironment.devBuildInputs ++ [
+                (pkgs.rust-bin.stable.latest.minimal.override {
+                  extensions = [ "clippy" ];
+                })
+              ];
+            }
+            // pkgs.llzkSharedEnvironment.env
+            // pkgs.llzkSharedEnvironment.devSettings
+          );
         };
       }
     );

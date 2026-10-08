@@ -35,6 +35,8 @@ jobs:
           authToken: '${{ secrets.CACHIX_PUBLIC_TOKEN }}'
       - name: Set nix environment
         uses: nicknovitski/nix-develop@v1
+        with:
+          arguments: "'.#ci'"
         env:
           CI_BOT_PAT: "${{ secrets.CI_BUILD_TOKEN }}"
       - name: Cache cargo crates
@@ -74,7 +76,7 @@ jobs:
       - name: Set nix environment
         uses: nicknovitski/nix-develop@v1
         with:
-          arguments: "'.#nightly'"
+          arguments: "'.#nightly-ci'"
         env:
           CI_BOT_PAT: "${{ secrets.CI_BUILD_TOKEN }}"
       - name: Set sanitizer options
@@ -128,6 +130,8 @@ jobs:
           authToken: '${{ secrets.CACHIX_PUBLIC_TOKEN }}'
       - name: Set nix environment
         uses: nicknovitski/nix-develop@v1
+        with:
+          arguments: "'.#ci'"
         env:
           CI_BOT_PAT: "${{ secrets.CI_BUILD_TOKEN }}"
       - name: cargo fetch
@@ -175,6 +179,8 @@ jobs:
           authToken: '${{ secrets.CACHIX_PUBLIC_TOKEN }}'
       - name: Set nix environment
         uses: nicknovitski/nix-develop@v1
+        with:
+          arguments: "'.#clippy-ci'"
         env:
           CI_BOT_PAT: "${{ secrets.CI_BUILD_TOKEN }}"
 

@@ -1,5 +1,6 @@
 use std::{
     hash::Hash,
+    marker::PhantomData,
     panic::{AssertUnwindSafe, catch_unwind},
 };
 
@@ -23,6 +24,40 @@ impl DecomposeIn<TestCell> for TestValue {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct TestError;
+
+#[derive(Clone)]
+struct NoopHooks;
+
+impl RegionsGroupHooks<(), TestCell> for NoopHooks {
+    type Error = TestError;
+    type RootHook = Self;
+
+    fn get_root_hook(&mut self) -> &mut Self::RootHook {
+        self
+    }
+
+    fn push_group<N, NR, K>(&mut self, _name: N, _key: K)
+    where
+        N: FnOnce() -> NR,
+        NR: Into<String>,
+        K: GroupKey,
+    {
+    }
+
+    fn pop_group(&mut self, _meta: RegionsGroup<TestCell>) {}
+}
+
+#[derive(haloumi_integration_macros::RegionsGroupHooks)]
+#[cell(TestCell)]
+#[error(TestError)]
+struct DelegatingHooks<F, T>
+where
+    T: Clone,
+{
+    _field: PhantomData<F>,
+    #[delegate]
+    inner: T,
+}
 
 #[derive(Debug, PartialEq, Eq)]
 struct RecordedGroup {
@@ -108,6 +143,17 @@ impl RegionsGroupHooks<(), TestCell> for RecordingLayouter {
             .children
             .push(group);
     }
+}
+
+#[test]
+fn derived_group_hooks_merge_generated_and_existing_where_clauses() {
+    fn assert_group_hooks<T>()
+    where
+        T: RegionsGroupHooks<(), TestCell, Error = TestError>,
+    {
+    }
+
+    assert_group_hooks::<DelegatingHooks<(), NoopHooks>>();
 }
 
 /// The generated code only requires a layouter with a `group` method. This

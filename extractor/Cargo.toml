@@ -12,12 +12,12 @@ license-file = {workspace = true}
 keywords = {workspace = true}
 
 [dependencies]
-haloumi-ir-gen = { path = "../ir-gen/" }
-haloumi-ir = { path = "../ir/" }
-haloumi-driver = { path = "../driver/" }
-haloumi-synthesis = { path = "../synthesis/" }
-haloumi-core = { path = "../core/" }
-haloumi-extractor-core = { path = "../extractor-core/" }
+haloumi-ir-gen = { path = "../ir-gen/", version = "0.5.15" }
+haloumi-ir = { path = "../ir/", version = "0.5.15" }
+haloumi-driver = { path = "../driver/", version = "0.5.15" }
+haloumi-synthesis = { path = "../synthesis/", version = "0.5.15" }
+haloumi-core = { path = "../core/", version = "0.5.15" }
+haloumi-extractor-core = { path = "../extractor-core/", version = "0.5.15" }
 # haloumi-integration = { path = "../integration/" }
 ff.workspace = true
 thiserror.workspace = true

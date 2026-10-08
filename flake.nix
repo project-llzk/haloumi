@@ -44,6 +44,12 @@
           ];
         };
 
+        stableCiRust = pkgs.rust-bin.stable."1.98.0".minimal;
+        nightlyCiRust = pkgs.rust-bin.nightly."2026-08-28".minimal;
+        clippyCiRust = stableCiRust.override {
+          extensions = [ "clippy" ];
+        };
+
         haloumi = pkgs.rustPlatform.buildRustPackage (
           {
             pname = "haloumi";
@@ -104,7 +110,7 @@
             {
               nativeBuildInputs = pkgs.llzkSharedEnvironment.nativeBuildInputs;
               buildInputs = pkgs.llzkSharedEnvironment.devBuildInputs ++ [
-                pkgs.rust-bin.stable.latest.minimal
+                stableCiRust
               ];
             }
             // pkgs.llzkSharedEnvironment.env
@@ -114,7 +120,7 @@
             {
               nativeBuildInputs = pkgs.llzkSharedEnvironment.nativeBuildInputs;
               buildInputs = pkgs.llzkSharedEnvironment.devBuildInputs ++ [
-                pkgs.rust-bin.nightly.latest.minimal
+                nightlyCiRust
               ];
             }
             // pkgs.llzkSharedEnvironment.env
@@ -124,9 +130,7 @@
             {
               nativeBuildInputs = pkgs.llzkSharedEnvironment.nativeBuildInputs;
               buildInputs = pkgs.llzkSharedEnvironment.devBuildInputs ++ [
-                (pkgs.rust-bin.stable.latest.minimal.override {
-                  extensions = [ "clippy" ];
-                })
+                clippyCiRust
               ];
             }
             // pkgs.llzkSharedEnvironment.env

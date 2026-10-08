@@ -8,10 +8,7 @@ use haloumi_ir::{
     printer::{self, IRPrintable, IRPrinter, IRPrinterCtx},
     traits::{Canonicalize as _, ConstantFolding, Validatable as _},
 };
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::Write as _,
-};
+use std::{collections::HashSet, fmt::Write as _};
 
 use crate::{ctx::IRCtx, error::Error};
 
@@ -24,8 +21,6 @@ pub(super) struct ResolvedCtx(pub IRCtx, pub Prime);
 /// synthesis and is not parametrized on a prime field.
 #[derive(Debug)]
 pub struct ResolvedIRCircuit(Circuit, Vec<IRGroup<IRAexpr>>);
-
-const PRELUDE_GROUP_ID_MASK: usize = 1usize << (usize::BITS - 1);
 
 impl ResolvedIRCircuit {
     pub(super) fn new(circuit: Circuit) -> Self {
@@ -44,10 +39,9 @@ impl ResolvedIRCircuit {
 
     /// Adds semantic prelude groups to this circuit.
     ///
-    /// Prelude groups are assigned IDs in a separate, high-bit-masked range. Call sites inside
-    /// the supplied groups are rebased to those IDs and may only target a group supplied in the
-    /// same call.
-    pub fn add_prelude_groups(&mut self, mut groups: Vec<IRGroup<IRAexpr>>) -> Result<(), Error> {
+    /// Prelude groups keep their IDs. Each ID must match the group's position in the prelude
+    /// namespace, which is separate from the main group namespace.
+    pub fn add_prelude_groups(&mut self, groups: Vec<IRGroup<IRAexpr>>) -> Result<(), Error> {
         let mut names = self
             .0
             .body()
@@ -56,8 +50,6 @@ impl ResolvedIRCircuit {
             .map(|group| group.name().to_owned())
             .collect::<HashSet<_>>();
         let start = self.1.len();
-        let mut ids = HashMap::new();
-
         for (offset, group) in groups.iter().enumerate() {
             if group.is_main() {
                 return Err(Error::new(PreludeError::MainGroup(group.name().to_owned())));
@@ -67,23 +59,13 @@ impl ResolvedIRCircuit {
                     group.name().to_owned(),
                 )));
             }
-            let old_id = group.id();
-            let new_id = PRELUDE_GROUP_ID_MASK | (start + offset);
-            if ids.insert(old_id, new_id).is_some() {
-                return Err(Error::new(PreludeError::DuplicateId(old_id)));
+            let position = start + offset;
+            if group.id() != position {
+                return Err(Error::new(PreludeError::WrongId {
+                    position,
+                    id: group.id(),
+                }));
             }
-        }
-
-        for group in &mut groups {
-            for callsite in group.callsites_mut() {
-                let old_id = callsite.callee_id();
-                let new_id = ids
-                    .get(&old_id)
-                    .copied()
-                    .ok_or_else(|| Error::new(PreludeError::UnknownCallsiteTarget(old_id)))?;
-                callsite.set_callee_id(new_id);
-            }
-            group.set_id(ids[&group.id()]);
         }
         self.1.extend(groups);
         Ok(())
@@ -175,12 +157,14 @@ pub enum PreludeError {
     /// More than one group uses the same backend module name.
     #[error("duplicate group name {0:?}")]
     DuplicateName(String),
-    /// More than one prelude group uses the same local ID.
-    #[error("duplicate prelude group ID {0}")]
-    DuplicateId(usize),
-    /// A prelude call site targets a group outside the appended prelude.
-    #[error("prelude call site targets unknown local group ID {0}")]
-    UnknownCallsiteTarget(usize),
+    /// A prelude group's ID does not match its position in the prelude namespace.
+    #[error("prelude group at position {position} has id {id}")]
+    WrongId {
+        /// Position of the group in the prelude namespace.
+        position: usize,
+        /// ID stored by the group.
+        id: usize,
+    },
 }
 
 impl IRPrintable for ResolvedCtx {
@@ -221,18 +205,16 @@ mod tests {
     }
 
     #[test]
-    fn validates_callsite_between_rebased_prelude_groups() {
-        let caller_id = PRELUDE_GROUP_ID_MASK;
-        let callee_id = PRELUDE_GROUP_ID_MASK | 1;
-        let caller = prelude_group(caller_id).with_callsites([CallSite::new(
+    fn validates_callsite_between_prelude_groups() {
+        let caller = prelude_group(0).with_callsites([CallSite::new(
             0,
             "prelude-callee".to_owned(),
             1,
-            callee_id,
+            1,
             vec![],
             vec![],
         )]);
-        let callee = prelude_group(callee_id);
+        let callee = prelude_group(1);
         let preludes = vec![caller, callee];
         let mut errors = Vec::new();
 
@@ -243,7 +225,7 @@ mod tests {
 
     #[test]
     fn prelude_callsite_cannot_target_a_group_outside_the_prelude_context() {
-        let caller = prelude_group(PRELUDE_GROUP_ID_MASK).with_callsites([CallSite::new(
+        let caller = prelude_group(0).with_callsites([CallSite::new(
             0,
             "normal-group".to_owned(),
             1,
@@ -256,5 +238,23 @@ mod tests {
         collect_validation_errors(&[caller], &mut errors);
 
         assert!(!errors.is_empty());
+    }
+
+    #[test]
+    #[should_panic(expected = "Callsite points to group 1 but group has id 0")]
+    fn rejects_prelude_callsite_when_group_id_does_not_match_its_position() {
+        let caller = prelude_group(0).with_callsites([CallSite::new(
+            0,
+            "prelude-callee".to_owned(),
+            1,
+            1,
+            vec![],
+            vec![],
+        )]);
+        let callee = prelude_group(0);
+
+        caller
+            .validate_with_context(&[caller.clone(), callee])
+            .unwrap();
     }
 }

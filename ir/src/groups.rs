@@ -25,7 +25,9 @@ pub mod callsite;
 #[derive(Debug, Clone)]
 pub struct IRGroup<E> {
     name: String,
-    /// Index in the original groups array.
+    /// Position in this group's namespace.
+    ///
+    /// Main groups and prelude groups have separate namespaces.
     id: usize,
     input_count: usize,
     output_count: usize,
@@ -138,12 +140,12 @@ impl<E> IRGroup<E> {
         &mut self.name
     }
 
-    /// Returns the id of the group.
+    /// Returns this group's position in its namespace.
     pub fn id(&self) -> usize {
         self.id
     }
 
-    /// Sets the id of the group.
+    /// Sets this group's position in its namespace.
     pub fn set_id(&mut self, id: usize) {
         self.id = id;
     }
@@ -227,9 +229,14 @@ impl<E> IRGroup<E> {
     ) -> Result<(), ValidationErrors> {
         let callee_id = callsite.callee_id();
         let callee = groups
-            .iter()
-            .find(|group| group.id() == callee_id)
+            .get(callee_id)
             .ok_or(ValidationErrors::CalleeNotFound { callee_id })?;
+        if callee.id() != callee_id {
+            return Err(ValidationErrors::WrongCallee {
+                callsite_id: callee_id,
+                callee_id: callee.id(),
+            });
+        }
         if callee.input_count != callsite.inputs().len() {
             return Err(ValidationErrors::UnexpectedInputs {
                 callee_name: callee.name().to_string(),
@@ -319,6 +326,11 @@ impl ValidationFailed {
 enum ValidationErrors {
     #[error("Callee with id {callee_id} was not found")]
     CalleeNotFound { callee_id: usize },
+    #[error("Callsite points to group {callsite_id} but group has id {callee_id}")]
+    WrongCallee {
+        callsite_id: usize,
+        callee_id: usize,
+    },
     #[error(
         "Callee \"{callee_name}\" ({callee_id}) was expecting {callee_count} inputs but callsite has {callsite_count}"
     )]
@@ -389,6 +401,17 @@ mod tests {
                 .validate_with_context(std::slice::from_ref(&caller))
                 .is_err()
         );
+    }
+
+    #[test]
+    #[should_panic(expected = "Callsite points to group 1 but group has id 0")]
+    fn rejects_callsite_when_group_id_does_not_match_its_position() {
+        let caller = group(0).with_callsites([callsite(1)]);
+        let callee = group(0);
+
+        caller
+            .validate_with_context(&[caller.clone(), callee])
+            .unwrap();
     }
 
     #[test]

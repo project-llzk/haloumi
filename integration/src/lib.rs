@@ -112,7 +112,10 @@ pub fn big_to_fe<F: PrimeField>(e: BigUint) -> F {
 /// If the value is negative it wraps around the field's modulus.
 pub fn sbig_to_fe<F: PrimeField>(mut e: BigInt) -> F {
     let modulus = modulus_signed::<F>();
-    e = (e % modulus).abs();
+    e %= &modulus;
+    if e.is_negative() {
+        e += modulus;
+    }
     F::from_str_vartime(&e.to_str_radix(10)[..]).unwrap()
 }
 
@@ -134,4 +137,23 @@ macro_rules! cell_to_expr {
             .map(|r| c.column.query_cell::<$F>(r))
             .map_err($crate::error::Error::from)
     }};
+}
+
+#[cfg(test)]
+mod tests {
+    use ff::Field as _;
+    use halo2curves::bn256::Fq;
+    use num_bigint::BigInt;
+
+    use super::sbig_to_fe;
+
+    #[test]
+    fn sbig_to_fe_converts_positive_values() {
+        assert_eq!(sbig_to_fe::<Fq>(BigInt::from(1)), Fq::ONE);
+    }
+
+    #[test]
+    fn sbig_to_fe_wraps_negative_values() {
+        assert_eq!(sbig_to_fe::<Fq>(BigInt::from(-1)), -Fq::ONE);
+    }
 }

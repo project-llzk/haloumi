@@ -27,3 +27,20 @@ enum Variants {
     SkipFirst(#[skip] Skipped, Included),
     SkipLast(Included, #[skip] Skipped),
 }
+
+#[derive(DecomposeInCells)]
+#[cell(Cell)]
+enum HeterogeneousVariants {
+    Unit,
+    Single(Included),
+    Pair(Included, Included),
+}
+
+#[derive(DecomposeInCells)]
+#[cell(Cell)]
+struct WithWhere<T>
+where
+    T: Clone,
+{
+    value: T,
+}

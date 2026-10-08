@@ -16,6 +16,7 @@ haloumi-ir-gen = { path = "../ir-gen/" }
 haloumi-synthesis = { path = "../synthesis/" }
 haloumi-core = { path = "../core/" }
 haloumi-extractor = { path = "../extractor/" }
+haloumi-extractor-core = { path = "../extractor-core/" }
 # haloumi-integration = { path = "../integration/" }
 haloumi-driver = { path = "../driver/" }
 ff.workspace = true

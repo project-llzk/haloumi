@@ -18,7 +18,7 @@ impl Prelude {
     }
 
     /// Adds a new prelude to the list.
-    pub fn add<F>(mut self, name: String, n_inputs: usize, n_outputs: usize, body: F) -> Self
+    pub fn add<F>(&mut self, name: String, n_inputs: usize, n_outputs: usize, body: F) -> &mut Self
     where
         F: Fn(&[Slot], &[Slot]) -> IRStmt<IRAexpr>,
     {

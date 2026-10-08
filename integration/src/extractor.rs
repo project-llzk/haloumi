@@ -15,7 +15,7 @@ pub mod core {
 macro_rules! __impl_harnesses_root_function {
     ($name:ident) => {
         pub fn $name() -> impl Iterator<Item = &'static $crate::extractor::Harness> {
-            $crate::extractor::::inventory::iter::<$crate::extractor::Harness>()
+            $crate::extractor::inventory::iter::<$crate::extractor::Harness>()
         }
     };
 }

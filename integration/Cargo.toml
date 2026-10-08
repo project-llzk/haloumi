@@ -32,3 +32,6 @@ anyhow = "1"
 
 [features]
 derive = ["dep:haloumi-integration-macros"]
+# Enables `cfg(groups)` for the macro runtime. This mirrors extraction mode and
+# is intended for Haloumi's tests, not for downstream circuit consumers.
+cfg-groups = []

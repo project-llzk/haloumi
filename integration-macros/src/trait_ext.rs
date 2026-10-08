@@ -3,8 +3,8 @@
 use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident, quote};
 use syn::{
-    Attribute, DataStruct, DeriveInput, Field, Ident, ImplGenerics, Index, ItemTrait, Path,
-    TraitItem, Type, TypeGenerics, WhereClause, parse2,
+    Attribute, DataStruct, DeriveInput, Field, Generics, Ident, Index, ItemTrait, Path, TraitItem,
+    Type, WherePredicate, parse_quote, parse2,
 };
 
 use crate::{
@@ -77,10 +77,8 @@ struct Emitter<'i> {
     error: Path,
     input: &'i DeriveInput,
     target: &'i Ident,
-    impl_generics: ImplGenerics<'i>,
-    ty_generics: TypeGenerics<'i>,
-    where_clause: Option<&'i WhereClause>,
-    bounds: Vec<TokenStream>,
+    generics: Generics,
+    bounds: Vec<WherePredicate>,
     root_type: TokenStream,
     root_expr: TokenStream,
     delegate_expr: Option<TokenStream>,
@@ -89,16 +87,13 @@ struct Emitter<'i> {
 impl<'i> Emitter<'i> {
     fn new(cell: Path, error: Path, input: &'i DeriveInput) -> syn::Result<Self> {
         let module = get_haloumi_integration_module()?;
-        let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
         Ok(Self {
             module,
             cell,
             error,
             target: &input.ident,
             input,
-            impl_generics,
-            ty_generics,
-            where_clause,
+            generics: input.generics.clone(),
             bounds: Default::default(),
             root_type: quote! {Self},
             root_expr: quote! {self},
@@ -111,14 +106,14 @@ impl<'i> Emitter<'i> {
         self.delegate_expr = Some(quote! {self.#name});
         let trait_name = self.trait_name();
         let ty = remove_ref(ty);
-        self.bounds.push(quote! {#ty: #trait_name});
+        self.bounds.push(parse_quote! { #ty: #trait_name });
     }
 
     fn set_root(&mut self, name: impl ToTokens, ty: &Type) {
         self.root_expr = quote! {self.#name.get_root_hook()};
         self.root_type = quote! {#ty::RootHook};
         let trait_name = self.trait_name();
-        self.bounds.push(quote! {#ty: #trait_name});
+        self.bounds.push(parse_quote! { #ty: #trait_name });
     }
 
     fn find_field_generic(&self) -> Ident {
@@ -156,7 +151,7 @@ impl<'i> Emitter<'i> {
         quote! { #module::RegionsGroupHooks<#field, #cell> }
     }
 
-    fn emit(self) -> TokenStream {
+    fn emit(mut self) -> TokenStream {
         let push_group_delegate_expr = self.push_group_delegate_expr();
         let pop_group_delegate_expr = self.pop_group_delegate_expr();
         let trait_name = self.trait_name();
@@ -165,19 +160,19 @@ impl<'i> Emitter<'i> {
         let cell = self.cell;
         let error = self.error;
         let target = self.target;
-        let impl_generics = self.impl_generics;
-        let ty_generics = self.ty_generics;
-        let where_clause = self.where_clause;
-        let bounds = self.bounds;
         let root_type = self.root_type;
         let root_expr = self.root_expr;
 
+        if !self.bounds.is_empty() {
+            self.generics
+                .make_where_clause()
+                .predicates
+                .extend(self.bounds);
+        }
+        let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
+
         quote! {
-            impl #impl_generics #trait_name for #target #ty_generics
-            where
-                #(#bounds,)*
-                #where_clause
-            {
+            impl #impl_generics #trait_name for #target #ty_generics #where_clause {
                 type Error = #error;
                 type RootHook = #root_type;
 

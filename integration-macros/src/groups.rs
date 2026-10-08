@@ -3,7 +3,10 @@
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use syn::{
-    Attribute, Block, FnArg, Ident, ItemFn, Pat, PatType, ReturnType, Visibility, spanned::Spanned,
+    Attribute, Block, Expr, FnArg, Ident, ItemFn, Lifetime, Pat, PatType, ReturnType, Visibility,
+    parse2,
+    spanned::Spanned,
+    visit_mut::{self, VisitMut},
 };
 
 use crate::{attrs::get_haloumi_integration_module, parse::group_args::GroupArgs};
@@ -14,20 +17,26 @@ const LAYOUTER_ATTR: &str = "layouter";
 
 /// Internal implementation of [`crate::group`].
 pub fn group_impl(input_fn: ItemFn, _: GroupArgs) -> syn::Result<TokenStream> {
+    validate_signature(&input_fn)?;
     let fn_ident = &input_fn.sig.ident;
     let (impl_generics, _, where_clause) = input_fn.sig.generics.split_for_impl();
     let group_ident = format_ident!("__{fn_ident}__group");
+    let return_label = Lifetime::new("'__group_return", Span::mixed_site());
     let integration = get_haloumi_integration_module()?;
 
     let (layouter, io) = locate_attributes(&input_fn)?;
     let layouter = select_layouter(&layouter, input_fn.sig.span())?;
     let (input_annotations, output_annotations) =
-        generate_io_annotations(io, &group_ident, &integration);
+        generate_io_annotations(io, &group_ident, &integration)?;
     let cleaned_inputs = clean_inputs(input_fn.sig.inputs.iter());
+    let mut body = input_fn.block.clone();
+    ReturnRewriter::new(return_label.clone()).visit_block_mut(&mut body);
 
     Ok(emit_wrapped_fn(
         &input_fn.attrs,
         &input_fn.vis,
+        &input_fn.sig.safety,
+        &input_fn.sig.abi,
         fn_ident,
         cleaned_inputs,
         &input_fn.sig.output,
@@ -35,17 +44,36 @@ pub fn group_impl(input_fn: ItemFn, _: GroupArgs) -> syn::Result<TokenStream> {
         &group_ident,
         input_annotations.into_iter(),
         output_annotations.into_iter(),
-        &input_fn.block,
+        &body,
+        &return_label,
         &integration,
         &impl_generics,
         where_clause,
     ))
 }
 
+fn validate_signature(input_fn: &ItemFn) -> syn::Result<()> {
+    if let Some(asyncness) = input_fn.sig.asyncness {
+        return Err(syn::Error::new_spanned(
+            asyncness,
+            "async functions are not supported by #[group]",
+        ));
+    }
+    if let Some(constness) = input_fn.sig.constness {
+        return Err(syn::Error::new_spanned(
+            constness,
+            "const functions are not supported by #[group]",
+        ));
+    }
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 fn emit_wrapped_fn(
     fn_attrs: &[Attribute],
     vis: &Visibility,
+    safety: &syn::Safety,
+    abi: &Option<syn::Abi>,
     fn_ident: &Ident,
     cleaned_inputs: impl Iterator<Item = FnArg>,
     output: &ReturnType,
@@ -54,20 +82,21 @@ fn emit_wrapped_fn(
     input_annotations: impl Iterator<Item = TokenStream>,
     output_annotations: impl Iterator<Item = TokenStream>,
     user_block: &Block,
+    return_label: &Lifetime,
     integration: &Ident,
     impl_generics: &syn::ImplGenerics,
     where_clause: Option<&syn::WhereClause>,
 ) -> TokenStream {
     quote! {
         #(#fn_attrs)*
-        #vis fn #fn_ident #impl_generics (#(#cleaned_inputs, )*) #output #where_clause {
+        #vis #safety #abi fn #fn_ident #impl_generics (#(#cleaned_inputs, )*) #output #where_clause {
             #integration::__group!(
                 #layouter,
                 || stringify!(#fn_ident),
                 #integration::core::default_group_key!(),
                 |#layouter, #group_ident| {
                     #(#input_annotations)*
-                    let inner_result = #user_block;
+                    let inner_result = (|| #return_label: #user_block)();
                     #(#output_annotations)*
                     #integration::__annotate_output_cells!(#group_ident, inner_result);
                     inner_result
@@ -116,17 +145,17 @@ fn generate_io_annotations(
     io: Vec<AnnotatedPat>,
     group_ident: &Ident,
     integration: &Ident,
-) -> (Vec<TokenStream>, Vec<TokenStream>) {
-    io.into_iter().fold(
+) -> syn::Result<(Vec<TokenStream>, Vec<TokenStream>)> {
+    io.into_iter().try_fold(
         (Vec::new(), Vec::new()),
-        |(mut inputs, mut outputs), (attr, pat)| {
+        |(mut inputs, mut outputs), (attr, pat)| -> syn::Result<_> {
             if let Some(input) = attr.emit_input_code(&pat.pat, group_ident, integration) {
-                inputs.push(input);
+                inputs.push(input?);
             }
             if let Some(output) = attr.emit_output_code(&pat.pat, group_ident, integration) {
-                outputs.push(output);
+                outputs.push(output?);
             }
-            (inputs, outputs)
+            Ok((inputs, outputs))
         },
     )
 }
@@ -209,11 +238,11 @@ impl ArgAttributes {
         pat: &Pat,
         group_ident: &Ident,
         integration: &Ident,
-    ) -> Option<TokenStream> {
+    ) -> Option<syn::Result<TokenStream>> {
         match self {
-            Self::Input | Self::InputOutput => Some(quote! {
-                #integration::__annotate_input_cells!(#group_ident, #pat);
-            }),
+            Self::Input | Self::InputOutput => Some(annotation_value(pat).map(|value| {
+                quote! { #integration::__annotate_input_cells!(#group_ident, #value); }
+            })),
             Self::Output | Self::Layouter => None,
         }
     }
@@ -223,14 +252,87 @@ impl ArgAttributes {
         pat: &Pat,
         group_ident: &Ident,
         integration: &Ident,
-    ) -> Option<TokenStream> {
+    ) -> Option<syn::Result<TokenStream>> {
         match self {
-            Self::Output | Self::InputOutput => Some(quote! {
-                #integration::__annotate_output_cells!(#group_ident, #pat);
-            }),
+            Self::Output | Self::InputOutput => Some(annotation_value(pat).map(|value| {
+                quote! { #integration::__annotate_output_cells!(#group_ident, #value); }
+            })),
             Self::Input | Self::Layouter => None,
         }
     }
+}
+
+fn annotation_value(pat: &Pat) -> syn::Result<TokenStream> {
+    let mut bindings = vec![];
+    collect_bindings(pat, &mut bindings);
+    match bindings.as_slice() {
+        [] => Err(syn::Error::new_spanned(
+            pat,
+            "annotated input and output patterns must bind at least one identifier",
+        )),
+        [binding] => Ok(quote! { #binding }),
+        bindings => Ok(quote! { (#(&#bindings,)*) }),
+    }
+}
+
+fn collect_bindings(pat: &Pat, bindings: &mut Vec<Ident>) {
+    match pat {
+        Pat::Ident(pat) => bindings.push(pat.ident.clone()),
+        Pat::Or(pat) => pat
+            .cases
+            .iter()
+            .for_each(|pat| collect_bindings(pat, bindings)),
+        Pat::Paren(pat) => collect_bindings(&pat.pat, bindings),
+        Pat::Reference(pat) => collect_bindings(&pat.pat, bindings),
+        Pat::Slice(pat) => pat
+            .elems
+            .iter()
+            .for_each(|pat| collect_bindings(pat, bindings)),
+        Pat::Struct(pat) => pat
+            .fields
+            .iter()
+            .for_each(|field| collect_bindings(&field.pat, bindings)),
+        Pat::Tuple(pat) => pat
+            .elems
+            .iter()
+            .for_each(|pat| collect_bindings(pat, bindings)),
+        Pat::TupleStruct(pat) => pat
+            .elems
+            .iter()
+            .for_each(|pat| collect_bindings(pat, bindings)),
+        Pat::Type(pat) => collect_bindings(&pat.pat, bindings),
+        _ => {}
+    }
+}
+
+struct ReturnRewriter {
+    label: Lifetime,
+}
+
+impl ReturnRewriter {
+    fn new(label: Lifetime) -> Self {
+        Self { label }
+    }
+}
+
+impl VisitMut for ReturnRewriter {
+    fn visit_expr_mut(&mut self, expr: &mut Expr) {
+        match expr {
+            Expr::Return(return_expr) => {
+                let label = &self.label;
+                let value = return_expr
+                    .expr
+                    .as_deref()
+                    .cloned()
+                    .unwrap_or_else(|| parse2(quote! { () }).unwrap());
+                *expr = parse2(quote! { break #label #value }).unwrap();
+            }
+            Expr::Closure(_) | Expr::Async(_) => {}
+            _ => visit_mut::visit_expr_mut(self, expr),
+        }
+    }
+
+    fn visit_item_mut(&mut self, _: &mut syn::Item) {}
 }
 
 impl std::fmt::Display for ArgAttributes {
@@ -266,10 +368,9 @@ mod tests {
         assert_eq!(transform(input), formatted(expected));
     }
 
-    fn raw_transform(input: &str) -> String {
-        group_impl(syn::parse_str(input).unwrap(), GroupArgs)
-            .unwrap()
-            .to_string()
+    fn do_error(input: &str, expected: &str) {
+        let error = group_impl(syn::parse_str(input).unwrap(), GroupArgs).unwrap_err();
+        assert_eq!(error.to_string(), expected);
     }
 
     #[test]
@@ -285,7 +386,7 @@ mod tests {
             fn foo(layouter: &mut impl Layouter<F>, inputs: &[AssignedNative<F>],) -> Result<AssignedNative<F>, Error> {
                 haloumi_integration::__group!(layouter, || stringify!(foo), haloumi_integration::core::default_group_key!(), |layouter, __foo__group| {
                     haloumi_integration::__annotate_input_cells!(__foo__group, inputs);
-                    let inner_result = { inputs.iter().try_fold(F::ZERO, |acc, i| self.bar(layouter, i, acc)) };
+                    let inner_result = (|| '__group_return: { inputs.iter().try_fold(F::ZERO, |acc, i| self.bar(layouter, i, acc)) })();
                     haloumi_integration::__annotate_output_cells!(__foo__group, inner_result);
                     inner_result
                 })
@@ -307,7 +408,7 @@ mod tests {
             fn foo<const M: usize>(layouter: &mut impl Layouter<F>, inputs: &[AssignedNative<F>; M],) -> Result<AssignedNative<F>, Error> {
                 haloumi_integration::__group!(layouter, || stringify!(foo), haloumi_integration::core::default_group_key!(), |layouter, __foo__group| {
                     haloumi_integration::__annotate_input_cells!(__foo__group, inputs);
-                    let inner_result = { inputs.iter().try_fold(F::ZERO, |acc, i| self.bar(layouter, i, acc)) };
+                    let inner_result = (|| '__group_return: { inputs.iter().try_fold(F::ZERO, |acc, i| self.bar(layouter, i, acc)) })();
                     haloumi_integration::__annotate_output_cells!(__foo__group, inner_result);
                     inner_result
                 })
@@ -342,11 +443,11 @@ mod tests {
                 haloumi_integration::__group!(layouter, || stringify!(foo), haloumi_integration::core::default_group_key!(), |layouter, __foo__group| {
                     haloumi_integration::__annotate_input_cells!(__foo__group, input);
                     haloumi_integration::__annotate_input_cells!(__foo__group, input_output);
-                    let inner_result = {
+                    let inner_result = (|| '__group_return: {
                         *output = Some(self.bar(layouter, input)?);
                         *input_output = Some(self.bar(layouter, input)?);
                         Ok(())
-                    };
+                    })();
                     haloumi_integration::__annotate_output_cells!(__foo__group, output);
                     haloumi_integration::__annotate_output_cells!(__foo__group, input_output);
                     haloumi_integration::__annotate_output_cells!(__foo__group, inner_result);
@@ -359,7 +460,7 @@ mod tests {
 
     #[test]
     fn annotations_use_the_binding_not_the_mut_pattern() {
-        let output = raw_transform(
+        do_test(
             r#"
                 #[group]
                 fn foo(layouter: &mut impl Layouter<F>, #[input] mut input: AssignedNative<F>, #[output] mut output: AssignedNative<F>) -> Result<AssignedNative<F>, Error> {
@@ -367,17 +468,26 @@ mod tests {
                     Ok(input)
                 }
             "#,
+            r#"
+            fn foo(layouter: &mut impl Layouter<F>, mut input: AssignedNative<F>, mut output: AssignedNative<F>,) -> Result<AssignedNative<F>, Error> {
+                haloumi_integration::__group!(layouter, || stringify!(foo), haloumi_integration::core::default_group_key!(), |layouter, __foo__group| {
+                    haloumi_integration::__annotate_input_cells!(__foo__group, input);
+                    let inner_result = (|| '__group_return: {
+                        output = input.clone();
+                        Ok(input)
+                    })();
+                    haloumi_integration::__annotate_output_cells!(__foo__group, output);
+                    haloumi_integration::__annotate_output_cells!(__foo__group, inner_result);
+                    inner_result
+                })
+            }
+            "#,
         );
-
-        assert!(output.contains("__annotate_input_cells ! (__foo__group , input)"));
-        assert!(!output.contains("__annotate_input_cells ! (__foo__group , mut input)"));
-        assert!(output.contains("__annotate_output_cells ! (__foo__group , output)"));
-        assert!(!output.contains("__annotate_output_cells ! (__foo__group , mut output)"));
     }
 
     #[test]
     fn annotations_borrow_destructured_bindings() {
-        let output = raw_transform(
+        do_test(
             r#"
                 #[group]
                 fn foo(layouter: &mut impl Layouter<F>, #[input] (left, right): (AssignedNative<F>, AssignedNative<F>)) -> Result<(), Error> {
@@ -385,14 +495,25 @@ mod tests {
                     Ok(())
                 }
             "#,
+            r#"
+            fn foo(layouter: &mut impl Layouter<F>, (left, right): (AssignedNative<F>, AssignedNative<F>),) -> Result<(), Error> {
+                haloumi_integration::__group!(layouter, || stringify!(foo), haloumi_integration::core::default_group_key!(), |layouter, __foo__group| {
+                    haloumi_integration::__annotate_input_cells!(__foo__group, (&left, &right,));
+                    let inner_result = (|| '__group_return: {
+                        let _ = (left, right);
+                        Ok(())
+                    })();
+                    haloumi_integration::__annotate_output_cells!(__foo__group, inner_result);
+                    inner_result
+                })
+            }
+            "#,
         );
-
-        assert!(output.contains("__annotate_input_cells ! (__foo__group , (& left , & right))"));
     }
 
     #[test]
     fn annotations_borrow_structured_bindings() {
-        let output = raw_transform(
+        do_test(
             r#"
                 #[group]
                 fn foo(layouter: &mut impl Layouter<F>, #[input] Pair { left, right }: Pair) -> Result<(), Error> {
@@ -400,87 +521,82 @@ mod tests {
                     Ok(())
                 }
             "#,
+            r#"
+            fn foo(layouter: &mut impl Layouter<F>, Pair { left, right }: Pair,) -> Result<(), Error> {
+                haloumi_integration::__group!(layouter, || stringify!(foo), haloumi_integration::core::default_group_key!(), |layouter, __foo__group| {
+                    haloumi_integration::__annotate_input_cells!(__foo__group, (&left, &right,));
+                    let inner_result = (|| '__group_return: {
+                        let _ = (left, right);
+                        Ok(())
+                    })();
+                    haloumi_integration::__annotate_output_cells!(__foo__group, inner_result);
+                    inner_result
+                })
+            }
+            "#,
         );
-
-        assert!(output.contains("__annotate_input_cells ! (__foo__group , (& left , & right))"));
     }
 
     #[test]
     fn rejects_annotated_patterns_without_bindings() {
-        let error = group_impl(
-            syn::parse_str(
-                r#"
+        do_error(
+            r#"
                     fn foo(layouter: &mut impl Layouter<F>, #[input] _: AssignedNative<F>) -> Result<(), Error> {
                         Ok(())
                     }
-                "#,
-            )
-            .unwrap(),
-            GroupArgs,
-        )
-        .unwrap_err();
-
-        assert_eq!(
-            error.to_string(),
-            "annotated input and output patterns must bind at least one identifier"
+            "#,
+            "annotated input and output patterns must bind at least one identifier",
         );
     }
 
     #[test]
     fn preserves_unsafe_extern_function_qualifiers() {
-        let output = raw_transform(
+        do_test(
             r#"
+                #[group]
                 unsafe extern "C" fn foo(layouter: &mut impl Layouter<F>) -> Result<(), Error> {
                     let _ = layouter;
                     Ok(())
                 }
             "#,
+            r#"
+            unsafe extern "C" fn foo(layouter: &mut impl Layouter<F>,) -> Result<(), Error> {
+                haloumi_integration::__group!(layouter, || stringify!(foo), haloumi_integration::core::default_group_key!(), |layouter, __foo__group| {
+                    let inner_result = (|| '__group_return: {
+                        let _ = layouter;
+                        Ok(())
+                    })();
+                    haloumi_integration::__annotate_output_cells!(__foo__group, inner_result);
+                    inner_result
+                })
+            }
+            "#,
         );
-
-        assert!(output.contains("unsafe extern \"C\" fn foo"));
     }
 
     #[test]
     fn rejects_async_grouped_functions() {
-        let error = group_impl(
-            syn::parse_str(
-                r#"
+        do_error(
+            r#"
                     async fn foo(layouter: &mut impl Layouter<F>) -> Result<(), Error> {
                         let _ = layouter;
                         Ok(())
                     }
-                "#,
-            )
-            .unwrap(),
-            GroupArgs,
-        )
-        .unwrap_err();
-
-        assert_eq!(
-            error.to_string(),
-            "async functions are not supported by #[group]"
+            "#,
+            "async functions are not supported by #[group]",
         );
     }
 
     #[test]
     fn rejects_const_grouped_functions() {
-        let error = group_impl(
-            syn::parse_str(
-                r#"
+        do_error(
+            r#"
                     const fn foo(layouter: &mut impl Layouter<F>) -> Result<(), Error> {
                         let _ = layouter;
                         Ok(())
                     }
-                "#,
-            )
-            .unwrap(),
-            GroupArgs,
-        )
-        .unwrap_err();
-
-        assert_eq!(
-            error.to_string(),
-            "const functions are not supported by #[group]"
+            "#,
+            "const functions are not supported by #[group]",
         );
     }
 }

@@ -1,7 +1,10 @@
-use std::hash::Hash;
+use std::{
+    hash::Hash,
+    panic::{AssertUnwindSafe, catch_unwind},
+};
 
 use haloumi_integration::core::{
-    groups::{GroupKey, GroupLayouter, RegionsGroup, RegionsGroupHooks},
+    groups::{GroupKey, GroupKeyInstance, GroupLayouter, RegionsGroup, RegionsGroupHooks},
     table::DecomposeIn,
 };
 use haloumi_integration_macros::group;
@@ -52,12 +55,14 @@ impl RecordedGroup {
 #[derive(Debug)]
 struct RecordingLayouter {
     stack: Vec<RecordedGroup>,
+    keys: Vec<u64>,
 }
 
 impl Default for RecordingLayouter {
     fn default() -> Self {
         Self {
             stack: vec![RecordedGroup::root()],
+            keys: vec![],
         }
     }
 }
@@ -66,6 +71,10 @@ impl RecordingLayouter {
     fn finish(self) -> RecordedGroup {
         assert_eq!(self.stack.len(), 1, "all groups must have been popped");
         self.stack.into_iter().next().unwrap()
+    }
+
+    fn keys(&self) -> &[u64] {
+        &self.keys
     }
 }
 
@@ -77,12 +86,13 @@ impl RegionsGroupHooks<(), TestCell> for RecordingLayouter {
         self
     }
 
-    fn push_group<N, NR, K>(&mut self, name: N, _: K)
+    fn push_group<N, NR, K>(&mut self, name: N, key: K)
     where
         N: FnOnce() -> NR,
         NR: Into<String>,
         K: GroupKey,
     {
+        self.keys.push(GroupKeyInstance::from(key).into());
         self.stack.push(RecordedGroup::group(name().into()));
     }
 
@@ -196,6 +206,141 @@ fn fails(
     Err(TestError)
 }
 
+#[group]
+fn mutates_input_output(
+    layouter: &mut impl GroupLayouterExt,
+    #[input]
+    #[output]
+    value: &mut TestValue,
+    replace_value: bool,
+) -> Result<(), TestError> {
+    let _ = layouter;
+    if replace_value {
+        *value = TestValue(vec![TestCell(11)]);
+    }
+    Ok(())
+}
+
+#[group]
+#[allow(unreachable_code)]
+fn returns_early(
+    layouter: &mut impl GroupLayouterExt,
+    #[input]
+    #[output]
+    value: &mut TestValue,
+) -> Result<TestValue, TestError> {
+    let _ = layouter;
+    *value = TestValue(vec![TestCell(13)]);
+    return Ok(TestValue(vec![TestCell(14)]));
+}
+
+fn always_fails() -> Result<(), TestError> {
+    Err(TestError)
+}
+
+#[group]
+fn propagates_error(
+    layouter: &mut impl GroupLayouterExt,
+    #[input]
+    #[output]
+    value: &mut TestValue,
+) -> Result<TestValue, TestError> {
+    let _ = layouter;
+    *value = TestValue(vec![TestCell(16)]);
+    always_fails()?;
+    Ok(TestValue(vec![TestCell(17)]))
+}
+
+#[group]
+fn mutates_optional_input_output(
+    layouter: &mut impl GroupLayouterExt,
+    #[input]
+    #[output]
+    value: &mut Option<TestValue>,
+    replacement: Option<TestValue>,
+) -> Result<(), TestError> {
+    let _ = layouter;
+    *value = replacement.clone();
+    Ok(())
+}
+
+#[group]
+fn returns_output_alias(
+    layouter: &mut impl GroupLayouterExt,
+    #[output] value: &mut TestValue,
+) -> Result<TestValue, TestError> {
+    let _ = layouter;
+    *value = TestValue(vec![TestCell(24)]);
+    Ok(value.clone())
+}
+
+#[group]
+fn keyed(layouter: &mut impl GroupLayouterExt, #[input] value: TestValue) -> Result<(), TestError> {
+    let _ = layouter;
+    let _ = value;
+    Ok(())
+}
+
+#[group]
+fn differently_keyed(
+    layouter: &mut impl GroupLayouterExt,
+    #[input] value: TestValue,
+) -> Result<(), TestError> {
+    let _ = layouter;
+    let _ = value;
+    Ok(())
+}
+
+#[group]
+#[allow(unreachable_code)]
+fn panics_after_mutating_output(
+    layouter: &mut impl GroupLayouterExt,
+    #[input]
+    #[output]
+    value: &mut TestValue,
+) -> Result<(), TestError> {
+    let _ = layouter;
+    *value = TestValue(vec![TestCell(27)]);
+    panic!("expected test panic");
+}
+
+#[group]
+fn nested_early_return(
+    layouter: &mut impl GroupLayouterExt,
+    #[input]
+    #[output]
+    value: &mut TestValue,
+) -> Result<TestValue, TestError> {
+    returns_early(layouter, value)
+}
+
+#[derive(Default)]
+struct Stateful {
+    calls: usize,
+}
+
+impl Stateful {
+    #[group]
+    fn record_call(
+        &mut self,
+        layouter: &mut impl GroupLayouterExt,
+        #[input] value: TestValue,
+    ) -> Result<TestValue, TestError> {
+        let _ = layouter;
+        self.calls += 1;
+        Ok(value.clone())
+    }
+}
+
+#[group]
+fn returns_borrowed_value<'a>(
+    layouter: &mut impl GroupLayouterExt,
+    #[input] value: &'a TestValue,
+) -> Result<&'a TestValue, TestError> {
+    let _ = layouter;
+    Ok(value)
+}
+
 #[test]
 fn generated_code_records_argument_and_return_annotations() {
     let mut layouter = RecordingLayouter::default();
@@ -282,5 +427,235 @@ fn generated_code_pops_a_failed_group() {
             outputs: vec![],
             children: vec![],
         }],
+    );
+}
+
+#[test]
+fn mutable_input_output_records_cells_before_and_after_the_body() {
+    let mut layouter = RecordingLayouter::default();
+    let mut unchanged = TestValue(vec![TestCell(10)]);
+    let mut changed = TestValue(vec![TestCell(12)]);
+
+    assert_eq!(
+        mutates_input_output(&mut layouter, &mut unchanged, false),
+        Ok(())
+    );
+    assert_eq!(
+        mutates_input_output(&mut layouter, &mut changed, true),
+        Ok(())
+    );
+
+    assert_eq!(
+        layouter.finish().children,
+        [
+            RecordedGroup {
+                name: "mutates_input_output".into(),
+                inputs: vec![TestCell(10)],
+                outputs: vec![TestCell(10)],
+                children: vec![],
+            },
+            RecordedGroup {
+                name: "mutates_input_output".into(),
+                inputs: vec![TestCell(12)],
+                outputs: vec![TestCell(11)],
+                children: vec![],
+            },
+        ],
+    );
+}
+
+#[test]
+fn direct_early_return_records_final_outputs() {
+    let mut layouter = RecordingLayouter::default();
+    let mut value = TestValue(vec![TestCell(12)]);
+
+    assert_eq!(
+        returns_early(&mut layouter, &mut value),
+        Ok(TestValue(vec![TestCell(14)])),
+    );
+    assert_eq!(
+        layouter.finish().children,
+        [RecordedGroup {
+            name: "returns_early".into(),
+            inputs: vec![TestCell(12)],
+            outputs: vec![TestCell(13), TestCell(14)],
+            children: vec![],
+        }],
+    );
+}
+
+#[test]
+fn propagated_error_records_final_output_parameters() {
+    let mut layouter = RecordingLayouter::default();
+    let mut value = TestValue(vec![TestCell(15)]);
+
+    assert_eq!(propagates_error(&mut layouter, &mut value), Err(TestError));
+    assert_eq!(
+        layouter.finish().children,
+        [RecordedGroup {
+            name: "propagates_error".into(),
+            inputs: vec![TestCell(15)],
+            outputs: vec![TestCell(16)],
+            children: vec![],
+        }],
+    );
+}
+
+#[test]
+fn mutable_input_output_records_structural_changes() {
+    let mut layouter = RecordingLayouter::default();
+    let mut populated = Some(TestValue(vec![TestCell(20), TestCell(21)]));
+    let mut empty = None;
+
+    assert_eq!(
+        mutates_optional_input_output(&mut layouter, &mut populated, None),
+        Ok(())
+    );
+    assert_eq!(
+        mutates_optional_input_output(
+            &mut layouter,
+            &mut empty,
+            Some(TestValue(vec![TestCell(22), TestCell(23)])),
+        ),
+        Ok(())
+    );
+
+    assert_eq!(
+        layouter.finish().children,
+        [
+            RecordedGroup {
+                name: "mutates_optional_input_output".into(),
+                inputs: vec![TestCell(20), TestCell(21)],
+                outputs: vec![],
+                children: vec![],
+            },
+            RecordedGroup {
+                name: "mutates_optional_input_output".into(),
+                inputs: vec![],
+                outputs: vec![TestCell(22), TestCell(23)],
+                children: vec![],
+            },
+        ],
+    );
+}
+
+#[test]
+fn output_and_return_aliases_are_deduplicated() {
+    let mut layouter = RecordingLayouter::default();
+    let mut value = TestValue(vec![]);
+
+    assert_eq!(
+        returns_output_alias(&mut layouter, &mut value),
+        Ok(TestValue(vec![TestCell(24)])),
+    );
+    assert_eq!(
+        layouter.finish().children,
+        [RecordedGroup {
+            name: "returns_output_alias".into(),
+            inputs: vec![],
+            outputs: vec![TestCell(24)],
+            children: vec![],
+        }],
+    );
+}
+
+#[test]
+fn repeated_calls_share_a_group_key_and_distinct_functions_do_not() {
+    let mut layouter = RecordingLayouter::default();
+
+    keyed(&mut layouter, TestValue(vec![TestCell(25)])).unwrap();
+    keyed(&mut layouter, TestValue(vec![TestCell(26)])).unwrap();
+    differently_keyed(&mut layouter, TestValue(vec![TestCell(27)])).unwrap();
+
+    assert_eq!(layouter.keys().len(), 3);
+    assert_eq!(layouter.keys()[0], layouter.keys()[1]);
+    assert_ne!(layouter.keys()[0], layouter.keys()[2]);
+}
+
+#[test]
+fn nested_early_return_records_inner_and_outer_outputs() {
+    let mut layouter = RecordingLayouter::default();
+    let mut value = TestValue(vec![TestCell(28)]);
+
+    assert_eq!(
+        nested_early_return(&mut layouter, &mut value),
+        Ok(TestValue(vec![TestCell(14)])),
+    );
+    assert_eq!(
+        layouter.finish().children,
+        [RecordedGroup {
+            name: "nested_early_return".into(),
+            inputs: vec![TestCell(28)],
+            outputs: vec![TestCell(13), TestCell(14)],
+            children: vec![RecordedGroup {
+                name: "returns_early".into(),
+                inputs: vec![TestCell(28)],
+                outputs: vec![TestCell(13), TestCell(14)],
+                children: vec![],
+            }],
+        }],
+    );
+}
+
+#[test]
+fn panic_unwinds_the_group_without_recording_final_outputs() {
+    let mut layouter = RecordingLayouter::default();
+    let mut value = TestValue(vec![TestCell(26)]);
+
+    assert!(
+        catch_unwind(AssertUnwindSafe(|| {
+            let _ = panics_after_mutating_output(&mut layouter, &mut value);
+        }))
+        .is_err()
+    );
+    keyed(&mut layouter, TestValue(vec![TestCell(29)])).unwrap();
+
+    assert_eq!(
+        layouter.finish().children,
+        [
+            RecordedGroup {
+                name: "panics_after_mutating_output".into(),
+                inputs: vec![TestCell(26)],
+                outputs: vec![],
+                children: vec![],
+            },
+            RecordedGroup {
+                name: "keyed".into(),
+                inputs: vec![TestCell(29)],
+                outputs: vec![],
+                children: vec![],
+            },
+        ],
+    );
+}
+
+#[test]
+fn grouped_methods_preserve_mutable_self_and_returned_borrows() {
+    let mut layouter = RecordingLayouter::default();
+    let mut state = Stateful::default();
+    let value = TestValue(vec![TestCell(30)]);
+
+    assert_eq!(
+        state.record_call(&mut layouter, value.clone()),
+        Ok(value.clone()),
+    );
+    assert_eq!(state.calls, 1);
+    assert_eq!(returns_borrowed_value(&mut layouter, &value), Ok(&value));
+    assert_eq!(
+        layouter.finish().children,
+        [
+            RecordedGroup {
+                name: "record_call".into(),
+                inputs: vec![TestCell(30)],
+                outputs: vec![TestCell(30)],
+                children: vec![],
+            },
+            RecordedGroup {
+                name: "returns_borrowed_value".into(),
+                inputs: vec![TestCell(30)],
+                outputs: vec![TestCell(30)],
+                children: vec![],
+            },
+        ],
     );
 }

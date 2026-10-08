@@ -266,6 +266,12 @@ mod tests {
         assert_eq!(transform(input), formatted(expected));
     }
 
+    fn raw_transform(input: &str) -> String {
+        group_impl(syn::parse_str(input).unwrap(), GroupArgs)
+            .unwrap()
+            .to_string()
+    }
+
     #[test]
     fn wraps_a_function_and_annotates_inputs_and_output() {
         do_test(
@@ -348,6 +354,133 @@ mod tests {
                 })
             }
             "#,
+        );
+    }
+
+    #[test]
+    fn annotations_use_the_binding_not_the_mut_pattern() {
+        let output = raw_transform(
+            r#"
+                #[group]
+                fn foo(layouter: &mut impl Layouter<F>, #[input] mut input: AssignedNative<F>, #[output] mut output: AssignedNative<F>) -> Result<AssignedNative<F>, Error> {
+                    output = input.clone();
+                    Ok(input)
+                }
+            "#,
+        );
+
+        assert!(output.contains("__annotate_input_cells ! (__foo__group , input)"));
+        assert!(!output.contains("__annotate_input_cells ! (__foo__group , mut input)"));
+        assert!(output.contains("__annotate_output_cells ! (__foo__group , output)"));
+        assert!(!output.contains("__annotate_output_cells ! (__foo__group , mut output)"));
+    }
+
+    #[test]
+    fn annotations_borrow_destructured_bindings() {
+        let output = raw_transform(
+            r#"
+                #[group]
+                fn foo(layouter: &mut impl Layouter<F>, #[input] (left, right): (AssignedNative<F>, AssignedNative<F>)) -> Result<(), Error> {
+                    let _ = (left, right);
+                    Ok(())
+                }
+            "#,
+        );
+
+        assert!(output.contains("__annotate_input_cells ! (__foo__group , (& left , & right))"));
+    }
+
+    #[test]
+    fn annotations_borrow_structured_bindings() {
+        let output = raw_transform(
+            r#"
+                #[group]
+                fn foo(layouter: &mut impl Layouter<F>, #[input] Pair { left, right }: Pair) -> Result<(), Error> {
+                    let _ = (left, right);
+                    Ok(())
+                }
+            "#,
+        );
+
+        assert!(output.contains("__annotate_input_cells ! (__foo__group , (& left , & right))"));
+    }
+
+    #[test]
+    fn rejects_annotated_patterns_without_bindings() {
+        let error = group_impl(
+            syn::parse_str(
+                r#"
+                    fn foo(layouter: &mut impl Layouter<F>, #[input] _: AssignedNative<F>) -> Result<(), Error> {
+                        Ok(())
+                    }
+                "#,
+            )
+            .unwrap(),
+            GroupArgs,
+        )
+        .unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "annotated input and output patterns must bind at least one identifier"
+        );
+    }
+
+    #[test]
+    fn preserves_unsafe_extern_function_qualifiers() {
+        let output = raw_transform(
+            r#"
+                unsafe extern "C" fn foo(layouter: &mut impl Layouter<F>) -> Result<(), Error> {
+                    let _ = layouter;
+                    Ok(())
+                }
+            "#,
+        );
+
+        assert!(output.contains("unsafe extern \"C\" fn foo"));
+    }
+
+    #[test]
+    fn rejects_async_grouped_functions() {
+        let error = group_impl(
+            syn::parse_str(
+                r#"
+                    async fn foo(layouter: &mut impl Layouter<F>) -> Result<(), Error> {
+                        let _ = layouter;
+                        Ok(())
+                    }
+                "#,
+            )
+            .unwrap(),
+            GroupArgs,
+        )
+        .unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "async functions are not supported by #[group]"
+        );
+    }
+
+    #[test]
+    fn rejects_const_grouped_functions() {
+        let error = group_impl(
+            syn::parse_str(
+                r#"
+                    const fn foo(layouter: &mut impl Layouter<F>) -> Result<(), Error> {
+                        let _ = layouter;
+                        Ok(())
+                    }
+                "#,
+            )
+            .unwrap(),
+            GroupArgs,
+        )
+        .unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "const functions are not supported by #[group]"
         );
     }
 }

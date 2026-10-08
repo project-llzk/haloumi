@@ -20,7 +20,10 @@ pub struct CallSite<E> {
     no: usize,
     name: String,
     callee: GroupKey,
-    /// The index in the original groups array to the called group.
+    /// Position of the called group in the same namespace as the caller.
+    ///
+    /// Main groups and prelude groups have separate namespaces. A callsite can only call a group
+    /// in its own namespace; calls between namespaces use call statements.
     callee_id: usize,
     inputs: Vec<E>,
     outputs: Vec<E>,
@@ -61,7 +64,7 @@ impl<E> CallSite<E> {
         self.name = name;
     }
 
-    /// Returns the id of the callee.
+    /// Returns the called group's position in the caller's namespace.
     pub fn callee_id(&self) -> usize {
         self.callee_id
     }

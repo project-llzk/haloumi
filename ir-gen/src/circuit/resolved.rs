@@ -2,13 +2,13 @@
 
 use haloumi_ir::{
     IRCircuit, Prime,
-    diagnostics::DiagnosticsError,
+    diagnostics::{DiagnosticsError, SimpleDiagnostic},
     expr::IRAexpr,
     groups::{ConstantFoldingError, IRGroup},
     printer::{self, IRPrintable, IRPrinter, IRPrinterCtx},
     traits::{Canonicalize as _, ConstantFolding, Validatable as _},
 };
-use std::fmt::Write as _;
+use std::{collections::HashSet, fmt::Write as _};
 
 use crate::{ctx::IRCtx, error::Error};
 
@@ -20,12 +20,55 @@ pub(super) struct ResolvedCtx(pub IRCtx, pub Prime);
 /// Circuit that has resolved its expressions and is no longer tied to the lifetime of the
 /// synthesis and is not parametrized on a prime field.
 #[derive(Debug)]
-pub struct ResolvedIRCircuit(pub(super) Circuit);
+pub struct ResolvedIRCircuit(Circuit, Vec<IRGroup<IRAexpr>>);
 
 impl ResolvedIRCircuit {
+    pub(super) fn new(circuit: Circuit) -> Self {
+        Self(circuit, Vec::new())
+    }
+
     /// Returns a list of the groups inside the circuit.
     pub fn groups(&self) -> &[IRGroup<IRAexpr>] {
         self.0.body()
+    }
+
+    /// Returns the semantic prelude groups attached to this circuit.
+    pub fn prelude_groups(&self) -> &[IRGroup<IRAexpr>] {
+        &self.1
+    }
+
+    /// Adds semantic prelude groups to this circuit.
+    ///
+    /// Prelude groups keep their IDs. Each ID must match the group's position in the prelude
+    /// namespace, which is separate from the main group namespace.
+    pub fn add_prelude_groups(&mut self, groups: Vec<IRGroup<IRAexpr>>) -> Result<(), Error> {
+        let mut names = self
+            .0
+            .body()
+            .iter()
+            .chain(self.1.iter())
+            .map(|group| group.name().to_owned())
+            .collect::<HashSet<_>>();
+        let start = self.1.len();
+        for (offset, group) in groups.iter().enumerate() {
+            if group.is_main() {
+                return Err(Error::new(PreludeError::MainGroup(group.name().to_owned())));
+            }
+            if !names.insert(group.name().to_owned()) {
+                return Err(Error::new(PreludeError::DuplicateName(
+                    group.name().to_owned(),
+                )));
+            }
+            let position = start + offset;
+            if group.id() != position {
+                return Err(Error::new(PreludeError::WrongId {
+                    position,
+                    id: group.id(),
+                }));
+            }
+        }
+        self.1.extend(groups);
+        Ok(())
     }
 
     /// Returns the context associated with this circuit.
@@ -35,7 +78,7 @@ impl ResolvedIRCircuit {
 
     /// Returns a printer of the circuit.
     pub fn display(&self) -> IRPrinter<'_> {
-        self.0.display()
+        IRPrinter::from(self)
     }
 
     /// Returns the main group.
@@ -58,25 +101,70 @@ impl ResolvedIRCircuit {
             .body_mut()
             .constant_fold()
             .map_err(ResolvedIRError::ConstantFold)?;
+        self.1
+            .constant_fold()
+            .map_err(ResolvedIRError::ConstantFold)?;
         Ok(())
     }
 
     /// Matches the statements against a series of known patterns and applies rewrites if able to.
     pub fn canonicalize(&mut self) {
         self.0.body_mut().canonicalize();
+        self.1.canonicalize();
     }
 
     /// Validates the IR, returning errors if it failed.
     pub fn validate(&self) -> Result<(), Error> {
-        self.0
-            .validate()
-            .map(|_| {})
-            .map_err(move |errors| ResolvedIRError::Validation {
+        let mut errors = Vec::new();
+        collect_validation_errors(self.0.body(), &mut errors);
+        collect_validation_errors(&self.1, &mut errors);
+        if !errors.is_empty() {
+            return Err(ResolvedIRError::Validation {
                 count: errors.len(),
                 errors: DiagnosticsError::from_iter(errors),
-            })?;
+            }
+            .into());
+        }
         Ok(())
     }
+}
+
+fn collect_validation_errors(groups: &[IRGroup<IRAexpr>], errors: &mut Vec<SimpleDiagnostic>) {
+    for group in groups {
+        if let Err(group_errors) = group.validate_with_context(groups) {
+            errors.extend(group_errors);
+        }
+    }
+}
+
+impl IRPrintable for ResolvedIRCircuit {
+    fn fmt(&self, ctx: &mut IRPrinterCtx<'_, '_>) -> printer::Result {
+        self.0.context().fmt(ctx)?;
+        for group in self.0.body().iter().chain(self.1.iter()) {
+            ctx.nl()?;
+            group.fmt(ctx)?;
+        }
+        Ok(())
+    }
+}
+
+/// Errors raised while attaching semantic prelude groups.
+#[derive(Debug, thiserror::Error)]
+pub enum PreludeError {
+    /// A prelude group was declared as a main group.
+    #[error("prelude group {0:?} must not be a main group")]
+    MainGroup(String),
+    /// More than one group uses the same backend module name.
+    #[error("duplicate group name {0:?}")]
+    DuplicateName(String),
+    /// A prelude group's ID does not match its position in the prelude namespace.
+    #[error("prelude group at position {position} has id {id}")]
+    WrongId {
+        /// Position of the group in the prelude namespace.
+        position: usize,
+        /// ID stored by the group.
+        id: usize,
+    },
 }
 
 impl IRPrintable for ResolvedCtx {
@@ -104,5 +192,69 @@ pub(crate) enum ResolvedIRError {
 impl From<ResolvedIRError> for Error {
     fn from(value: ResolvedIRError) -> Self {
         Error::new(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use haloumi_ir::groups::{GroupKey, callsite::CallSite};
+
+    fn prelude_group(id: usize) -> IRGroup<IRAexpr> {
+        IRGroup::new(format!("prelude-{id}"), id).with_key(Some(id as GroupKey))
+    }
+
+    #[test]
+    fn validates_callsite_between_prelude_groups() {
+        let caller = prelude_group(0).with_callsites([CallSite::new(
+            0,
+            "prelude-callee".to_owned(),
+            1,
+            1,
+            vec![],
+            vec![],
+        )]);
+        let callee = prelude_group(1);
+        let preludes = vec![caller, callee];
+        let mut errors = Vec::new();
+
+        collect_validation_errors(&preludes, &mut errors);
+
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn prelude_callsite_cannot_target_a_group_outside_the_prelude_context() {
+        let caller = prelude_group(0).with_callsites([CallSite::new(
+            0,
+            "normal-group".to_owned(),
+            1,
+            1,
+            vec![],
+            vec![],
+        )]);
+        let mut errors = Vec::new();
+
+        collect_validation_errors(&[caller], &mut errors);
+
+        assert!(!errors.is_empty());
+    }
+
+    #[test]
+    #[should_panic(expected = "Callsite points to group 1 but group has id 0")]
+    fn rejects_prelude_callsite_when_group_id_does_not_match_its_position() {
+        let caller = prelude_group(0).with_callsites([CallSite::new(
+            0,
+            "prelude-callee".to_owned(),
+            1,
+            1,
+            vec![],
+            vec![],
+        )]);
+        let callee = prelude_group(0);
+
+        caller
+            .validate_with_context(&[caller.clone(), callee])
+            .unwrap();
     }
 }

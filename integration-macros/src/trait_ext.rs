@@ -20,7 +20,7 @@ pub fn require_group_hooks_impl(mut input: ItemTrait, hooks: Hooks) -> syn::Resu
     let field = hooks.field();
     let error = hooks.error();
 
-    input.items.extend([emit_group_fn(&module, &cell)]);
+    input.items.extend([emit_group_fn(&module, &cell, &error)]);
     input.supertraits.push(parse2(quote! {
         #module::core::groups::RegionsGroupHooks<#field, #cell, RootHook = Self::Root, Error = #error>
     })?);
@@ -236,7 +236,7 @@ fn contains_attr_named(attr: &str, attrs: &[Attribute]) -> bool {
     attrs.iter().any(|a| a.path().is_ident(attr))
 }
 
-fn emit_group_fn(module: &Ident, cell: &Type) -> TraitItem {
+fn emit_group_fn(module: &Ident, cell: &Type, error: &Type) -> TraitItem {
     parse2(quote! {
 
     /// Groups a set of regions together.
@@ -288,7 +288,7 @@ fn emit_group_fn(module: &Ident, cell: &Type) -> TraitItem {
     ///     });
     /// }
     /// ```
-    fn group<A, AR, N, NR, K>(&mut self, name: N, key: K, mut assignment: A) -> Result<AR, Error>
+    fn group<A, AR, N, NR, K>(&mut self, name: N, key: K, mut assignment: A) -> Result<AR, #error>
     where
         A: FnMut(
             &mut #module::core::groups::GroupLayouter<'_, F, Self::Root>,

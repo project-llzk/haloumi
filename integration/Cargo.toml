@@ -17,6 +17,7 @@ num-bigint.workspace = true
 thiserror.workspace = true
 num-traits = "0.2"
 haloumi-core = { path = "../core", version = "0.5.15" }
+haloumi-extractor = { path = "../extractor/", version = "0.5.15", optional = true }
 haloumi-extractor-core = { path = "../extractor-core", version = "0.5.15" }
 haloumi-ir = { path = "../ir", version = "0.5.15" }
 haloumi-synthesis = { path = "../synthesis", version = "0.5.15" }
@@ -31,6 +32,7 @@ halo2curves.workspace = true
 anyhow = "1"
 
 [features]
+extractor = ["dep:haloumi-extractor"]
 derive = ["dep:haloumi-integration-macros"]
 # Enables `cfg(groups)` for the macro runtime. This mirrors extraction mode and
 # is intended for Haloumi's tests, not for downstream circuit consumers.

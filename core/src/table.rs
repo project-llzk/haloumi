@@ -325,6 +325,12 @@ pub trait DecomposeIn<Cell> {
     fn cells(&self) -> impl IntoIterator<Item = Cell>;
 }
 
+impl DecomposeIn<Cell> for Cell {
+    fn cells(&self) -> impl IntoIterator<Item = Cell> {
+        std::iter::once(*self)
+    }
+}
+
 impl<Cell> DecomposeIn<Cell> for u32 {
     fn cells(&self) -> impl IntoIterator<Item = Cell> {
         std::iter::empty()

@@ -83,20 +83,23 @@ where
 
 /// Configures a rewrite pattern set from patterns potentially provided by the user and
 /// the fallback pattern for gates that don't require special handling.
-pub fn load_patterns<F, E>(gate_cbs: &dyn GateCallbacks<F, E>) -> RewritePatternSet<F, E>
+pub fn load_patterns<'gc, F, E>(
+    gate_cbs: &'gc dyn GateCallbacks<F, E>,
+) -> RewritePatternSet<'gc, F, E>
 where
     F: Field,
     E: ExprBuilder<F> + EvaluableExpr<F> + std::fmt::Debug,
 {
-    let mut patterns = RewritePatternSet::default();
-    let user_patterns = gate_cbs.patterns();
-    log::debug!("Loading {} user patterns", user_patterns.len());
-    patterns.extend(user_patterns);
     log::debug!(
         "Loading fallback pattern {}",
         std::any::type_name::<FallbackGateRewriter>()
     );
-    patterns.add(FallbackGateRewriter::new(gate_cbs.ignore_disabled_gates()));
+    let mut patterns =
+        RewritePatternSet::new(FallbackGateRewriter::new(gate_cbs.ignore_disabled_gates()));
+    let user_patterns = gate_cbs.patterns();
+    log::debug!("Loading {} user patterns", user_patterns.len());
+    patterns.extend(user_patterns);
+
     patterns
 }
 

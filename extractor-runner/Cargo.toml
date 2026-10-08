@@ -1,0 +1,33 @@
+[package]
+name = "haloumi-extractor-runner"
+description = "Haloumi's extraction runner."
+categories = {workspace = true}
+version = {workspace = true}
+authors = {workspace = true}
+edition = {workspace = true}
+rust-version = {workspace = true}
+readme = "README.md"
+repository = {workspace = true}
+license-file = {workspace = true}
+keywords = {workspace = true}
+
+[dependencies]
+haloumi-ir-gen = { path = "../ir-gen/", version = "0.5.15" }
+haloumi-synthesis = { path = "../synthesis/", version = "0.5.15" }
+haloumi-core = { path = "../core/", version = "0.5.15" }
+haloumi-extractor = { path = "../extractor/", version = "0.5.15" }
+haloumi-extractor-core = { path = "../extractor-core/", version = "0.5.15" }
+# haloumi-integration = { path = "../integration/" }
+haloumi-driver = { path = "../driver/", version = "0.5.15" }
+ff.workspace = true
+thiserror.workspace = true
+log.workspace = true
+simplelog = "0.12"
+env_logger = "0.11"
+multi_log = "0.1"
+clap = {version = "4.6", features = ["derive"]}
+anyhow = { version = "1" }
+
+[dev-dependencies]
+haloumi-integration = { path = "../integration/" }
+halo2curves.workspace = true

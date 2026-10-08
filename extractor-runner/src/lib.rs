@@ -10,6 +10,7 @@ use haloumi_driver::backends::llzk::{LlzkParams, llzk::prelude::LlzkContext};
 use haloumi_driver::backends::picus::PicusParamsBuilder;
 use haloumi_extractor::extractor::{Comments, Extractor, ExtractorCfg, InjectedIRPolicy};
 use haloumi_extractor::{Harness, PreludeEntry};
+use haloumi_extractor_core::prelude::Prelude;
 use haloumi_ir_gen::circuit::resolved::ResolvedIRCircuit;
 
 use crate::logging::setup_logging;
@@ -221,9 +222,11 @@ impl ExtractorMain {
 
         let mut ir = harness.run(extractor).map_err(AppError::harness(name))?;
         log::info!("Extracted {name} into IR");
-        for prelude in preludes {
-            ir.add_prelude_groups(prelude.groups().into())?;
+        let mut prelude = Prelude::new();
+        for entry in preludes {
+            entry.groups(&mut prelude);
         }
+        ir.add_prelude_groups(prelude.into())?;
         log::info!("Prepended preludes");
         if self.cli.optimize_ir() {
             log::info!("Running optimizer...");

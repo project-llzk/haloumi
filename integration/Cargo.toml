@@ -1,0 +1,37 @@
+[package]
+name = "haloumi-integration"
+description = "Helpers for integrating Haloumi with Halo2 implementations."
+categories = {workspace = true}
+version = {workspace = true}
+authors = {workspace = true}
+edition = {workspace = true}
+rust-version = {workspace = true}
+readme = "README.md"
+repository = {workspace = true}
+license-file = {workspace = true}
+keywords = {workspace = true}
+
+[dependencies]
+ff.workspace = true
+num-bigint.workspace = true
+thiserror.workspace = true
+num-traits = "0.2"
+haloumi-core = { path = "../core", version = "0.5.15" }
+haloumi-extractor-core = { path = "../extractor-core", version = "0.5.15" }
+haloumi-ir = { path = "../ir", version = "0.5.15" }
+haloumi-synthesis = { path = "../synthesis", version = "0.5.15" }
+haloumi-ir-gen = { path = "../ir-gen", version = "0.5.15" }
+haloumi-integration-macros = { path = "../integration-macros", version = "0.5.15", optional = true }
+
+[dev-dependencies]
+rstest = "0"
+halo2curves.workspace = true
+
+[build-dependencies]
+anyhow = "1"
+
+[features]
+derive = ["dep:haloumi-integration-macros"]
+# Enables `cfg(groups)` for the macro runtime. This mirrors extraction mode and
+# is intended for Haloumi's tests, not for downstream circuit consumers.
+cfg-groups = []

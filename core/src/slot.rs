@@ -71,6 +71,16 @@ impl Slot {
             .map(|output_no| Self::CallOutput(call_no, output_no))
             .collect()
     }
+
+    /// Creates a list of [`Slot::Arg`].
+    pub fn args(count: usize) -> Vec<Self> {
+        (0..count).map(|n| Self::Arg(n.into())).collect()
+    }
+
+    /// Creates a list of [`Slot::Output`].
+    pub fn outputs(count: usize) -> Vec<Self> {
+        (0..count).map(|n| Self::Output(n.into())).collect()
+    }
 }
 
 impl EqvRelation<Slot> for SymbolicEqv {

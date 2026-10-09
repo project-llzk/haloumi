@@ -56,9 +56,9 @@ pub enum Error {
     /// Raised if encountered an unsupported filesystem object during copying.
     #[error("Unsupported filesystem object at '{0}'")]
     UnsupportedFileType(std::path::PathBuf),
-    /// Raised when a copied crate would be placed inside its source crate.
-    #[error("Clone destination '{0}' must not be inside the source crate")]
-    InvalidCloneDestination(std::path::PathBuf),
+    /// Raised when a crate copy destination already exists.
+    #[error("Clone destination '{0}' already exists")]
+    CloneDestinationExists(std::path::PathBuf),
     /// Raised when a requested manifest dependency does not exist.
     #[error("Dependency '{0}' was not found in the manifest")]
     DependencyNotFound(String),

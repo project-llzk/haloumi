@@ -188,45 +188,109 @@ fn open_rust_file_rejects_parent_directory_path() {
 }
 
 #[test]
-fn clone_in_path_rejects_destination_inside_source() {
-    let source = fixture("crates/test1");
+fn clone_in_path_allows_destination_inside_source_without_recursing() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("source");
+    Crate::open(fixture("crates/test1"))
+        .unwrap()
+        .clone_in_path(&source)
+        .unwrap();
     let destination = source.join("patched");
+
+    Crate::open(&source)
+        .unwrap()
+        .clone_in_path(&destination)
+        .unwrap();
+
+    assert!(destination.join("src/lib.rs").is_file());
+    assert!(!destination.join("patched").exists());
+}
+
+#[test]
+fn clone_in_path_rejects_existing_directory() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = fixture("crates/test1");
+    let destination = temp.path().join("existing");
+    std::fs::create_dir(&destination).unwrap();
 
     let result = Crate::open(&source).unwrap().clone_in_path(&destination);
 
     assert!(matches!(
         result,
-        Err(Error::InvalidCloneDestination(path)) if path == destination
+        Err(Error::CloneDestinationExists(path)) if path == destination
     ));
-    assert!(!destination.exists());
+    assert!(destination.is_dir());
+    assert!(std::fs::read_dir(&destination).unwrap().next().is_none());
 }
 
 #[test]
-fn clone_in_path_rejects_source_as_destination() {
+fn clone_in_path_rejects_existing_file() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = fixture("crates/test1");
+    let destination = temp.path().join("existing");
+    std::fs::write(&destination, "original content").unwrap();
+
+    let result = Crate::open(&source).unwrap().clone_in_path(&destination);
+
+    assert!(matches!(
+        result,
+        Err(Error::CloneDestinationExists(path)) if path == destination
+    ));
+    assert_eq!(
+        std::fs::read_to_string(destination).unwrap(),
+        "original content"
+    );
+}
+
+#[test]
+fn clone_in_path_rejects_source_as_existing_destination() {
     let source = fixture("crates/test1");
 
     let result = Crate::open(&source).unwrap().clone_in_path(&source);
 
     assert!(matches!(
         result,
-        Err(Error::InvalidCloneDestination(path)) if path == source
+        Err(Error::CloneDestinationExists(path)) if path == source
     ));
 }
 
 #[cfg(unix)]
 #[test]
-fn clone_in_path_rejects_destination_inside_source_via_symlink() {
+fn clone_in_path_rejects_existing_symlink() {
     let temp = tempfile::tempdir().unwrap();
     let source = fixture("crates/test1");
-    let source_alias = temp.path().join("source-alias");
-    let destination = source_alias.join("patched");
-    std::os::unix::fs::symlink(&source, &source_alias).unwrap();
+    let target = temp.path().join("target");
+    let destination = temp.path().join("existing");
+    std::fs::create_dir(&target).unwrap();
+    std::os::unix::fs::symlink(&target, &destination).unwrap();
 
     let result = Crate::open(&source).unwrap().clone_in_path(&destination);
 
     assert!(matches!(
         result,
-        Err(Error::InvalidCloneDestination(path)) if path == destination
+        Err(Error::CloneDestinationExists(path)) if path == destination
     ));
-    assert!(!source.join("patched").exists());
+    assert_eq!(std::fs::read_link(destination).unwrap(), target);
+}
+
+#[cfg(unix)]
+#[test]
+fn clone_in_path_allows_destination_inside_source_via_symlink_without_recursing() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("source");
+    Crate::open(fixture("crates/test1"))
+        .unwrap()
+        .clone_in_path(&source)
+        .unwrap();
+    let source_alias = temp.path().join("source-alias");
+    let destination = source_alias.join("patched");
+    std::os::unix::fs::symlink(&source, &source_alias).unwrap();
+
+    Crate::open(&source)
+        .unwrap()
+        .clone_in_path(&destination)
+        .unwrap();
+
+    assert!(source.join("patched/src/lib.rs").is_file());
+    assert!(!source.join("patched/patched").exists());
 }

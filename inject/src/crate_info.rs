@@ -59,10 +59,9 @@ impl Crate {
         self.manifest.package.as_ref().ok_or(Error::PackageNotFound)
     }
 
-    /// Creates a copy of the crate in the provided path.
+    /// Creates a copy of the crate in the provided, nonexistent path.
     ///
-    /// Creates the directory if it doesn't exists. The destination cannot be the source crate or
-    /// a descendant of it.
+    /// The destination cannot already exist.
     ///
     /// This is the only way to create a [`CrateMut`] from the public API.
     pub fn clone_in_path(&self, dest: impl AsRef<Path>) -> Result<CrateMut, Error> {
@@ -75,17 +74,21 @@ impl Crate {
 
         self.warn_manifest_overrides();
 
-        if !dest.is_dir() {
-            log::debug!("Creating dest directory...");
-            std::fs::create_dir_all(dest)?;
+        match std::fs::symlink_metadata(dest) {
+            Ok(_) => return Err(Error::CloneDestinationExists(dest.to_path_buf())),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
         }
+        log::debug!("Creating dest directory...");
+        std::fs::create_dir_all(dest)?;
 
         let mut ignore = IgnoredFiles::new();
         // Always ignore the target directory.
         ignore.add(Path::new("target"));
-        // Ignore the destination directory if it's inside the source.
-        if self.base_path_contains(dest)? {
-            ignore.add(dest.as_ref());
+        let resolved_destination = resolve_path(dest)?;
+        if resolved_destination.starts_with(self.base_path()) {
+            let relative_destination = resolved_destination.strip_prefix(self.base_path())?;
+            ignore.add(relative_destination);
         }
         copy_files_rec(self.base_path(), dest, self.base_path(), &ignore)?;
         std::fs::write(
@@ -133,11 +136,6 @@ impl Crate {
             package.workspace = None;
         }
         manifest.workspace = None;
-    }
-
-    fn base_path_contains(&self, dest: &Path) -> Result<bool, Error> {
-        let destination = resolve_path(dest)?;
-        Ok(destination.starts_with(self.base_path()))
     }
 
     #[expect(

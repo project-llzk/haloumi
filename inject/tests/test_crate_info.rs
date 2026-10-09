@@ -1,0 +1,296 @@
+use std::path::{Path, PathBuf};
+
+use haloumi_inject::{
+    crate_info::{Crate, RustFile},
+    error::Error,
+};
+
+fn fixture(path: impl AsRef<Path>) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join(path)
+}
+
+#[cfg(unix)]
+#[test]
+fn clone_skips_root_target_preserves_symlinks_and_rebases_paths() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = fixture("crates/copy-source");
+    let copy = temp.path().join("copy");
+    Crate::open(&source).unwrap().clone_in_path(&copy).unwrap();
+
+    assert!(!copy.join("target").exists());
+    assert!(copy.join("src/target/kept.rs").is_file());
+    assert_eq!(
+        std::fs::read_link(copy.join("linked.rs")).unwrap(),
+        PathBuf::from("src/lib.rs")
+    );
+    let manifest = cargo_toml::Manifest::from_path(copy.join("Cargo.toml")).unwrap();
+    let expected_path = fixture("crates/copy-sibling")
+        .to_string_lossy()
+        .into_owned();
+    let copied_path = manifest.dependencies["copy-sibling"]
+        .detail()
+        .unwrap()
+        .path
+        .as_deref()
+        .unwrap();
+    assert!(Path::new(copied_path).is_absolute());
+    assert_eq!(
+        Path::new(copied_path).canonicalize().unwrap(),
+        Path::new(&expected_path).canonicalize().unwrap()
+    );
+}
+
+#[test]
+fn relative_source_path_rebases_dependencies_absolutely() {
+    let temp = tempfile::tempdir().unwrap();
+    let copy = temp.path().join("copy");
+    let source = Path::new("tests/crates/copy-source");
+    Crate::open(source).unwrap().clone_in_path(&copy).unwrap();
+
+    let manifest = cargo_toml::Manifest::from_path(copy.join("Cargo.toml")).unwrap();
+    let copied_path = manifest.dependencies["copy-sibling"]
+        .detail()
+        .unwrap()
+        .path
+        .as_deref()
+        .unwrap();
+    assert!(Path::new(copied_path).is_absolute());
+    assert_eq!(
+        Path::new(copied_path).canonicalize().unwrap(),
+        fixture("crates/copy-sibling").canonicalize().unwrap()
+    );
+}
+
+#[test]
+fn copied_workspace_member_has_a_standalone_readable_manifest() {
+    let temp = tempfile::tempdir().unwrap();
+    let copy = temp.path().join("copy");
+    Crate::open(fixture("crates/workspace/member"))
+        .unwrap()
+        .clone_in_path(&copy)
+        .unwrap();
+
+    let raw_manifest: toml::Value =
+        toml::from_str(&std::fs::read_to_string(copy.join("Cargo.toml")).unwrap()).unwrap();
+    assert!(raw_manifest.get("workspace").is_none());
+    assert!(Crate::open(&copy).is_ok());
+    let cargo_metadata = std::process::Command::new("cargo")
+        .args([
+            "metadata",
+            "--no-deps",
+            "--format-version",
+            "1",
+            "--manifest-path",
+        ])
+        .arg(copy.join("Cargo.toml"))
+        .output()
+        .unwrap();
+    assert!(cargo_metadata.status.success());
+    let manifest = cargo_toml::Manifest::from_path(copy.join("Cargo.toml")).unwrap();
+    let expected_path = fixture("crates/workspace/shared")
+        .to_string_lossy()
+        .into_owned();
+    assert_eq!(
+        manifest.dependencies["shared"]
+            .detail()
+            .unwrap()
+            .path
+            .as_deref(),
+        Some(expected_path.as_str())
+    );
+}
+
+#[test]
+fn dependency_replacement_preserves_detailed_options() {
+    let temp = tempfile::tempdir().unwrap();
+    let copy = temp.path().join("copy");
+    let local = temp.path().join("patched-upstream");
+    let mut copied = Crate::open(fixture("crates/detailed-dependency"))
+        .unwrap()
+        .clone_in_path(&copy)
+        .unwrap();
+    copied
+        .replace_dependency_with_path("alias", &local)
+        .unwrap();
+    copied.commit().unwrap();
+
+    let manifest = cargo_toml::Manifest::from_path(copy.join("Cargo.toml")).unwrap();
+    let dependency = manifest.dependencies["alias"].detail().unwrap();
+    assert_eq!(dependency.package.as_deref(), Some("upstream"));
+    assert_eq!(dependency.features, ["feature-a"]);
+    assert!(dependency.optional);
+    assert!(!dependency.default_features);
+    assert_eq!(
+        dependency.path.as_deref(),
+        Some(local.to_string_lossy().as_ref())
+    );
+    assert!(dependency.git.is_none());
+}
+
+#[test]
+fn generated_file_commits_once_and_rejects_collisions() {
+    let temp = tempfile::tempdir().unwrap();
+    let copy = temp.path().join("copy");
+    let mut copied = Crate::open(fixture("crates/test1"))
+        .unwrap()
+        .clone_in_path(&copy)
+        .unwrap();
+
+    copied
+        .create_rust_file(
+            "src/bin/generated.rs",
+            RustFile::parse_str("fn main() {}\n").unwrap(),
+        )
+        .unwrap();
+    assert!(matches!(
+        copied.create_rust_file("src/bin/generated.rs", RustFile::new()),
+        Err(Error::GeneratedFileExists(_))
+    ));
+    assert!(matches!(
+        copied.create_rust_file("src/lib.rs", RustFile::default()),
+        Err(Error::GeneratedFileExists(_))
+    ));
+    copied.commit().unwrap();
+    assert!(copy.join("src/bin/generated.rs").is_file());
+}
+
+#[test]
+fn open_rust_file_rejects_absolute_path() {
+    let temp = tempfile::tempdir().unwrap();
+    let copy = temp.path().join("copy");
+    let mut copied = Crate::open(fixture("crates/test1"))
+        .unwrap()
+        .clone_in_path(&copy)
+        .unwrap();
+
+    assert!(matches!(
+        copied.open_rust_file(fixture("crates/test1/src/lib.rs")),
+        Err(Error::InvalidCrateRelativePath(_))
+    ));
+}
+
+#[test]
+fn open_rust_file_rejects_parent_directory_path() {
+    let temp = tempfile::tempdir().unwrap();
+    let copy = temp.path().join("copy");
+    std::fs::write(temp.path().join("outside.rs"), "pub struct Outside;\n").unwrap();
+    let mut copied = Crate::open(fixture("crates/test1"))
+        .unwrap()
+        .clone_in_path(&copy)
+        .unwrap();
+
+    assert!(matches!(
+        copied.open_rust_file("../outside.rs"),
+        Err(Error::InvalidCrateRelativePath(_))
+    ));
+}
+
+#[test]
+fn clone_in_path_allows_destination_inside_source_without_recursing() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("source");
+    Crate::open(fixture("crates/test1"))
+        .unwrap()
+        .clone_in_path(&source)
+        .unwrap();
+    let destination = source.join("patched");
+
+    Crate::open(&source)
+        .unwrap()
+        .clone_in_path(&destination)
+        .unwrap();
+
+    assert!(destination.join("src/lib.rs").is_file());
+    assert!(!destination.join("patched").exists());
+}
+
+#[test]
+fn clone_in_path_rejects_existing_directory() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = fixture("crates/test1");
+    let destination = temp.path().join("existing");
+    std::fs::create_dir(&destination).unwrap();
+
+    let result = Crate::open(&source).unwrap().clone_in_path(&destination);
+
+    assert!(matches!(
+        result,
+        Err(Error::CloneDestinationExists(path)) if path == destination
+    ));
+    assert!(destination.is_dir());
+    assert!(std::fs::read_dir(&destination).unwrap().next().is_none());
+}
+
+#[test]
+fn clone_in_path_rejects_existing_file() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = fixture("crates/test1");
+    let destination = temp.path().join("existing");
+    std::fs::write(&destination, "original content").unwrap();
+
+    let result = Crate::open(&source).unwrap().clone_in_path(&destination);
+
+    assert!(matches!(
+        result,
+        Err(Error::CloneDestinationExists(path)) if path == destination
+    ));
+    assert_eq!(
+        std::fs::read_to_string(destination).unwrap(),
+        "original content"
+    );
+}
+
+#[test]
+fn clone_in_path_rejects_source_as_existing_destination() {
+    let source = fixture("crates/test1");
+
+    let result = Crate::open(&source).unwrap().clone_in_path(&source);
+
+    assert!(matches!(
+        result,
+        Err(Error::CloneDestinationExists(path)) if path == source
+    ));
+}
+
+#[cfg(unix)]
+#[test]
+fn clone_in_path_rejects_existing_symlink() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = fixture("crates/test1");
+    let target = temp.path().join("target");
+    let destination = temp.path().join("existing");
+    std::fs::create_dir(&target).unwrap();
+    std::os::unix::fs::symlink(&target, &destination).unwrap();
+
+    let result = Crate::open(&source).unwrap().clone_in_path(&destination);
+
+    assert!(matches!(
+        result,
+        Err(Error::CloneDestinationExists(path)) if path == destination
+    ));
+    assert_eq!(std::fs::read_link(destination).unwrap(), target);
+}
+
+#[cfg(unix)]
+#[test]
+fn clone_in_path_allows_destination_inside_source_via_symlink_without_recursing() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("source");
+    Crate::open(fixture("crates/test1"))
+        .unwrap()
+        .clone_in_path(&source)
+        .unwrap();
+    let source_alias = temp.path().join("source-alias");
+    let destination = source_alias.join("patched");
+    std::os::unix::fs::symlink(&source, &source_alias).unwrap();
+
+    Crate::open(&source)
+        .unwrap()
+        .clone_in_path(&destination)
+        .unwrap();
+
+    assert!(source.join("patched/src/lib.rs").is_file());
+    assert!(!source.join("patched/patched").exists());
+}

@@ -1,12 +1,17 @@
 //! Types for working with Rust crates in the filesystem.
 
-use crate::error::Error;
+use crate::{
+    crate_info::fs::{IgnoredFiles, copy_files_rec, resolve_path},
+    error::Error,
+};
 use cargo_toml::{Dependency, DepsSet, Manifest, Package, SemVer};
 use std::{
     collections::{HashMap, btree_map, hash_map::Entry},
     ops::Deref,
     path::{Component, Path, PathBuf},
 };
+
+mod fs;
 
 /// Represents a Rust crate located in a directory.
 #[derive(Debug)]
@@ -68,8 +73,6 @@ impl Crate {
         );
         let dest = dest.as_ref();
 
-        self.validate_clone_destination(dest)?;
-
         self.warn_manifest_overrides();
 
         if !dest.is_dir() {
@@ -77,7 +80,14 @@ impl Crate {
             std::fs::create_dir_all(dest)?;
         }
 
-        copy_files_rec(self.base_path(), dest, self.base_path())?;
+        let mut ignore = IgnoredFiles::new();
+        // Always ignore the target directory.
+        ignore.add(Path::new("target"));
+        // Ignore the destination directory if it's inside the source.
+        if self.base_path_contains(dest)? {
+            ignore.add(dest.as_ref());
+        }
+        copy_files_rec(self.base_path(), dest, self.base_path(), &ignore)?;
         std::fs::write(
             dest.join("Cargo.toml"),
             toml::to_string_pretty(&self.standalone_manifest())?,
@@ -125,12 +135,9 @@ impl Crate {
         manifest.workspace = None;
     }
 
-    fn validate_clone_destination(&self, dest: &Path) -> Result<(), Error> {
+    fn base_path_contains(&self, dest: &Path) -> Result<bool, Error> {
         let destination = resolve_path(dest)?;
-        if destination.starts_with(self.base_path()) {
-            return Err(Error::InvalidCloneDestination(dest.to_path_buf()));
-        }
-        Ok(())
+        Ok(destination.starts_with(self.base_path()))
     }
 
     #[expect(
@@ -151,63 +158,6 @@ impl Crate {
             );
         }
     }
-}
-
-fn resolve_path(path: &Path) -> Result<PathBuf, Error> {
-    let path = std::path::absolute(path)?;
-    let mut existing_ancestor = path.as_path();
-    while !existing_ancestor.exists() {
-        existing_ancestor = existing_ancestor
-            .parent()
-            .expect("an absolute path has an existing ancestor");
-    }
-
-    let suffix = path
-        .strip_prefix(existing_ancestor)
-        .expect("an ancestor is a path prefix");
-    Ok(existing_ancestor.canonicalize()?.join(suffix))
-}
-
-fn copy_files_rec(base: &Path, dest: &Path, current: &Path) -> Result<(), Error> {
-    for entry in std::fs::read_dir(current)? {
-        let entry = entry?;
-
-        let full_path = entry.path();
-        let rel_path = full_path.strip_prefix(base)?;
-        let dest_path = dest.join(rel_path);
-        log::debug!("{} -> {}", full_path.display(), dest_path.display());
-        let file_type = entry.file_type()?;
-        if file_type.is_dir() && rel_path == Path::new("target") {
-            log::debug!("Skipping generated directory '{}'", full_path.display());
-        } else if file_type.is_dir() {
-            std::fs::create_dir_all(dest_path)?;
-            copy_files_rec(base, dest, &full_path)?;
-        } else if file_type.is_file() {
-            std::fs::copy(full_path, dest_path)?;
-        } else if file_type.is_symlink() {
-            copy_symlink(&full_path, &dest_path)?;
-        } else {
-            return Err(Error::UnsupportedFileType(full_path));
-        }
-    }
-    Ok(())
-}
-
-#[cfg(unix)]
-fn copy_symlink(source: &Path, dest: &Path) -> Result<(), Error> {
-    std::os::unix::fs::symlink(std::fs::read_link(source)?, dest)?;
-    Ok(())
-}
-
-#[cfg(windows)]
-fn copy_symlink(source: &Path, dest: &Path) -> Result<(), Error> {
-    let target = std::fs::read_link(source)?;
-    if source.metadata()?.is_dir() {
-        std::os::windows::fs::symlink_dir(target, dest)?;
-    } else {
-        std::os::windows::fs::symlink_file(target, dest)?;
-    }
-    Ok(())
 }
 
 /// A crate whose contents can be modified.

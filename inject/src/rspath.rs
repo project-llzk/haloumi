@@ -371,3 +371,187 @@ fn fn_arg_name(arg: &syn::FnArg) -> Option<String> {
         },
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ITEMS: &str = r#"
+        mod nested {
+            pub struct Nested;
+
+            pub trait NestedTrait {
+                fn trait_method(&self);
+                type TraitType;
+                const TRAIT_CONST: usize;
+            }
+
+            impl NestedTrait for Nested {
+                fn trait_method(&self) {}
+                type TraitType = ();
+                const TRAIT_CONST: usize = 0;
+            }
+        }
+
+        mod external;
+
+        struct Struct<'a, T, const N: usize> {
+            field: &'a T,
+        }
+
+        union Union {
+            field: usize,
+        }
+
+        enum Enum<T> {
+            Unit,
+            Named { field: T },
+            Tuple(T),
+        }
+
+        struct Plain;
+
+        impl Plain {
+            fn method<T>(&self, value: T) {}
+            type Assoc = ();
+            const CONST: usize = 0;
+        }
+
+        fn function<'a, T, const N: usize>(argument: &'a T) {}
+        fn destructured((left, right): (usize, usize)) {}
+
+        trait Trait<'a, T, const N: usize> {
+            fn method<U>(&self, value: U);
+            type Assoc;
+            const CONST: usize;
+        }
+
+        type Alias<T> = T;
+        const CONSTANT: usize = 0;
+        static STATIC: usize = 0;
+        extern crate core as core_crate;
+        macro_rules! named_macro { () => {} }
+
+        fn duplicate() {}
+        fn duplicate() {}
+    "#;
+
+    fn count(target: &str) -> usize {
+        let file = syn::parse_file(ITEMS).unwrap();
+        RustPath::parse(target).unwrap().count(&file.items)
+    }
+
+    #[test]
+    fn parses_normal_and_trait_impl_paths() {
+        let normal = RustPath::parse("nested::Struct::field").unwrap();
+        assert!(matches!(
+            normal,
+            RustPath::Normal(segments)
+                if segments == ["nested", "Struct", "field"]
+        ));
+
+        let trait_impl = RustPath::parse("<Nested as NestedTrait>::trait_method").unwrap();
+        assert!(matches!(
+            trait_impl,
+            RustPath::TraitImpl {
+                self_ty,
+                trait_path,
+                member,
+            } if self_ty == ["Nested"]
+                && trait_path == ["NestedTrait"]
+                && member == "trait_method"
+        ));
+    }
+
+    #[test]
+    fn rejects_unsupported_path_syntax() {
+        for target in [
+            "",
+            "::Struct",
+            "Struct::<usize>",
+            "Struct::'a",
+            "<Struct as Trait>::member::nested",
+            "<Struct as Trait>::",
+            "<Struct Trait>::member",
+            "<Struct as Trait> ::member",
+        ] {
+            assert!(matches!(
+                RustPath::parse(target),
+                Err(Error::InvalidAttributePath(path)) if path == target
+            ));
+        }
+    }
+
+    #[test]
+    fn counts_supported_normal_path_targets() {
+        for target in [
+            "nested",
+            "nested::Nested",
+            "Struct",
+            "Struct::field",
+            "Struct::T",
+            "Struct::N",
+            "Union",
+            "Union::field",
+            "Enum",
+            "Enum::T",
+            "Enum::Unit",
+            "Enum::Named",
+            "Enum::Named::field",
+            "Plain",
+            "Plain::method",
+            "Plain::method::T",
+            "Plain::Assoc",
+            "Plain::CONST",
+            "function",
+            "function::T",
+            "function::N",
+            "function::argument",
+            "Trait",
+            "Trait::T",
+            "Trait::N",
+            "Trait::method",
+            "Trait::method::U",
+            "Trait::Assoc",
+            "Trait::CONST",
+            "Alias",
+            "Alias::T",
+            "CONSTANT",
+            "STATIC",
+            "core",
+            "named_macro",
+        ] {
+            assert_eq!(count(target), 1, "expected one match for {target}");
+        }
+    }
+
+    #[test]
+    fn counts_trait_impl_members_in_inline_modules() {
+        for target in [
+            "<Nested as NestedTrait>::trait_method",
+            "<Nested as NestedTrait>::TraitType",
+            "<Nested as NestedTrait>::TRAIT_CONST",
+        ] {
+            assert_eq!(count(target), 1, "expected one match for {target}");
+        }
+    }
+
+    #[test]
+    fn does_not_count_unsupported_or_absent_targets() {
+        for target in [
+            "external::Hidden",
+            "core_crate",
+            "Enum::Tuple::field",
+            "destructured::left",
+            "Plain::missing",
+            "<Nested as NestedTrait>::missing",
+        ] {
+            assert_eq!(count(target), 0, "expected no match for {target}");
+        }
+    }
+
+    #[test]
+    fn reports_all_matches_for_ambiguous_paths() {
+        assert_eq!(count("duplicate"), 2);
+    }
+}

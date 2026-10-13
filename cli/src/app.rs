@@ -9,7 +9,7 @@ use std::{
 use cargo_metadata::{CargoOpt, DependencyKind, Metadata, MetadataCommand, Package, PackageId};
 use haloumi_inject::{
     Injector,
-    crate_info::{Crate, CrateMut, RustFile},
+    crate_info::{Crate, CrateLike, CrateMut, RustFile},
     error::Error as InjectError,
     spec::{SpecMatch, SpecRegistry},
 };

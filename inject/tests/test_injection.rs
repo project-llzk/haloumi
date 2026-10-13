@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use haloumi_inject::{
     Injector,
-    crate_info::{Crate, CrateLike},
+    crate_info::{Crate, CrateLike, RustFile},
     error::Error,
     spec::{SpecMatch, SpecRegistry},
 };
@@ -325,14 +325,23 @@ fn generated_file_commits_once_and_rejects_collisions() {
         .unwrap();
 
     copied
-        .create_rust_file("src/bin/generated.rs", "fn main() {}\n")
+        .create_rust_file(
+            "src/bin/generated.rs",
+            RustFile::parse_str("fn main() {}\n").unwrap(),
+        )
         .unwrap();
     assert!(matches!(
-        copied.create_rust_file("src/bin/generated.rs", "fn main() {}\n"),
+        copied.create_rust_file(
+            "src/bin/generated.rs",
+            RustFile::parse_str("fn main() {}\n").unwrap()
+        ),
         Err(Error::GeneratedFileExists(_))
     ));
     assert!(matches!(
-        copied.create_rust_file("src/lib.rs", "fn replacement() {}\n"),
+        copied.create_rust_file(
+            "src/lib.rs",
+            RustFile::parse_str("fn replacement() {}\n").unwrap()
+        ),
         Err(Error::GeneratedFileExists(_))
     ));
     copied.commit().unwrap();

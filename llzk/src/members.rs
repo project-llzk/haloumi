@@ -10,14 +10,14 @@ use llzk::{
     builder::OpBuilder,
     dialect::r#struct,
     error::Error as LlzkError,
-    prelude::{MemberDefOpRef, StructDefOpLike as _, StructDefOpRefMut, StructType},
+    prelude::{MemberDefOpRef, StructType},
 };
 use melior::{
     Context,
     ir::{Location, Type},
 };
 
-use crate::{error::Error, factory::filename, state::LlzkCodegenState};
+use crate::{factory::filename, state::LlzkCodegenState};
 
 /// Hash version of [`MemberKind`] that avoids the lifetime of the callee name.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]

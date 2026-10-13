@@ -21,7 +21,6 @@ use num_bigint::BigUint;
 use std::rc::Rc;
 
 use super::counter::Counter;
-use super::extras::{block_list, operations_list};
 use haloumi_core::{
     cmp::CmpOp,
     felt::Felt,
@@ -73,7 +72,7 @@ pub struct LlzkStructLowering<'c, 's> {
 }
 
 impl<'c, 's> LlzkStructLowering<'c, 's> {
-    pub fn new(
+    pub(crate) fn new(
         state: &'s LlzkCodegenState<'c>,
         struct_op: StructDefOpRefMut<'c, 's>,
         io: StructIO,

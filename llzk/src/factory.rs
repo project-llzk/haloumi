@@ -1,8 +1,3 @@
-use std::{
-    collections::HashMap,
-    hash::{DefaultHasher, Hash, Hasher},
-};
-
 use haloumi_synthesis::io::{AdviceIO, InstanceIO};
 use llzk::{
     attributes::NamedAttribute,
@@ -63,10 +58,6 @@ impl StructIO {
         let callees = MemberKind::callees(&self.callees);
 
         public_outputs.chain(private_outputs).chain(callees)
-    }
-
-    pub fn callees_mapping(&self) -> HashMap<usize, String> {
-        self.callees.iter().cloned().enumerate().collect()
     }
 
     fn inputs(&self) -> usize {
@@ -134,11 +125,7 @@ impl StructIO {
         }
     }
 
-    pub fn callees_count(&self) -> usize {
-        self.callees.len()
-    }
-
-    pub fn callee(&self, id: usize) -> Result<MemberKind<'_>, Error> {
+    pub(crate) fn callee(&self, id: usize) -> Result<MemberKind<'_>, Error> {
         log::debug!("Requesting callee {id} (callees: {:?})", self.callees);
         self.callees
             .get(id)

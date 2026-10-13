@@ -576,9 +576,17 @@ impl<T> IRStmt<T> {
             }
             (IRStmtImpl::Assert(lhs), IRStmtImpl::Assert(rhs)) => lhs.eq(rhs),
             (IRStmtImpl::PostCond(lhs), IRStmtImpl::PostCond(rhs)) => lhs.eq(rhs),
-            (IRStmtImpl::CondBlock(lhs), IRStmtImpl::CondBlock(rhs)) => lhs.eq(rhs),
-            (IRStmtImpl::BlockComment(lhs), IRStmtImpl::BlockComment(rhs)) => lhs.eq(rhs),
-            (IRStmtImpl::Seq(lhs), IRStmtImpl::Seq(rhs)) => lhs.eq(rhs),
+            (IRStmtImpl::CondBlock(lhs), IRStmtImpl::CondBlock(rhs)) => {
+                lhs.cond() == rhs.cond() && lhs.body().exact_eq(rhs.body())
+            }
+            (IRStmtImpl::BlockComment(lhs), IRStmtImpl::BlockComment(rhs)) => {
+                lhs.value() == rhs.value() && lhs.body().exact_eq(rhs.body())
+            }
+            (IRStmtImpl::Seq(lhs), IRStmtImpl::Seq(rhs)) => {
+                lhs.len() == rhs.len()
+                    && std::iter::zip(lhs.iter(), rhs.iter())
+                        .all(|(lhs, rhs)| lhs.exact_eq(rhs))
+            }
             _ => false,
         }
     }

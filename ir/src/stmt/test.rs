@@ -67,6 +67,30 @@ fn semantic_equality_normalizes_sequences_but_not_wrappers() {
 }
 
 #[test]
+fn exact_equality_preserves_nested_sequence_structure() {
+    let leaf = || S::assert(IRBexpr::and_many(vec![]));
+    let nested = || S::seq([leaf(), S::seq([leaf(), leaf()])]);
+    let flat = || S::seq([leaf(), leaf(), leaf()]);
+
+    let cases = [
+        (nested(), flat()),
+        (
+            CondBlock::new(IRBexpr::and_many(vec![]), nested()).into(),
+            CondBlock::new(IRBexpr::and_many(vec![]), flat()).into(),
+        ),
+        (
+            nested().with_comment("header".to_owned()),
+            flat().with_comment("header".to_owned()),
+        ),
+    ];
+
+    for (lhs, rhs) in cases {
+        assert_eq!(lhs, rhs);
+        assert!(!lhs.exact_eq(&rhs));
+    }
+}
+
+#[test]
 fn symbolic_equivalence_preserves_wrappers_but_ignores_block_comment_text() {
     use eqv::EqvRelation;
     use haloumi_core::eqv::SymbolicEqv;

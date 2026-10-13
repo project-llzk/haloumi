@@ -1,0 +1,7 @@
+error: this derive only supports structs; enums require an explicit cell representation
+ --> tests/ui/cell_repr_size/enum.rs:4:1
+  |
+4 | / enum E {
+5 | |     Value(usize),
+6 | | }
+  | |_^

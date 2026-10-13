@@ -46,9 +46,6 @@
 
         stableCiRust = pkgs.rust-bin.stable."1.98.0".minimal;
         nightlyCiRust = pkgs.rust-bin.nightly."2026-08-28".minimal;
-        clippyCiRust = stableCiRust.override {
-          extensions = [ "clippy" ];
-        };
 
         haloumi = pkgs.rustPlatform.buildRustPackage (
           {
@@ -129,9 +126,7 @@
           clippy-ci = pkgs.mkShell (
             {
               nativeBuildInputs = pkgs.llzkSharedEnvironment.nativeBuildInputs;
-              buildInputs = pkgs.llzkSharedEnvironment.devBuildInputs ++ [
-                clippyCiRust
-              ];
+              buildInputs = pkgs.llzkSharedEnvironment.devBuildInputs;
             }
             // pkgs.llzkSharedEnvironment.env
             // pkgs.llzkSharedEnvironment.devSettings

@@ -183,6 +183,9 @@ jobs:
           arguments: "'.#clippy-ci'"
         env:
           CI_BOT_PAT: "${{ secrets.CI_BUILD_TOKEN }}"
+      - uses: dtolnay/rust-toolchain@1.98.0
+        with:
+          components: clippy
 
       - name: Run Clippy on `haloumi-core`
         if: always()

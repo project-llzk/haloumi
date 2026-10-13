@@ -9,6 +9,9 @@ use std::hash::Hash;
 
 use crate::error::Error;
 
+#[cfg(any(test, feature = "arbitrary"))]
+use quickcheck::Arbitrary;
+
 /// Type alias for a pair of column and row.
 pub type IOCell<C> = (Column<C>, usize);
 
@@ -19,10 +22,28 @@ pub type AdviceIO = CircuitIO<Advice>;
 pub type InstanceIO = CircuitIO<Instance>;
 
 /// Records what cells of the given column type are inputs and what cells are outputs.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CircuitIO<C: ColumnType> {
     inputs: Vec<IOCell<C>>,
     outputs: Vec<IOCell<C>>,
+}
+
+#[cfg(any(test, feature = "arbitrary"))]
+impl<C> Arbitrary for CircuitIO<C>
+where
+    C: ColumnType + Arbitrary + 'static,
+{
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        let len = usize::arbitrary(g) % (g.size().min(4) + 1);
+        let inputs: Vec<IOCell<C>> = (0..len)
+            .map(|_| (Column::<C>::arbitrary(g), usize::arbitrary(g)))
+            .collect();
+        let outputs: Vec<IOCell<C>> = (0..len)
+            .map(|_| (Column::<C>::arbitrary(g), usize::arbitrary(g)))
+            .collect();
+        Self::new_from_iocells(inputs, outputs)
+    }
 }
 
 impl<C: ColumnType> CircuitIO<C> {
@@ -119,5 +140,29 @@ impl<C: ColumnType + Hash> CircuitIO<C> {
     #[inline]
     fn output_set(&self) -> HashSet<&IOCell<C>> {
         self.outputs.iter().collect()
+    }
+}
+
+#[cfg(all(test, feature = "serde"))]
+mod serde_tests {
+    use super::*;
+    use quickcheck_macros::quickcheck;
+
+    fn round_trip<T: serde::Serialize + serde::de::DeserializeOwned>(value: T) -> T {
+        serde_json::from_slice(&serde_json::to_vec(&value).unwrap()).unwrap()
+    }
+
+    #[quickcheck]
+    fn advice_io_round_trips(value: CircuitIO<Advice>) {
+        let decoded = round_trip(value.clone());
+        assert_eq!(value.inputs(), decoded.inputs());
+        assert_eq!(value.outputs(), decoded.outputs());
+    }
+
+    #[quickcheck]
+    fn instance_io_round_trips(value: CircuitIO<Instance>) {
+        let decoded = round_trip(value.clone());
+        assert_eq!(value.inputs(), decoded.inputs());
+        assert_eq!(value.outputs(), decoded.outputs());
     }
 }

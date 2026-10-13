@@ -4,11 +4,19 @@ use std::{fmt, ops::Deref};
 
 /// An identifier that backends use to identify an input in the circuit.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ArgNo(usize);
 
 impl From<usize> for ArgNo {
     fn from(value: usize) -> Self {
         Self(value)
+    }
+}
+
+#[cfg(any(test, feature = "arbitrary"))]
+impl quickcheck::Arbitrary for ArgNo {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        Self::from(usize::arbitrary(g))
     }
 }
 
@@ -36,5 +44,19 @@ impl fmt::Display for ArgNo {
 impl fmt::Debug for ArgNo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "arg{}", self.0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "serde")]
+    use quickcheck_macros::quickcheck;
+
+    use super::*;
+
+    #[cfg(feature = "serde")]
+    #[quickcheck]
+    fn arg_no_round_trips(value: ArgNo) {
+        assert_eq!(value, crate::serde_tests_helpers::round_trip(value));
     }
 }

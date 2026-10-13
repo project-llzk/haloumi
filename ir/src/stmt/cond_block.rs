@@ -17,6 +17,7 @@ use crate::{
 /// It's useful for emitting IR that can be optimized out but there's no
 /// pattern that handles it.
 #[derive(Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CondBlock<T> {
     cond: IRBexpr<T>,
     // Body of the block. Boxed for indirection.
@@ -45,6 +46,10 @@ impl<T> CondBlock<T> {
 
     pub fn body_mut(&mut self) -> &mut IRStmt<T> {
         &mut self.body
+    }
+
+    pub fn take_body(self) -> IRStmt<T> {
+        *self.body
     }
 
     pub fn map<O>(self, f: &mut impl FnMut(T) -> O) -> CondBlock<O> {

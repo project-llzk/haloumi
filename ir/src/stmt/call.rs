@@ -6,6 +6,7 @@ use haloumi_lowering::{
     lowerable::{LowerableExpr, LowerableStmt},
 };
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Call<I> {
     callee: String,
     inputs: Vec<I>,

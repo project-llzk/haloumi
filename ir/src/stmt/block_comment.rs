@@ -6,6 +6,7 @@ use crate::{
     traits::{Canonicalize, ConstantFolding},
 };
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BlockComment<T> {
     comment: Option<String>,
     body: Box<IRStmt<T>>,

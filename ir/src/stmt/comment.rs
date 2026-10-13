@@ -1,5 +1,6 @@
 use haloumi_lowering::{Lowering, Result, lowerable::LowerableStmt};
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Comment(String);
 
 impl Comment {

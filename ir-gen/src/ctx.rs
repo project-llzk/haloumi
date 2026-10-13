@@ -21,6 +21,7 @@ use haloumi_synthesis::regions::RegionData;
 /// Contains information related to the IR of a circuit. Is used by the driver to lower the
 /// circuit.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct IRCtx {
     groups_io: GroupsIO,
     advice_cells: HashMap<RegionIndex, AdviceCells>,
@@ -54,6 +55,7 @@ impl IRCtx {
 
 /// Contains information about the advice cells in a region.
 #[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct AdviceCells {
     columns: HashSet<Column<Any>>,
     rows: Range<usize>,

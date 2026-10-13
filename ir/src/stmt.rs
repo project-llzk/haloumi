@@ -17,6 +17,9 @@ use haloumi_lowering::{
 };
 use std::fmt::Write;
 
+#[cfg(any(test, feature = "arbitrary"))]
+use quickcheck::Arbitrary;
+
 mod assert;
 mod assume_determ;
 mod block_comment;
@@ -65,8 +68,10 @@ where
 impl<T, I> sealed::EmitIfSealed for I where I: IntoIterator<Item = IRStmt<T>> {}
 
 /// IR for operations that occur in the main circuit.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct IRStmt<T>(IRStmtImpl<T>, Meta);
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 enum IRStmtImpl<T> {
     /// A call to another module.
     ConstraintCall(Call<T>),
@@ -86,6 +91,39 @@ enum IRStmtImpl<T> {
     CondBlock(CondBlock<T>),
     /// A block of code with a header comment.
     BlockComment(BlockComment<T>),
+}
+
+#[cfg(any(test, feature = "arbitrary"))]
+impl<T: Arbitrary> Arbitrary for IRStmt<T> {
+    fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+        fn arbitrary_with_depth<T: Arbitrary>(g: &mut quickcheck::Gen, depth: usize) -> IRStmt<T> {
+            if depth == 0 {
+                return IRStmt::constraint(CmpOp::arbitrary(g), T::arbitrary(g), T::arbitrary(g));
+            }
+            match u8::arbitrary(g) % 9 {
+                0 => IRStmt::call(
+                    String::arbitrary(g),
+                    Vec::<T>::arbitrary(g),
+                    Vec::<usize>::arbitrary(g).into_iter().map(Slot::Temp),
+                ),
+                1 => IRStmt::constraint(CmpOp::arbitrary(g), T::arbitrary(g), T::arbitrary(g)),
+                2 => IRStmt::comment(String::arbitrary(g)),
+                3 => IRStmt::assume_deterministic(Slot::arbitrary(g)),
+                4 => IRStmt::assert(IRBexpr::arbitrary(g)),
+                5 => IRStmt::post_cond(IRBexpr::arbitrary(g)),
+                6 => IRStmt::seq(
+                    (0..(usize::arbitrary(g) % 32))
+                        .map(|_| arbitrary_with_depth::<T>(g, depth - 1)),
+                ),
+                7 => {
+                    arbitrary_with_depth::<T>(g, depth - 1).emit_unless_false(IRBexpr::arbitrary(g))
+                }
+                _ => arbitrary_with_depth::<T>(g, depth - 1).with_comment(String::arbitrary(g)),
+            }
+        }
+
+        arbitrary_with_depth(g, g.size().min(5))
+    }
 }
 
 impl<T> HasMeta for IRStmt<T> {
@@ -108,20 +146,80 @@ impl<T: PartialEq> PartialEq for IRStmt<T> {
     ///     a == Seq([a])
     /// ```
     fn eq(&self, other: &Self) -> bool {
-        std::iter::zip(self.iter(), other.iter()).all(|(lhs, rhs)| match (&lhs.0, &rhs.0) {
-            (IRStmtImpl::ConstraintCall(lhs), IRStmtImpl::ConstraintCall(rhs)) => lhs.eq(rhs),
-            (IRStmtImpl::Constraint(lhs), IRStmtImpl::Constraint(rhs)) => lhs.eq(rhs),
-            (IRStmtImpl::Comment(lhs), IRStmtImpl::Comment(rhs)) => lhs.eq(rhs),
+        flat_cmp(self, other, |lhs, rhs| match (&lhs.0, &rhs.0) {
+            (IRStmtImpl::ConstraintCall(lhs), IRStmtImpl::ConstraintCall(rhs)) => lhs == rhs,
+            (IRStmtImpl::Constraint(lhs), IRStmtImpl::Constraint(rhs)) => lhs == rhs,
+            (IRStmtImpl::Comment(lhs), IRStmtImpl::Comment(rhs)) => lhs == rhs,
             (IRStmtImpl::AssumeDeterministic(lhs), IRStmtImpl::AssumeDeterministic(rhs)) => {
-                lhs.eq(rhs)
+                lhs == rhs
             }
-            (IRStmtImpl::Assert(lhs), IRStmtImpl::Assert(rhs)) => lhs.eq(rhs),
-            (IRStmtImpl::PostCond(lhs), IRStmtImpl::PostCond(rhs)) => lhs.eq(rhs),
-            (IRStmtImpl::CondBlock(lhs), IRStmtImpl::CondBlock(rhs)) => lhs.eq(rhs),
-            (IRStmtImpl::BlockComment(lhs), IRStmtImpl::BlockComment(rhs)) => lhs.eq(rhs),
+            (IRStmtImpl::Assert(lhs), IRStmtImpl::Assert(rhs)) => lhs == rhs,
+            (IRStmtImpl::PostCond(lhs), IRStmtImpl::PostCond(rhs)) => lhs == rhs,
+            (IRStmtImpl::CondBlock(lhs), IRStmtImpl::CondBlock(rhs)) => {
+                lhs.cond() == rhs.cond() && lhs.body() == rhs.body()
+            }
+            (IRStmtImpl::BlockComment(lhs), IRStmtImpl::BlockComment(rhs)) => {
+                lhs.value() == rhs.value() && lhs.body() == rhs.body()
+            }
             (IRStmtImpl::Seq(_), _) | (_, IRStmtImpl::Seq(_)) => unreachable!(),
             _ => false,
         })
+    }
+}
+
+/// A structure-aware visitor for statements.
+///
+/// This is deliberately crate-private: it exposes the semantic contents of a
+/// statement without making the representation (or its metadata) part of an
+/// extension API.
+pub(crate) trait IRStmtVisitor<T> {
+    fn on_call(&mut self, _callee: &str, _inputs: &[T], _outputs: &[Slot]) {}
+    fn on_constraint(&mut self, _op: CmpOp, _lhs: &T, _rhs: &T) {}
+    fn on_comment(&mut self, _comment: &str) {}
+    fn on_assume_deterministic(&mut self, _slot: Slot) {}
+    fn on_assert(&mut self, _cond: &IRBexpr<T>) {}
+    fn on_post_cond(&mut self, _cond: &IRBexpr<T>) {}
+
+    fn on_seq(&mut self, children: &[IRStmt<T>]) {
+        walk_seq(self, children);
+    }
+
+    fn on_cond_block(&mut self, _cond: &IRBexpr<T>, body: &IRStmt<T>) {
+        body.visit(self);
+    }
+
+    fn on_block_comment(&mut self, _comment: Option<&str>, body: &IRStmt<T>) {
+        body.visit(self);
+    }
+}
+
+pub(crate) fn walk_seq<T, V: IRStmtVisitor<T> + ?Sized>(visitor: &mut V, children: &[IRStmt<T>]) {
+    for child in children {
+        child.visit(visitor);
+    }
+}
+
+fn flat_cmp<L, R>(
+    lhs: &IRStmt<L>,
+    rhs: &IRStmt<R>,
+    mut compare: impl FnMut(&IRStmt<L>, &IRStmt<R>) -> bool,
+) -> bool {
+    let mut lhs_nodes = Vec::new();
+    let mut rhs_nodes = Vec::new();
+    flatten_seqs(lhs, &mut lhs_nodes);
+    flatten_seqs(rhs, &mut rhs_nodes);
+    lhs_nodes.len() == rhs_nodes.len()
+        && std::iter::zip(lhs_nodes, rhs_nodes).all(|(lhs, rhs)| compare(lhs, rhs))
+}
+
+fn flatten_seqs<'a, T>(stmt: &'a IRStmt<T>, output: &mut Vec<&'a IRStmt<T>>) {
+    match &stmt.0 {
+        IRStmtImpl::Seq(seq) => {
+            for child in seq.iter() {
+                flatten_seqs(child, output);
+            }
+        }
+        _ => output.push(stmt),
     }
 }
 
@@ -415,6 +513,29 @@ impl<T> IRStmt<T> {
         IRStmtRefMutIter { stack: vec![self] }
     }
 
+    /// Visits this statement while preserving all structural wrappers.
+    pub(crate) fn visit<V: IRStmtVisitor<T> + ?Sized>(&self, visitor: &mut V) {
+        match &self.0 {
+            IRStmtImpl::ConstraintCall(call) => {
+                visitor.on_call(call.callee(), call.inputs(), call.outputs())
+            }
+            IRStmtImpl::Constraint(constraint) => {
+                visitor.on_constraint(constraint.op(), constraint.lhs(), constraint.rhs())
+            }
+            IRStmtImpl::Comment(comment) => visitor.on_comment(comment.value()),
+            IRStmtImpl::AssumeDeterministic(deterministic) => {
+                visitor.on_assume_deterministic(deterministic.value())
+            }
+            IRStmtImpl::Assert(assert) => visitor.on_assert(assert.cond()),
+            IRStmtImpl::PostCond(post_cond) => visitor.on_post_cond(post_cond.cond()),
+            IRStmtImpl::Seq(seq) => visitor.on_seq(seq.as_slice()),
+            IRStmtImpl::CondBlock(block) => visitor.on_cond_block(block.cond(), block.body()),
+            IRStmtImpl::BlockComment(block) => {
+                visitor.on_block_comment(block.value(), block.body())
+            }
+        }
+    }
+
     /// Propagates the metadata of this statement to the inner statements.
     pub fn propagate_meta(&mut self) {
         if let IRStmtImpl::Seq(s) = &mut self.0 {
@@ -429,6 +550,43 @@ impl<T> IRStmt<T> {
         match &self.0 {
             IRStmtImpl::ConstraintCall(call) => Some(call.callee()),
             _ => None,
+        }
+    }
+
+    /// Returns true iff the two statements are structurally equal.
+    ///
+    /// This method is useful when you need to check if two statements are
+    /// exactly equal to each other.
+    ///
+    /// The implementation of `PartialEq` used by this type will check that
+    /// two statements are semantically equal.
+    pub fn exact_eq(&self, other: &Self) -> bool
+    where
+        T: PartialEq,
+    {
+        if self.meta() != other.meta() {
+            return false;
+        }
+        match (&self.0, &other.0) {
+            (IRStmtImpl::ConstraintCall(lhs), IRStmtImpl::ConstraintCall(rhs)) => lhs.eq(rhs),
+            (IRStmtImpl::Constraint(lhs), IRStmtImpl::Constraint(rhs)) => lhs.eq(rhs),
+            (IRStmtImpl::Comment(lhs), IRStmtImpl::Comment(rhs)) => lhs.eq(rhs),
+            (IRStmtImpl::AssumeDeterministic(lhs), IRStmtImpl::AssumeDeterministic(rhs)) => {
+                lhs.eq(rhs)
+            }
+            (IRStmtImpl::Assert(lhs), IRStmtImpl::Assert(rhs)) => lhs.eq(rhs),
+            (IRStmtImpl::PostCond(lhs), IRStmtImpl::PostCond(rhs)) => lhs.eq(rhs),
+            (IRStmtImpl::CondBlock(lhs), IRStmtImpl::CondBlock(rhs)) => {
+                lhs.cond() == rhs.cond() && lhs.body().exact_eq(rhs.body())
+            }
+            (IRStmtImpl::BlockComment(lhs), IRStmtImpl::BlockComment(rhs)) => {
+                lhs.value() == rhs.value() && lhs.body().exact_eq(rhs.body())
+            }
+            (IRStmtImpl::Seq(lhs), IRStmtImpl::Seq(rhs)) => {
+                lhs.len() == rhs.len()
+                    && std::iter::zip(lhs.iter(), rhs.iter()).all(|(lhs, rhs)| lhs.exact_eq(rhs))
+            }
+            _ => false,
         }
     }
 }
@@ -520,7 +678,7 @@ where
     /// Two statements are equivalent if they are structurally equal and their inner entities
     /// are equivalent.
     fn equivalent(lhs: &IRStmt<L>, rhs: &IRStmt<R>) -> bool {
-        std::iter::zip(lhs.iter(), rhs.iter()).all(|(lhs, rhs)| match (&lhs.0, &rhs.0) {
+        flat_cmp(lhs, rhs, |lhs, rhs| match (&lhs.0, &rhs.0) {
             (IRStmtImpl::ConstraintCall(lhs), IRStmtImpl::ConstraintCall(rhs)) => {
                 equiv! { SymbolicEqv | lhs, rhs }
             }
@@ -538,10 +696,11 @@ where
                 equiv! { SymbolicEqv | lhs, rhs }
             }
             (IRStmtImpl::CondBlock(lhs), IRStmtImpl::CondBlock(rhs)) => {
-                equiv! { SymbolicEqv | lhs, rhs }
+                let cond = equiv! { SymbolicEqv | lhs.cond(), rhs.cond() };
+                cond && SymbolicEqv::equivalent(lhs.body(), rhs.body())
             }
             (IRStmtImpl::BlockComment(lhs), IRStmtImpl::BlockComment(rhs)) => {
-                equiv! { SymbolicEqv | lhs.body(), rhs.body()}
+                SymbolicEqv::equivalent(lhs.body(), rhs.body())
             }
             (IRStmtImpl::Seq(_), _) | (_, IRStmtImpl::Seq(_)) => unreachable!(),
             _ => false,

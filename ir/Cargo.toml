@@ -21,6 +21,8 @@ haloumi-core = { path = "../core", version = "0.5.5"}
 haloumi-lowering = { path = "../lowering", version = "0.5.5" }
 num-bigint.workspace = true
 bit-set.workspace = true
+serde = { workspace = true, optional = true }
+quickcheck = { workspace = true, optional = true }
 
 [dev-dependencies]
 rstest = "0.26"
@@ -29,3 +31,10 @@ ff = { workspace = true, features = ["derive"] }
 halo2curves = "0.9"
 quickcheck.workspace = true
 quickcheck_macros.workspace = true
+serde_json.workspace = true
+haloumi-core = { path = "../core", version = "0.5.5", features = ["arbitrary"] }
+
+[features]
+default = []
+serde = ["dep:serde", "haloumi-core/serde"]
+arbitrary = ["dep:quickcheck", "haloumi-core/arbitrary"]

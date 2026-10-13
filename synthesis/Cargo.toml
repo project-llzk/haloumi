@@ -17,3 +17,16 @@ haloumi-core = { path = "../core", version = "0.5.5"}
 thiserror.workspace = true
 log.workspace = true
 bit-set.workspace = true
+serde = { workspace = true, optional = true }
+quickcheck = { workspace = true, optional = true }
+
+[dev-dependencies]
+quickcheck.workspace = true
+quickcheck_macros.workspace = true
+serde_json.workspace = true
+haloumi-core = { path = "../core", version = "0.5.5", features = ["arbitrary"] }
+
+[features]
+default = ["serde"]
+serde = ["dep:serde", "haloumi-core/serde"]
+arbitrary = ["dep:quickcheck", "haloumi-core/arbitrary"]

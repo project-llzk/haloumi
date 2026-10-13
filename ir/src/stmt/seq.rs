@@ -9,6 +9,7 @@ use haloumi_lowering::{
 
 use super::IRStmt;
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Seq<T>(Vec<IRStmt<T>>);
 
 impl<T> Seq<T> {
@@ -31,6 +32,10 @@ impl<T> Seq<T> {
 
     pub fn iter(&self) -> std::slice::Iter<'_, IRStmt<T>> {
         self.0.iter()
+    }
+
+    pub(crate) fn as_slice(&self) -> &[IRStmt<T>] {
+        &self.0
     }
 
     pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, IRStmt<T>> {

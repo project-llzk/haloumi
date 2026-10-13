@@ -1,0 +1,6 @@
+[targets]
+inject-tester-fixture = "0.1"
+
+[[patch.append]]
+path = "src/lib.rs"
+content = "pub const INJECTED: bool = true;"

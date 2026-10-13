@@ -368,7 +368,7 @@ impl Config {
             && self.llzk_field().is_none()
         {
             return Err(Error::Message(
-                "LLZK is enabled but backends.llzk.field.builtin is missing".into(),
+                "LLZK is enabled but backends.llzk.field is missing".into(),
             ));
         }
         Ok(())
@@ -422,7 +422,8 @@ mod tests {
             LlzkBackend {
                 enabled: None,
                 optimize: None,
-                field: Some(Field { builtin: None }),
+                field: Some("bn254".into()),
+                format: None,
             }
             .enabled()
         );
@@ -430,7 +431,8 @@ mod tests {
             !LlzkBackend {
                 enabled: Some(false),
                 optimize: None,
-                field: Some(Field { builtin: None }),
+                field: Some("bn254".into()),
+                format: None,
             }
             .enabled()
         );
@@ -439,6 +441,7 @@ mod tests {
                 enabled: Some(true),
                 optimize: None,
                 field: None,
+                format: None,
             }
             .enabled()
         );

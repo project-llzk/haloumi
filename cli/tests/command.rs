@@ -352,7 +352,7 @@ fn llzk_field_implicitly_enables_llzk() {
         &config,
         contents.replace(
             "[backends.ir]\nenabled = true",
-            "[backends.llzk.field]\nbuiltin = \"bn256\"",
+            "[backends.llzk]\nfield = \"bn256\"",
         ),
     )
     .unwrap();
@@ -378,7 +378,7 @@ fn explicit_backend_enablement_overrides_defaulting() {
         &config,
         contents.replace(
             "[backends.ir]\nenabled = true",
-            "[backends.llzk]\nenabled = false\n\n[backends.llzk.field]\nbuiltin = \"bn256\"",
+            "[backends.llzk]\nenabled = false\nfield = \"bn256\"",
         ),
     )
     .unwrap();
@@ -412,7 +412,7 @@ fn enabled_llzk_requires_a_field() {
     assert!(!output.status.success());
     assert!(
         String::from_utf8_lossy(&output.stderr)
-            .contains("LLZK is enabled but backends.llzk.field.builtin is missing")
+            .contains("LLZK is enabled but backends.llzk.field is missing")
     );
 }
 

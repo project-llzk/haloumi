@@ -1,0 +1,7 @@
+error: this derive only supports structs; unions require an explicit cell representation
+ --> tests/ui/cell_repr_size/union.rs:4:1
+  |
+4 | / union U {
+5 | |     value: usize,
+6 | | }
+  | |_^

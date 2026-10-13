@@ -146,20 +146,80 @@ impl<T: PartialEq> PartialEq for IRStmt<T> {
     ///     a == Seq([a])
     /// ```
     fn eq(&self, other: &Self) -> bool {
-        std::iter::zip(self.iter(), other.iter()).all(|(lhs, rhs)| match (&lhs.0, &rhs.0) {
-            (IRStmtImpl::ConstraintCall(lhs), IRStmtImpl::ConstraintCall(rhs)) => lhs.eq(rhs),
-            (IRStmtImpl::Constraint(lhs), IRStmtImpl::Constraint(rhs)) => lhs.eq(rhs),
-            (IRStmtImpl::Comment(lhs), IRStmtImpl::Comment(rhs)) => lhs.eq(rhs),
+        flat_cmp(self, other, |lhs, rhs| match (&lhs.0, &rhs.0) {
+            (IRStmtImpl::ConstraintCall(lhs), IRStmtImpl::ConstraintCall(rhs)) => lhs == rhs,
+            (IRStmtImpl::Constraint(lhs), IRStmtImpl::Constraint(rhs)) => lhs == rhs,
+            (IRStmtImpl::Comment(lhs), IRStmtImpl::Comment(rhs)) => lhs == rhs,
             (IRStmtImpl::AssumeDeterministic(lhs), IRStmtImpl::AssumeDeterministic(rhs)) => {
-                lhs.eq(rhs)
+                lhs == rhs
             }
-            (IRStmtImpl::Assert(lhs), IRStmtImpl::Assert(rhs)) => lhs.eq(rhs),
-            (IRStmtImpl::PostCond(lhs), IRStmtImpl::PostCond(rhs)) => lhs.eq(rhs),
-            (IRStmtImpl::CondBlock(lhs), IRStmtImpl::CondBlock(rhs)) => lhs.eq(rhs),
-            (IRStmtImpl::BlockComment(lhs), IRStmtImpl::BlockComment(rhs)) => lhs.eq(rhs),
+            (IRStmtImpl::Assert(lhs), IRStmtImpl::Assert(rhs)) => lhs == rhs,
+            (IRStmtImpl::PostCond(lhs), IRStmtImpl::PostCond(rhs)) => lhs == rhs,
+            (IRStmtImpl::CondBlock(lhs), IRStmtImpl::CondBlock(rhs)) => {
+                lhs.cond() == rhs.cond() && lhs.body() == rhs.body()
+            }
+            (IRStmtImpl::BlockComment(lhs), IRStmtImpl::BlockComment(rhs)) => {
+                lhs.value() == rhs.value() && lhs.body() == rhs.body()
+            }
             (IRStmtImpl::Seq(_), _) | (_, IRStmtImpl::Seq(_)) => unreachable!(),
             _ => false,
         })
+    }
+}
+
+/// A structure-aware visitor for statements.
+///
+/// This is deliberately crate-private: it exposes the semantic contents of a
+/// statement without making the representation (or its metadata) part of an
+/// extension API.
+pub(crate) trait IRStmtVisitor<T> {
+    fn on_call(&mut self, _callee: &str, _inputs: &[T], _outputs: &[Slot]) {}
+    fn on_constraint(&mut self, _op: CmpOp, _lhs: &T, _rhs: &T) {}
+    fn on_comment(&mut self, _comment: &str) {}
+    fn on_assume_deterministic(&mut self, _slot: Slot) {}
+    fn on_assert(&mut self, _cond: &IRBexpr<T>) {}
+    fn on_post_cond(&mut self, _cond: &IRBexpr<T>) {}
+
+    fn on_seq(&mut self, children: &[IRStmt<T>]) {
+        walk_seq(self, children);
+    }
+
+    fn on_cond_block(&mut self, _cond: &IRBexpr<T>, body: &IRStmt<T>) {
+        body.visit(self);
+    }
+
+    fn on_block_comment(&mut self, _comment: Option<&str>, body: &IRStmt<T>) {
+        body.visit(self);
+    }
+}
+
+pub(crate) fn walk_seq<T, V: IRStmtVisitor<T> + ?Sized>(visitor: &mut V, children: &[IRStmt<T>]) {
+    for child in children {
+        child.visit(visitor);
+    }
+}
+
+fn flat_cmp<L, R>(
+    lhs: &IRStmt<L>,
+    rhs: &IRStmt<R>,
+    mut compare: impl FnMut(&IRStmt<L>, &IRStmt<R>) -> bool,
+) -> bool {
+    let mut lhs_nodes = Vec::new();
+    let mut rhs_nodes = Vec::new();
+    flatten_seqs(lhs, &mut lhs_nodes);
+    flatten_seqs(rhs, &mut rhs_nodes);
+    lhs_nodes.len() == rhs_nodes.len()
+        && std::iter::zip(lhs_nodes, rhs_nodes).all(|(lhs, rhs)| compare(lhs, rhs))
+}
+
+fn flatten_seqs<'a, T>(stmt: &'a IRStmt<T>, output: &mut Vec<&'a IRStmt<T>>) {
+    match &stmt.0 {
+        IRStmtImpl::Seq(seq) => {
+            for child in seq.iter() {
+                flatten_seqs(child, output);
+            }
+        }
+        _ => output.push(stmt),
     }
 }
 
@@ -453,6 +513,29 @@ impl<T> IRStmt<T> {
         IRStmtRefMutIter { stack: vec![self] }
     }
 
+    /// Visits this statement while preserving all structural wrappers.
+    pub(crate) fn visit<V: IRStmtVisitor<T> + ?Sized>(&self, visitor: &mut V) {
+        match &self.0 {
+            IRStmtImpl::ConstraintCall(call) => {
+                visitor.on_call(call.callee(), call.inputs(), call.outputs())
+            }
+            IRStmtImpl::Constraint(constraint) => {
+                visitor.on_constraint(constraint.op(), constraint.lhs(), constraint.rhs())
+            }
+            IRStmtImpl::Comment(comment) => visitor.on_comment(comment.value()),
+            IRStmtImpl::AssumeDeterministic(deterministic) => {
+                visitor.on_assume_deterministic(deterministic.value())
+            }
+            IRStmtImpl::Assert(assert) => visitor.on_assert(assert.cond()),
+            IRStmtImpl::PostCond(post_cond) => visitor.on_post_cond(post_cond.cond()),
+            IRStmtImpl::Seq(seq) => visitor.on_seq(seq.as_slice()),
+            IRStmtImpl::CondBlock(block) => visitor.on_cond_block(block.cond(), block.body()),
+            IRStmtImpl::BlockComment(block) => {
+                visitor.on_block_comment(block.value(), block.body())
+            }
+        }
+    }
+
     /// Propagates the metadata of this statement to the inner statements.
     pub fn propagate_meta(&mut self) {
         if let IRStmtImpl::Seq(s) = &mut self.0 {
@@ -493,9 +576,16 @@ impl<T> IRStmt<T> {
             }
             (IRStmtImpl::Assert(lhs), IRStmtImpl::Assert(rhs)) => lhs.eq(rhs),
             (IRStmtImpl::PostCond(lhs), IRStmtImpl::PostCond(rhs)) => lhs.eq(rhs),
-            (IRStmtImpl::CondBlock(lhs), IRStmtImpl::CondBlock(rhs)) => lhs.eq(rhs),
-            (IRStmtImpl::BlockComment(lhs), IRStmtImpl::BlockComment(rhs)) => lhs.eq(rhs),
-            (IRStmtImpl::Seq(lhs), IRStmtImpl::Seq(rhs)) => lhs.eq(rhs),
+            (IRStmtImpl::CondBlock(lhs), IRStmtImpl::CondBlock(rhs)) => {
+                lhs.cond() == rhs.cond() && lhs.body().exact_eq(rhs.body())
+            }
+            (IRStmtImpl::BlockComment(lhs), IRStmtImpl::BlockComment(rhs)) => {
+                lhs.value() == rhs.value() && lhs.body().exact_eq(rhs.body())
+            }
+            (IRStmtImpl::Seq(lhs), IRStmtImpl::Seq(rhs)) => {
+                lhs.len() == rhs.len()
+                    && std::iter::zip(lhs.iter(), rhs.iter()).all(|(lhs, rhs)| lhs.exact_eq(rhs))
+            }
             _ => false,
         }
     }
@@ -588,7 +678,7 @@ where
     /// Two statements are equivalent if they are structurally equal and their inner entities
     /// are equivalent.
     fn equivalent(lhs: &IRStmt<L>, rhs: &IRStmt<R>) -> bool {
-        std::iter::zip(lhs.iter(), rhs.iter()).all(|(lhs, rhs)| match (&lhs.0, &rhs.0) {
+        flat_cmp(lhs, rhs, |lhs, rhs| match (&lhs.0, &rhs.0) {
             (IRStmtImpl::ConstraintCall(lhs), IRStmtImpl::ConstraintCall(rhs)) => {
                 equiv! { SymbolicEqv | lhs, rhs }
             }
@@ -606,10 +696,11 @@ where
                 equiv! { SymbolicEqv | lhs, rhs }
             }
             (IRStmtImpl::CondBlock(lhs), IRStmtImpl::CondBlock(rhs)) => {
-                equiv! { SymbolicEqv | lhs, rhs }
+                let cond = equiv! { SymbolicEqv | lhs.cond(), rhs.cond() };
+                cond && SymbolicEqv::equivalent(lhs.body(), rhs.body())
             }
             (IRStmtImpl::BlockComment(lhs), IRStmtImpl::BlockComment(rhs)) => {
-                equiv! { SymbolicEqv | lhs.body(), rhs.body()}
+                SymbolicEqv::equivalent(lhs.body(), rhs.body())
             }
             (IRStmtImpl::Seq(_), _) | (_, IRStmtImpl::Seq(_)) => unreachable!(),
             _ => false,
@@ -633,12 +724,6 @@ impl<'a, T> Iterator for IRStmtRefIter<'a, T> {
                     // Reverse to preserve left-to-right order
                     self.stack.extend(children.iter().rev());
                 }
-                IRStmtImpl::CondBlock(cb) => {
-                    self.stack.extend(cb.body());
-                }
-                IRStmtImpl::BlockComment(bc) => {
-                    self.stack.extend(bc.body());
-                }
                 _ => return Some(node),
             }
         }
@@ -660,10 +745,6 @@ impl<'a, T> Iterator for IRStmtRefMutIter<'a, T> {
             if let IRStmt(IRStmtImpl::Seq(children), _) = node {
                 // Reverse to preserve left-to-right order
                 self.stack.extend(children.iter_mut().rev());
-            } else if let IRStmt(IRStmtImpl::CondBlock(cb), _) = node {
-                self.stack.extend(cb.body_mut());
-            } else if let IRStmt(IRStmtImpl::BlockComment(bc), _) = node {
-                self.stack.extend(bc.body_mut());
             } else {
                 return Some(node);
             }
@@ -693,12 +774,6 @@ impl<T> Iterator for IRStmtIter<T> {
                 IRStmt(IRStmtImpl::Seq(children), _) => {
                     // Reverse to preserve left-to-right order
                     self.stack.extend(children.into_iter().rev());
-                }
-                IRStmt(IRStmtImpl::CondBlock(cb), _) => {
-                    self.stack.push(cb.take_body());
-                }
-                IRStmt(IRStmtImpl::BlockComment(bc), _) => {
-                    self.stack.push(bc.take_body());
                 }
                 stmt => return Some(stmt),
             }

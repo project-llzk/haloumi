@@ -194,8 +194,8 @@ mod tests {
     enum SlotParts {
         Arg(usize),
         Output(usize),
-        Advice((usize, Option<usize>, usize)),
-        Fixed((usize, Option<usize>, usize)),
+        Advice(usize, Option<usize>, usize),
+        Fixed(usize, Option<usize>, usize),
         TableLookup(u64, usize, usize, usize, usize),
         CallOutput(usize, usize),
         Temp(usize),
@@ -207,8 +207,14 @@ mod tests {
             match value {
                 Slot::Arg(arg) => SlotParts::Arg(**arg),
                 Slot::Output(output) => SlotParts::Output(**output),
-                Slot::Advice(cell) => SlotParts::Advice(cell.into_parts()),
-                Slot::Fixed(cell) => SlotParts::Fixed(cell.into_parts()),
+                Slot::Advice(cell) => {
+                    let (col, base, offset) = cell.as_parts();
+                    SlotParts::Advice(*col, base.copied(), *offset)
+                }
+                Slot::Fixed(cell) => {
+                    let (col, base, offset) = cell.as_parts();
+                    SlotParts::Fixed(*col, base.copied(), *offset)
+                }
                 Slot::TableLookup(id, column, row, index, region) => {
                     SlotParts::TableLookup(*id, *column, *row, *index, *region)
                 }

@@ -1,0 +1,7 @@
+[targets]
+nested-derive = "1.0"
+
+[[patch.derive]]
+path = "src/lib.rs"
+type = "foo::Bar"
+trait = "Debug"

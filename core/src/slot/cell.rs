@@ -99,8 +99,8 @@ impl CellRef {
     ///
     /// This is test-only because production equality deliberately compares the pointed-to cell.
     #[cfg(all(test, feature = "serde"))]
-    pub(crate) fn into_parts(&self) -> (usize, Option<usize>, usize) {
-        (self.col, self.base, self.offset)
+    pub(crate) fn as_parts(&self) -> (&usize, Option<&usize>, &usize) {
+        (&self.col, self.base.as_ref(), &self.offset)
     }
 
     /// Tries to convert an absolute reference into a relative reference w.r.t. the given base.
@@ -224,7 +224,7 @@ mod tests {
     fn cell_ref_round_trips(value: CellRef) {
         // PartialEq intentionally compares pointed-to cells; compare representation as well.
         let decoded = crate::serde_tests_helpers::round_trip(value);
-        assert_eq!(value.into_parts(), decoded.into_parts());
+        assert_eq!(value.as_parts(), decoded.as_parts());
     }
 
     macro_rules! checked {

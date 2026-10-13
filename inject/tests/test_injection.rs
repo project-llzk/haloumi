@@ -1,6 +1,10 @@
 use std::path::{Path, PathBuf};
 
-use haloumi_inject::{Injector, crate_info::Crate, spec::SpecRegistry};
+use haloumi_inject::{
+    Injector,
+    crate_info::{Crate, CrateLike},
+    spec::SpecRegistry,
+};
 use rstest::{fixture, rstest};
 use tempfile::TempDir;
 
@@ -64,6 +68,17 @@ fn do_inject(dest: &DestFixture, specs: SpecRegistry, src_path: impl AsRef<Path>
         .apply(dest.path())
         .map_err(|err| panic!("{err}"))
         .unwrap();
+}
+
+#[rstest]
+fn injector_accepts_a_mutable_crate_source(_setup: (), specs: SpecRegistry) {
+    let temp = tempfile::tempdir().unwrap();
+    let copied = Crate::open("tests/crates/test1")
+        .unwrap()
+        .clone_in_path(temp.path().join("source"))
+        .unwrap();
+
+    Injector::new(&copied, &specs).unwrap();
 }
 
 #[rstest]
@@ -149,4 +164,18 @@ fn test_inject1(_setup: (), dest: DestFixture, specs: SpecRegistry) {
 #[should_panic = "Dependency 'foo' is already in the manifest"]
 fn test_inject2(_setup: (), dest: DestFixture, specs: SpecRegistry) {
     do_inject(&dest, specs, "tests/crates/test2");
+}
+
+#[rstest]
+fn inject_derives_trait_on_nested_type(_setup: (), dest: DestFixture, specs: SpecRegistry) {
+    do_inject(&dest, specs, "tests/crates/nested-derive");
+    dest.rust_file_contents_eq(
+        "src/lib.rs",
+        r#"
+            mod foo {
+                #[derive(Debug)]
+                pub struct Bar;
+            }
+        "#,
+    );
 }

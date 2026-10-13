@@ -52,7 +52,7 @@ impl Harness {
 ::inventory::collect!(Harness);
 
 /// Type representing a semantic prelude definition.
-pub type PreludeFn = fn() -> Prelude;
+pub type PreludeFn = fn(&mut Prelude);
 
 /// Entry in the prelude table.
 #[derive(Copy, Clone, Debug)]
@@ -70,8 +70,8 @@ impl PreludeEntry {
     }
 
     /// Generates the resolved IR groups defined by this prelude.
-    pub fn groups(&self) -> Prelude {
-        (self.1)()
+    pub fn groups(&self, prelude: &mut Prelude) {
+        (self.1)(prelude)
     }
 }
 

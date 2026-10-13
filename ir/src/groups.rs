@@ -4,7 +4,7 @@ use crate::{
     diagnostics::{SimpleDiagnostic, Validation},
     groups::callsite::CallSite,
     printer::IRPrintable,
-    stmt::IRStmt,
+    stmt::{IRStmt, IRStmtVisitor},
     traits::{Canonicalize, ConstantFolding, Validatable},
 };
 use eqv::{EqvRelation, equiv};
@@ -24,12 +24,39 @@ pub type GroupKey = u64;
 
 pub mod callsite;
 
+/// A structure-aware visitor for a group's executable contents.
+///
+/// Group roots are visited in lowering order.  The default implementations
+/// walk statement roots, while leaving callsites available to clients that
+/// care about group-to-group calls.
+pub(crate) trait GroupVisitor<E>: IRStmtVisitor<E> {
+    fn on_callsite(&mut self, _callsite: &CallSite<E>) {}
+
+    fn on_gates(&mut self, gates: &IRStmt<E>) {
+        gates.visit(self);
+    }
+
+    fn on_copy_constraints(&mut self, constraints: &IRStmt<E>) {
+        constraints.visit(self);
+    }
+
+    fn on_lookups(&mut self, lookups: &IRStmt<E>) {
+        lookups.visit(self);
+    }
+
+    fn on_injected(&mut self, injected: &IRStmt<E>) {
+        injected.visit(self);
+    }
+}
+
 /// Body of a group.
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct IRGroup<E> {
     name: String,
-    /// Index in the original groups array.
+    /// Position in this group's namespace.
+    ///
+    /// Main groups and prelude groups have separate namespaces.
     id: usize,
     input_count: usize,
     output_count: usize,
@@ -159,12 +186,12 @@ impl<E> IRGroup<E> {
         &mut self.name
     }
 
-    /// Returns the id of the group.
+    /// Returns this group's position in its namespace.
     pub fn id(&self) -> usize {
         self.id
     }
 
-    /// Sets the id of the group.
+    /// Sets this group's position in its namespace.
     pub fn set_id(&mut self, id: usize) {
         self.id = id;
     }
@@ -191,12 +218,23 @@ impl<E> IRGroup<E> {
 
     /// Returns a list with the callee's names.
     pub fn callees(&self) -> Vec<String> {
-        self.callsites()
-            .iter()
-            .map(CallSite::name)
-            .chain(self.statements().filter_map(|s| s.callee_name()))
-            .map(ToOwned::to_owned)
-            .collect()
+        struct Callees(Vec<String>);
+
+        impl<E> IRStmtVisitor<E> for Callees {
+            fn on_call(&mut self, callee: &str, _: &[E], _: &[haloumi_core::slot::Slot]) {
+                self.0.push(callee.to_owned());
+            }
+        }
+
+        impl<E> GroupVisitor<E> for Callees {
+            fn on_callsite(&mut self, callsite: &CallSite<E>) {
+                self.0.push(callsite.name().to_owned());
+            }
+        }
+
+        let mut visitor = Callees(Vec::new());
+        self.visit(&mut visitor);
+        visitor.0
     }
 
     /// Returns a mutable referece to the callsites.
@@ -211,6 +249,19 @@ impl<E> IRGroup<E> {
             .chain(self.eq_constraints.iter())
             .chain(self.lookups.iter())
             .chain(self.injected.iter().flatten())
+    }
+
+    /// Visits callsites and statement roots in the group's execution order.
+    pub(crate) fn visit<V: GroupVisitor<E> + ?Sized>(&self, visitor: &mut V) {
+        for callsite in &self.callsites {
+            visitor.on_callsite(callsite);
+        }
+        visitor.on_gates(&self.gates);
+        visitor.on_copy_constraints(&self.eq_constraints);
+        visitor.on_lookups(&self.lookups);
+        for injected in &self.injected {
+            visitor.on_injected(injected);
+        }
     }
 
     /// Tries to convert the inner expression type to another.
@@ -251,6 +302,12 @@ impl<E> IRGroup<E> {
             .iter()
             .find(|group| group.id() == callee_id)
             .ok_or(ValidationErrors::CalleeNotFound { callee_id })?;
+        if callee.id() != callee_id {
+            return Err(ValidationErrors::WrongCallee {
+                callsite_id: callee_id,
+                callee_id: callee.id(),
+            });
+        }
         if callee.input_count != callsite.inputs().len() {
             return Err(ValidationErrors::UnexpectedInputs {
                 callee_name: callee.name().to_string(),
@@ -305,7 +362,7 @@ impl<E> IRGroup<E> {
             && self.callsites.eq(&other.callsites)
             && self.lookups.exact_eq(&other.lookups)
             && self.injected.len() == other.injected.len()
-            && std::iter::zip(&self.injected, &other.injected).all(|(lhs, rhs)| lhs.exact_eq(&rhs))
+            && std::iter::zip(&self.injected, &other.injected).all(|(lhs, rhs)| lhs.exact_eq(rhs))
             && self.generate_debug_comments == other.generate_debug_comments
     }
 }
@@ -365,6 +422,11 @@ impl ValidationFailed {
 enum ValidationErrors {
     #[error("Callee with id {callee_id} was not found")]
     CalleeNotFound { callee_id: usize },
+    #[error("Callsite points to group {callsite_id} but group has id {callee_id}")]
+    WrongCallee {
+        callsite_id: usize,
+        callee_id: usize,
+    },
     #[error(
         "Callee \"{callee_name}\" ({callee_id}) was expecting {callee_count} inputs but callsite has {callsite_count}"
     )]
@@ -589,6 +651,125 @@ mod tests {
     use quickcheck_macros::quickcheck;
 
     use super::*;
+    use crate::expr::IRAexpr;
+
+    fn group(id: usize) -> IRGroup<IRAexpr> {
+        IRGroup::new(format!("group-{id}"), id).with_key(Some(id as GroupKey))
+    }
+
+    fn callsite(callee_id: usize) -> CallSite<IRAexpr> {
+        CallSite::new(
+            0,
+            format!("group-{callee_id}"),
+            callee_id as GroupKey,
+            callee_id,
+            vec![],
+            vec![],
+        )
+    }
+
+    #[test]
+    fn validates_callsite_with_positional_callee_id() {
+        let caller = group(0).with_callsites([callsite(1)]);
+        let callee = group(1);
+
+        assert!(
+            caller
+                .validate_with_context(&[caller.clone(), callee])
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn rejects_callsite_with_missing_callee_id() {
+        let caller = group(0).with_callsites([callsite(1)]);
+
+        assert!(
+            caller
+                .validate_with_context(std::slice::from_ref(&caller))
+                .is_err()
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Callsite points to group 1 but group has id 0")]
+    fn rejects_callsite_when_group_id_does_not_match_its_position() {
+        let caller = group(0).with_callsites([callsite(1)]);
+        let callee = group(0);
+
+        caller
+            .validate_with_context(&[caller.clone(), callee])
+            .unwrap();
+    }
+
+    #[test]
+    fn rejects_callsite_with_wrong_input_arity() {
+        let caller = group(0).with_callsites([callsite(1)]);
+        let callee = group(1).with_input_count(1);
+
+        assert!(
+            caller
+                .validate_with_context(&[caller.clone(), callee])
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn rejects_callsite_with_wrong_output_arity() {
+        let caller = group(0).with_callsites([callsite(1)]);
+        let callee = group(1).with_output_count(1);
+
+        assert!(
+            caller
+                .validate_with_context(&[caller.clone(), callee])
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn group_visitor_walks_sections_in_order_and_callees_include_nested_calls() {
+        struct Recorder(Vec<String>);
+
+        impl IRStmtVisitor<()> for Recorder {
+            fn on_call(&mut self, callee: &str, _: &[()], _: &[haloumi_core::slot::Slot]) {
+                self.0.push(callee.to_owned());
+            }
+        }
+
+        impl GroupVisitor<()> for Recorder {
+            fn on_callsite(&mut self, callsite: &CallSite<()>) {
+                self.0.push(callsite.name().to_owned());
+            }
+
+            fn on_injected(&mut self, injected: &IRStmt<()>) {
+                self.0.push("injected".to_owned());
+                injected.visit(self);
+            }
+        }
+
+        let mut group = IRGroup::new("g".to_owned(), 0)
+            .with_callsites([CallSite::new(
+                0,
+                "group-call".to_owned(),
+                1,
+                1,
+                vec![],
+                vec![],
+            )])
+            .with_gates([IRStmt::call("gate-call", [], [])]);
+        group.inject(IRStmt::call("injected-call", [], []));
+
+        let mut recorder = Recorder(Vec::new());
+        group.visit(&mut recorder);
+        assert_eq!(
+            recorder.0,
+            ["group-call", "gate-call", "injected", "injected-call"]
+        );
+        assert_eq!(
+            group.callees(),
+            ["group-call", "gate-call", "injected-call"]
+        );
+    }
 
     #[cfg(feature = "serde")]
     #[quickcheck]

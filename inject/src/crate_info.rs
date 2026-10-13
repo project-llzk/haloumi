@@ -1,12 +1,45 @@
 //! Types for working with Rust crates in the filesystem.
 
-use crate::error::Error;
+use crate::{
+    crate_info::fs::{IgnoredFiles, copy_files_rec, resolve_path},
+    error::Error,
+};
 use cargo_toml::{Dependency, DepsSet, Manifest, Package, SemVer};
 use std::{
     collections::{HashMap, btree_map, hash_map::Entry},
-    ops::Deref,
     path::{Component, Path, PathBuf},
 };
+
+mod fs;
+
+mod sealed {
+    pub trait Sealed {}
+}
+
+/// Shared read-only operations for crate representations managed by this crate.
+///
+/// This trait is sealed and cannot be implemented outside of `haloumi-inject`.
+pub trait CrateLike: sealed::Sealed {
+    /// Returns the canonical base path of the crate.
+    fn base_path(&self) -> &Path;
+
+    /// Returns the path of the manifest.
+    fn manifest_path(&self) -> PathBuf {
+        self.base_path().join("Cargo.toml")
+    }
+
+    /// Returns the version of the package.
+    fn version(&self) -> Result<&SemVer, Error>;
+
+    /// Returns the name of the package.
+    fn name(&self) -> Result<&str, Error>;
+
+    /// Creates a copy of the crate in the provided, nonexistent path.
+    ///
+    /// The destination cannot already exist.
+    /// [`CrateMut`] clones only the committed filesystem state, excluding uncommitted edits.
+    fn clone_in_path(&self, dest: impl AsRef<Path>) -> Result<CrateMut, Error>;
+}
 
 /// Represents a Rust crate located in a directory.
 #[derive(Debug)]
@@ -18,169 +51,136 @@ pub struct Crate {
 impl Crate {
     /// Opens a crate at the given location in read-only mode.
     ///
-    /// Will try to parse `Cargo.toml` relative to that path. Fails if the file could not be found
-    /// or if it is malformed.
+    /// Canonicalizes the base path, then parses its `Cargo.toml`. Fails if the directory or
+    /// manifest could not be found, or if the manifest is malformed.
     pub fn open(base_path: impl AsRef<Path>) -> Result<Self, Error> {
-        let manifest = Manifest::from_path(base_path.as_ref().join("Cargo.toml"))?;
+        let base_path = base_path.as_ref().canonicalize()?;
+        let manifest = Manifest::from_path(base_path.join("Cargo.toml"))?;
         Ok(Self {
-            base_path: base_path.as_ref().to_path_buf(),
+            base_path,
             manifest,
         })
     }
+}
 
-    /// Returns the base path of the crate.
-    pub fn base_path(&self) -> &Path {
+impl sealed::Sealed for Crate {}
+
+impl CrateLike for Crate {
+    fn base_path(&self) -> &Path {
         &self.base_path
     }
 
-    /// Returns the path of the manifest.
-    pub fn manifest_path(&self) -> PathBuf {
-        self.base_path.join("Cargo.toml")
+    fn version(&self) -> Result<&SemVer, Error> {
+        Ok(package(&self.manifest)?.version())
     }
 
-    /// Returns the version of the package.
-    pub fn version(&self) -> Result<&SemVer, Error> {
-        Ok(self.package()?.version())
+    fn name(&self) -> Result<&str, Error> {
+        Ok(package(&self.manifest)?.name())
     }
 
-    /// Returns the name of the package.
-    pub fn name(&self) -> Result<&str, Error> {
-        Ok(self.package()?.name())
+    fn clone_in_path(&self, dest: impl AsRef<Path>) -> Result<CrateMut, Error> {
+        clone_crate_in_path(&self.base_path, &self.manifest, dest)
     }
+}
 
-    /// Returns a reference to the package entry.
-    fn package(&self) -> Result<&Package, Error> {
-        self.manifest.package.as_ref().ok_or(Error::PackageNotFound)
+fn package(manifest: &Manifest) -> Result<&Package, Error> {
+    manifest.package.as_ref().ok_or(Error::PackageNotFound)
+}
+
+fn clone_crate_in_path(
+    base_path: &Path,
+    manifest: &Manifest,
+    dest: impl AsRef<Path>,
+) -> Result<CrateMut, Error> {
+    log::debug!(
+        "Cloning crate in '{}' into '{}'",
+        base_path.display(),
+        dest.as_ref().display()
+    );
+    let dest = dest.as_ref();
+
+    warn_manifest_overrides(base_path, manifest);
+
+    match std::fs::symlink_metadata(dest) {
+        Ok(_) => return Err(Error::CloneDestinationExists(dest.to_path_buf())),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.into()),
     }
+    log::debug!("Creating dest directory...");
+    std::fs::create_dir_all(dest)?;
 
-    /// Creates a copy of the crate in the provided path.
-    ///
-    /// Creates the directory if it doesn't exists.
-    ///
-    /// This is the only way to create a [`CrateMut`] from the public API.
-    pub fn clone_in_path(&self, dest: impl AsRef<Path>) -> Result<CrateMut, Error> {
-        log::debug!(
-            "Cloning crate in '{}' into '{}'",
-            self.base_path().display(),
-            dest.as_ref().display()
+    let mut ignore = IgnoredFiles::new();
+    ignore.add(Path::new("target"));
+    let resolved_destination = resolve_path(dest)?;
+    if resolved_destination.starts_with(base_path) {
+        let relative_destination = resolved_destination.strip_prefix(base_path)?;
+        ignore.add(relative_destination);
+    }
+    copy_files_rec(base_path, dest, base_path, &ignore)?;
+    std::fs::write(
+        dest.join("Cargo.toml"),
+        toml::to_string_pretty(&standalone_manifest(manifest, base_path))?,
+    )?;
+
+    CrateMut::open(dest)
+}
+
+fn standalone_manifest(manifest: &Manifest, base_path: &Path) -> Manifest {
+    let mut manifest = manifest.clone();
+    rebase_relative_path_dependencies(&mut manifest, base_path);
+    detach_from_workspace(&mut manifest);
+    manifest
+}
+
+fn rebase_relative_path_dependencies(manifest: &mut Manifest, base_path: &Path) {
+    rebase_dependencies(&mut manifest.dependencies, base_path);
+    rebase_dependencies(&mut manifest.build_dependencies, base_path);
+    rebase_dependencies(&mut manifest.dev_dependencies, base_path);
+    for target in manifest.target.values_mut() {
+        rebase_dependencies(&mut target.dependencies, base_path);
+        rebase_dependencies(&mut target.build_dependencies, base_path);
+        rebase_dependencies(&mut target.dev_dependencies, base_path);
+    }
+}
+
+fn rebase_dependencies(dependencies: &mut DepsSet, base_path: &Path) {
+    for dependency in dependencies.values_mut() {
+        let Dependency::Detailed(detail) = dependency else {
+            continue;
+        };
+        let Some(path) = detail.path.as_mut() else {
+            continue;
+        };
+        if Path::new(path).is_relative() {
+            *path = base_path.join(&path).display().to_string();
+        }
+    }
+}
+
+fn detach_from_workspace(manifest: &mut Manifest) {
+    if let Some(package) = &mut manifest.package {
+        package.workspace = None;
+    }
+    manifest.workspace = None;
+}
+
+#[expect(
+    deprecated,
+    reason = "[replace] manifests remain supported for copied crates"
+)]
+fn warn_manifest_overrides(base_path: &Path, manifest: &Manifest) {
+    if !manifest.patch.is_empty() {
+        log::warn!(
+            "Copied crate '{}' contains [patch] overrides; they are preserved and may affect dependency resolution",
+            base_path.display()
         );
-        let dest = dest.as_ref();
-
-        self.warn_manifest_overrides();
-
-        if !dest.is_dir() {
-            log::debug!("Creating dest directory...");
-            std::fs::create_dir_all(dest)?;
-        }
-
-        copy_files_rec(self.base_path(), dest, self.base_path())?;
-        std::fs::write(
-            dest.join("Cargo.toml"),
-            toml::to_string_pretty(&self.standalone_manifest())?,
-        )?;
-
-        CrateMut::open(dest)
     }
-
-    fn standalone_manifest(&self) -> Manifest {
-        let mut manifest = self.manifest.clone();
-        self.rebase_relative_path_dependencies(&mut manifest);
-        self.detach_from_workspace(&mut manifest);
-        manifest
+    if !manifest.replace.is_empty() {
+        log::warn!(
+            "Copied crate '{}' contains deprecated [replace] overrides; they are preserved and may affect dependency resolution",
+            base_path.display()
+        );
     }
-
-    fn rebase_relative_path_dependencies(&self, manifest: &mut Manifest) {
-        Self::rebase_dependencies(&mut manifest.dependencies, self.base_path());
-        Self::rebase_dependencies(&mut manifest.build_dependencies, self.base_path());
-        Self::rebase_dependencies(&mut manifest.dev_dependencies, self.base_path());
-        for target in manifest.target.values_mut() {
-            Self::rebase_dependencies(&mut target.dependencies, self.base_path());
-            Self::rebase_dependencies(&mut target.build_dependencies, self.base_path());
-            Self::rebase_dependencies(&mut target.dev_dependencies, self.base_path());
-        }
-    }
-
-    fn rebase_dependencies(dependencies: &mut DepsSet, base_path: &Path) {
-        for dependency in dependencies.values_mut() {
-            let Dependency::Detailed(detail) = dependency else {
-                continue;
-            };
-            let Some(path) = detail.path.as_mut() else {
-                continue;
-            };
-            if Path::new(path).is_relative() {
-                *path = base_path.join(&path).display().to_string();
-            }
-        }
-    }
-
-    fn detach_from_workspace(&self, manifest: &mut Manifest) {
-        if let Some(package) = &mut manifest.package {
-            package.workspace = None;
-        }
-        manifest.workspace = None;
-    }
-
-    #[expect(
-        deprecated,
-        reason = "[replace] manifests remain supported for copied crates"
-    )]
-    fn warn_manifest_overrides(&self) {
-        if !self.manifest.patch.is_empty() {
-            log::warn!(
-                "Copied crate '{}' contains [patch] overrides; they are preserved and may affect dependency resolution",
-                self.base_path().display()
-            );
-        }
-        if !self.manifest.replace.is_empty() {
-            log::warn!(
-                "Copied crate '{}' contains deprecated [replace] overrides; they are preserved and may affect dependency resolution",
-                self.base_path().display()
-            );
-        }
-    }
-}
-
-fn copy_files_rec(base: &Path, dest: &Path, current: &Path) -> Result<(), Error> {
-    for entry in std::fs::read_dir(current)? {
-        let entry = entry?;
-
-        let full_path = entry.path();
-        let rel_path = full_path.strip_prefix(base)?;
-        let dest_path = dest.join(rel_path);
-        log::debug!("{} -> {}", full_path.display(), dest_path.display());
-        let file_type = entry.file_type()?;
-        if file_type.is_dir() && rel_path == Path::new("target") {
-            log::debug!("Skipping generated directory '{}'", full_path.display());
-        } else if file_type.is_dir() {
-            std::fs::create_dir_all(dest_path)?;
-            copy_files_rec(base, dest, &full_path)?;
-        } else if file_type.is_file() {
-            std::fs::copy(full_path, dest_path)?;
-        } else if file_type.is_symlink() {
-            copy_symlink(&full_path, &dest_path)?;
-        } else {
-            return Err(Error::UnsupportedFileType(full_path));
-        }
-    }
-    Ok(())
-}
-
-#[cfg(unix)]
-fn copy_symlink(source: &Path, dest: &Path) -> Result<(), Error> {
-    std::os::unix::fs::symlink(std::fs::read_link(source)?, dest)?;
-    Ok(())
-}
-
-#[cfg(windows)]
-fn copy_symlink(source: &Path, dest: &Path) -> Result<(), Error> {
-    let target = std::fs::read_link(source)?;
-    if source.metadata()?.is_dir() {
-        std::os::windows::fs::symlink_dir(target, dest)?;
-    } else {
-        std::os::windows::fs::symlink_file(target, dest)?;
-    }
-    Ok(())
 }
 
 /// A crate whose contents can be modified.
@@ -189,8 +189,74 @@ fn copy_symlink(source: &Path, dest: &Path) -> Result<(), Error> {
 /// files in the filesystem until commited.
 #[derive(Debug)]
 pub struct CrateMut {
-    crt: Crate,
-    rust_files_cache: HashMap<PathBuf, syn::File>,
+    manifest: Manifest,
+    rust_files_cache: RustFilesCache,
+}
+
+/// In-memory Rust source files staged for a crate.
+#[derive(Debug)]
+struct RustFilesCache {
+    base_path: PathBuf,
+    files: HashMap<PathBuf, syn::File>,
+}
+
+impl RustFilesCache {
+    fn new(base_path: PathBuf) -> Self {
+        Self {
+            base_path,
+            files: HashMap::new(),
+        }
+    }
+
+    fn base_path(&self) -> &Path {
+        &self.base_path
+    }
+
+    fn open(&mut self, path: &Path) -> Result<&mut syn::File, Error> {
+        let full_path = self.resolve_path(path)?;
+        match self.files.entry(full_path) {
+            Entry::Occupied(entry) => Ok(entry.into_mut()),
+            Entry::Vacant(entry) => {
+                let file = syn::parse_file(&std::fs::read_to_string(entry.key())?)?;
+                Ok(entry.insert(file))
+            }
+        }
+    }
+
+    fn create(&mut self, path: &Path, file: RustFile) -> Result<(), Error> {
+        let full_path = self.resolve_path(path)?;
+        if full_path.exists() || self.files.contains_key(&full_path) {
+            return Err(Error::GeneratedFileExists(path.to_path_buf()));
+        }
+        self.files.insert(full_path, file.into_inner());
+        Ok(())
+    }
+
+    fn commit(&self) -> Result<(), Error> {
+        self.files.iter().try_for_each(|(path, contents)| {
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::write(path, prettyplease::unparse(contents))
+        })?;
+        Ok(())
+    }
+
+    fn resolve_path(&self, path: &Path) -> Result<PathBuf, Error> {
+        validate_crate_relative_path(path)?;
+        resolve_path(&self.base_path.join(path))
+    }
+}
+
+fn validate_crate_relative_path(path: &Path) -> Result<(), Error> {
+    if path.is_absolute()
+        || path
+            .components()
+            .any(|component| matches!(component, Component::ParentDir))
+    {
+        return Err(Error::InvalidCrateRelativePath(path.to_path_buf()));
+    }
+    Ok(())
 }
 
 /// A Rust source file that has been parsed successfully.
@@ -231,32 +297,25 @@ impl CrateMut {
     /// Will try to parse `Cargo.toml` relative to that path. Fails if the file could not be found
     /// or if it is malformed.
     fn open(base_path: impl AsRef<Path>) -> Result<Self, Error> {
+        let crate_info = Crate::open(base_path)?;
         Ok(Self {
-            crt: Crate::open(base_path)?,
-            rust_files_cache: Default::default(),
+            rust_files_cache: RustFilesCache::new(crate_info.base_path),
+            manifest: crate_info.manifest,
         })
     }
 
-    /// Opens a Rust file for editing. The path of the Rust file must be relative to the crate.
+    /// Opens a Rust file for editing. The path must be relative to the crate and cannot contain
+    /// `..`.
     ///
     /// Returns the parsed AST. That means that this method will fail
     /// if the file is not found or if the file couldn't be parsed.
     pub fn open_rust_file(&mut self, path: impl AsRef<Path>) -> Result<&mut syn::File, Error> {
-        let full_path = self.base_path().join(&path);
-        let path = path.as_ref().to_path_buf();
-        let entry = self.rust_files_cache.entry(path);
-        match entry {
-            Entry::Occupied(entry) => Ok(entry.into_mut()),
-            Entry::Vacant(entry) => {
-                let file = syn::parse_file(&std::fs::read_to_string(full_path)?)?;
-                Ok(entry.insert(file))
-            }
-        }
+        self.rust_files_cache.open(path.as_ref())
     }
 
     /// Adds a dependency to the crate.
     pub fn add_dependency(&mut self, name: String, dep: Dependency) -> Result<(), Error> {
-        match self.crt.manifest.dependencies.entry(name) {
+        match self.manifest.dependencies.entry(name) {
             btree_map::Entry::Vacant(entry) => {
                 entry.insert(dep);
                 Ok(())
@@ -275,7 +334,6 @@ impl CrateMut {
         path: impl AsRef<Path>,
     ) -> Result<(), Error> {
         let dependency = self
-            .crt
             .manifest
             .dependencies
             .get_mut(name)
@@ -300,20 +358,7 @@ impl CrateMut {
         path: impl AsRef<Path>,
         file: RustFile,
     ) -> Result<(), Error> {
-        let path = path.as_ref();
-        if path.is_absolute()
-            || path
-                .components()
-                .any(|component| matches!(component, Component::ParentDir))
-        {
-            return Err(Error::InvalidCrateRelativePath(path.to_path_buf()));
-        }
-        if self.base_path().join(path).exists() || self.rust_files_cache.contains_key(path) {
-            return Err(Error::GeneratedFileExists(path.to_path_buf()));
-        }
-        self.rust_files_cache
-            .insert(path.to_path_buf(), file.into_inner());
-        Ok(())
+        self.rust_files_cache.create(path.as_ref(), file)
     }
 
     /// Commits the local edits to disk.
@@ -335,25 +380,28 @@ impl CrateMut {
     }
 
     fn commit_rust_files(&self) -> Result<(), Error> {
-        let base_path = self.base_path();
-        self.rust_files_cache
-            .iter()
-            .try_for_each(|(path, contents)| {
-                let full_path = base_path.join(path);
-                if let Some(parent) = full_path.parent() {
-                    std::fs::create_dir_all(parent)?;
-                }
-                std::fs::write(full_path, prettyplease::unparse(contents))
-            })?;
-        Ok(())
+        self.rust_files_cache.commit()
     }
 }
 
-impl Deref for CrateMut {
-    type Target = Crate;
+impl sealed::Sealed for CrateMut {}
 
-    fn deref(&self) -> &Self::Target {
-        &self.crt
+impl CrateLike for CrateMut {
+    fn base_path(&self) -> &Path {
+        self.rust_files_cache.base_path()
+    }
+
+    fn version(&self) -> Result<&SemVer, Error> {
+        Ok(package(&self.manifest)?.version())
+    }
+
+    fn name(&self) -> Result<&str, Error> {
+        Ok(package(&self.manifest)?.name())
+    }
+
+    fn clone_in_path(&self, dest: impl AsRef<Path>) -> Result<CrateMut, Error> {
+        let manifest = Manifest::from_path(self.manifest_path())?;
+        clone_crate_in_path(self.base_path(), &manifest, dest)
     }
 }
 

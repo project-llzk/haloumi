@@ -2,7 +2,11 @@ use std::{ffi::OsString, path::PathBuf, process::Command};
 
 use anyhow::ensure;
 use clap::Parser;
-use haloumi_inject::{Injector, crate_info::Crate, spec::SpecRegistry};
+use haloumi_inject::{
+    Injector,
+    crate_info::{Crate, CrateLike},
+    spec::SpecRegistry,
+};
 
 #[derive(Debug, Parser)]
 struct Args {

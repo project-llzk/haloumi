@@ -4,6 +4,7 @@ use haloumi_integration_macros::DecomposeInCells;
 #[derive(Debug, PartialEq, Eq)]
 struct Cell(u8);
 
+#[derive(Clone)]
 struct Included(u8);
 
 impl DecomposeIn<Cell> for Included {
@@ -46,6 +47,23 @@ enum Variants {
     SkipLast(Included, #[skip] SkippedWithoutImplementation),
 }
 
+#[derive(DecomposeInCells)]
+#[cell(Cell)]
+enum HeterogeneousVariants {
+    Unit,
+    Single(Included),
+    Pair(Included, Included),
+}
+
+#[derive(DecomposeInCells)]
+#[cell(Cell)]
+struct WithWhere<T>
+where
+    T: Clone,
+{
+    value: T,
+}
+
 fn cells(value: impl DecomposeIn<Cell>) -> Vec<Cell> {
     value.cells().into_iter().collect()
 }
@@ -84,6 +102,21 @@ fn skipped_fields_are_not_decomposed_or_bounded() {
         )),
         [Cell(5)],
     );
+}
+
+#[test]
+fn heterogeneous_enum_variants_decompose() {
+    assert_eq!(cells(HeterogeneousVariants::Unit), []);
+    assert_eq!(cells(HeterogeneousVariants::Single(Included(6))), [Cell(6)]);
+    assert_eq!(
+        cells(HeterogeneousVariants::Pair(Included(7), Included(8))),
+        [Cell(7), Cell(8)],
+    );
+}
+
+#[test]
+fn generated_bounds_merge_with_existing_where_clause() {
+    assert_eq!(cells(WithWhere { value: Included(9) }), [Cell(9)],);
 }
 
 #[test]

@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident, quote};
-use syn::{Data, DataEnum, DeriveInput, Fields, Index, Path};
+use syn::{Data, DataEnum, DeriveInput, Fields, Index, Path, WherePredicate, parse_quote};
 
 use crate::{
     attrs::{find_attr_or_code, get_haloumi_integration_module},
@@ -15,13 +15,10 @@ pub fn derive_decompose_in_cells_impl(input: DeriveInput) -> syn::Result<TokenSt
     let module = get_haloumi_integration_module()?;
     let decompose_in_cell = quote! { #module::core::table::DecomposeIn<#cell> };
     let name = input.ident;
-    let generics = input.generics;
+    let mut generics = input.generics.clone();
 
     // Collect field types for where bounds
     let mut bounds = Vec::new();
-
-    // Split generics into (impl generics) (ty generics) (where clause)
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     let body = if cell.is_ident("Self") {
         // Special case for deriving itself. This case should be implemented for the `Cell` type
@@ -43,12 +40,15 @@ pub fn derive_decompose_in_cells_impl(input: DeriveInput) -> syn::Result<TokenSt
         }
     };
 
+    if !bounds.is_empty() {
+        generics.make_where_clause().predicates.extend(bounds);
+    }
+
+    // Split generics into (impl generics) (ty generics) (where clause)
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
     Ok(quote! {
-        impl #impl_generics #decompose_in_cell for #name #ty_generics
-        where
-            #(#bounds,)*
-            #where_clause
-        {
+        impl #impl_generics #decompose_in_cell for #name #ty_generics #where_clause {
             fn cells(&self) -> impl IntoIterator<Item = #cell> {
                 #body
             }
@@ -82,7 +82,7 @@ fn format_tuple_field(idx: usize, bind: bool) -> TokenStream {
 /// If both `receiver` and `var_names` are [`Some`].
 fn handle_fields(
     fields: &Fields,
-    bounds: &mut Vec<TokenStream>,
+    bounds: &mut Vec<WherePredicate>,
     receiver: Option<TokenStream>,
     mut var_names: Option<&mut Vec<TokenStream>>,
     decompose_in_cell: &TokenStream,
@@ -108,7 +108,7 @@ fn handle_fields(
             let ty = &f.ty;
             let ident = f.ident.as_ref().map(ToTokens::to_token_stream);
 
-            bounds.push(quote! { #ty: #decompose_in_cell });
+            bounds.push(parse_quote! { #ty: #decompose_in_cell });
             if let Some(var_names) = &mut var_names {
                 var_names.push(
                     ident
@@ -127,7 +127,7 @@ fn handle_fields(
 
 fn handle_enum(
     data: &DataEnum,
-    bounds: &mut Vec<TokenStream>,
+    bounds: &mut Vec<WherePredicate>,
     decompose_in_cell: &TokenStream,
 ) -> TokenStream {
     let variants = data.variants.iter().map(|v| {
@@ -147,7 +147,7 @@ fn handle_enum(
         };
 
         quote! {
-            Self::#name #var_names => { #body }
+            Self::#name #var_names => { (#body).collect::<Vec<_>>() }
         }
     });
 

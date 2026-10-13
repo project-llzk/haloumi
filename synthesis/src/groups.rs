@@ -11,9 +11,6 @@ use quickcheck::Arbitrary;
 
 use ff::Field;
 
-#[cfg(any(test, feature = "arbitrary"))]
-use quickcheck::Arbitrary;
-
 use crate::io::{AdviceIO, CircuitIO, IOCell, InstanceIO};
 use haloumi_core::{
     expressions::ExprBuilder,

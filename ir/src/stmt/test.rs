@@ -20,6 +20,68 @@ fn iterator_nested_seqs() {
     assert_eq!(expected, output);
 }
 
+#[test]
+fn iterators_flatten_only_sequences() {
+    let conditional =
+        S::seq([S::assert(IRBexpr::and_many(vec![]))]).emit_unless_false(IRBexpr::and_many(vec![]));
+    let commented = S::assert(IRBexpr::and_many(vec![])).with_comment("header".to_owned());
+    let mut stmt = S::seq([conditional, commented]);
+
+    // Composition sequences disappear, but structural wrappers remain roots.
+    assert_eq!(stmt.iter().count(), 2);
+    assert_eq!(stmt.iter_mut().count(), 2);
+    assert_eq!(stmt.into_iter().count(), 2);
+}
+
+#[test]
+fn semantic_equality_normalizes_sequences_but_not_wrappers() {
+    use crate::meta::HasMeta as _;
+
+    let assertion = S::assert(IRBexpr::and_many(vec![]));
+    assert_eq!(
+        assertion,
+        S::seq([S::seq([S::assert(IRBexpr::and_many(vec![]))])])
+    );
+    assert_ne!(
+        assertion,
+        S::seq([S::assert(IRBexpr::and_many(vec![])), S::comment("extra")])
+    );
+
+    let mut with_metadata = S::assert(IRBexpr::and_many(vec![]));
+    with_metadata.meta_mut().at_group("g", None);
+    assert_eq!(assertion, with_metadata);
+
+    let condition = IRBexpr::and_many(vec![]);
+    let conditional = S::assert(IRBexpr::and_many(vec![])).emit_unless_false(condition.clone());
+    assert_ne!(conditional, S::assert(IRBexpr::and_many(vec![])));
+    assert_ne!(
+        conditional,
+        S::assert(IRBexpr::and_many(vec![])).emit_unless_false(IRBexpr::or_many(vec![]))
+    );
+
+    let commented = S::assert(IRBexpr::and_many(vec![])).with_comment("one".to_owned());
+    assert_ne!(
+        commented,
+        S::assert(IRBexpr::and_many(vec![])).with_comment("two".to_owned())
+    );
+}
+
+#[test]
+fn symbolic_equivalence_preserves_wrappers_but_ignores_block_comment_text() {
+    use eqv::EqvRelation;
+    use haloumi_core::eqv::SymbolicEqv;
+
+    type SymbolicStmt = IRStmt<crate::expr::IRAexpr>;
+    let body = SymbolicStmt::assert(IRBexpr::and_many(vec![]));
+    let lhs = body.clone().with_comment("one".to_owned());
+    let rhs = body.with_comment("two".to_owned());
+    assert!(SymbolicEqv::equivalent(&lhs, &rhs));
+    assert!(!SymbolicEqv::equivalent(
+        &lhs,
+        &SymbolicStmt::assert(IRBexpr::and_many(vec![]))
+    ));
+}
+
 pub struct TestHelper<T, O> {
     factory: Box<dyn ConstraintFactory<Inner = T, Out = O>>,
 }

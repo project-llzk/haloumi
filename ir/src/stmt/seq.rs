@@ -34,6 +34,10 @@ impl<T> Seq<T> {
         self.0.iter()
     }
 
+    pub(crate) fn as_slice(&self) -> &[IRStmt<T>] {
+        &self.0
+    }
+
     pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, IRStmt<T>> {
         self.0.iter_mut()
     }

@@ -4,7 +4,7 @@ use crate::{
     diagnostics::{SimpleDiagnostic, Validation},
     groups::callsite::CallSite,
     printer::IRPrintable,
-    stmt::IRStmt,
+    stmt::{IRStmt, IRStmtVisitor},
     traits::{Canonicalize, ConstantFolding, Validatable},
 };
 use eqv::{EqvRelation, equiv};
@@ -23,6 +23,31 @@ use quickcheck::Arbitrary;
 pub type GroupKey = u64;
 
 pub mod callsite;
+
+/// A structure-aware visitor for a group's executable contents.
+///
+/// Group roots are visited in lowering order.  The default implementations
+/// walk statement roots, while leaving callsites available to clients that
+/// care about group-to-group calls.
+pub(crate) trait GroupVisitor<E>: IRStmtVisitor<E> {
+    fn on_callsite(&mut self, _callsite: &CallSite<E>) {}
+
+    fn on_gates(&mut self, gates: &IRStmt<E>) {
+        gates.visit(self);
+    }
+
+    fn on_copy_constraints(&mut self, constraints: &IRStmt<E>) {
+        constraints.visit(self);
+    }
+
+    fn on_lookups(&mut self, lookups: &IRStmt<E>) {
+        lookups.visit(self);
+    }
+
+    fn on_injected(&mut self, injected: &IRStmt<E>) {
+        injected.visit(self);
+    }
+}
 
 /// Body of a group.
 #[derive(Debug, Clone, PartialEq)]
@@ -191,12 +216,23 @@ impl<E> IRGroup<E> {
 
     /// Returns a list with the callee's names.
     pub fn callees(&self) -> Vec<String> {
-        self.callsites()
-            .iter()
-            .map(CallSite::name)
-            .chain(self.statements().filter_map(|s| s.callee_name()))
-            .map(ToOwned::to_owned)
-            .collect()
+        struct Callees(Vec<String>);
+
+        impl<E> IRStmtVisitor<E> for Callees {
+            fn on_call(&mut self, callee: &str, _: &[E], _: &[haloumi_core::slot::Slot]) {
+                self.0.push(callee.to_owned());
+            }
+        }
+
+        impl<E> GroupVisitor<E> for Callees {
+            fn on_callsite(&mut self, callsite: &CallSite<E>) {
+                self.0.push(callsite.name().to_owned());
+            }
+        }
+
+        let mut visitor = Callees(Vec::new());
+        self.visit(&mut visitor);
+        visitor.0
     }
 
     /// Returns a mutable referece to the callsites.
@@ -211,6 +247,19 @@ impl<E> IRGroup<E> {
             .chain(self.eq_constraints.iter())
             .chain(self.lookups.iter())
             .chain(self.injected.iter().flatten())
+    }
+
+    /// Visits callsites and statement roots in the group's execution order.
+    pub(crate) fn visit<V: GroupVisitor<E> + ?Sized>(&self, visitor: &mut V) {
+        for callsite in &self.callsites {
+            visitor.on_callsite(callsite);
+        }
+        visitor.on_gates(&self.gates);
+        visitor.on_copy_constraints(&self.eq_constraints);
+        visitor.on_lookups(&self.lookups);
+        for injected in &self.injected {
+            visitor.on_injected(injected);
+        }
     }
 
     /// Tries to convert the inner expression type to another.
@@ -605,6 +654,51 @@ mod tests {
     use quickcheck_macros::quickcheck;
 
     use super::*;
+
+    #[test]
+    fn group_visitor_walks_sections_in_order_and_callees_include_nested_calls() {
+        struct Recorder(Vec<String>);
+
+        impl IRStmtVisitor<()> for Recorder {
+            fn on_call(&mut self, callee: &str, _: &[()], _: &[haloumi_core::slot::Slot]) {
+                self.0.push(callee.to_owned());
+            }
+        }
+
+        impl GroupVisitor<()> for Recorder {
+            fn on_callsite(&mut self, callsite: &CallSite<()>) {
+                self.0.push(callsite.name().to_owned());
+            }
+
+            fn on_injected(&mut self, injected: &IRStmt<()>) {
+                self.0.push("injected".to_owned());
+                injected.visit(self);
+            }
+        }
+
+        let mut group = IRGroup::new("g".to_owned(), 0)
+            .with_callsites([CallSite::new(
+                0,
+                "group-call".to_owned(),
+                1,
+                1,
+                vec![],
+                vec![],
+            )])
+            .with_gates([IRStmt::call("gate-call", [], [])]);
+        group.inject(IRStmt::call("injected-call", [], []));
+
+        let mut recorder = Recorder(Vec::new());
+        group.visit(&mut recorder);
+        assert_eq!(
+            recorder.0,
+            ["group-call", "gate-call", "injected", "injected-call"]
+        );
+        assert_eq!(
+            group.callees(),
+            ["group-call", "gate-call", "injected-call"]
+        );
+    }
 
     #[cfg(feature = "serde")]
     #[quickcheck]

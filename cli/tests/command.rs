@@ -430,7 +430,7 @@ fn dry_run_builds_the_generated_extractor_without_running_it() {
     assert!(output.status.success(), "{output:?}");
     assert!(
         temp.path()
-            .join("target/haloumi/.cargo/debug/haloumi-extractor")
+            .join("target/haloumi/.cargo/release/haloumi-extractor")
             .is_file()
     );
     assert!(!args_output.exists());

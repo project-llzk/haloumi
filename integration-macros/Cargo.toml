@@ -21,6 +21,7 @@ proc-macro-crate = "3.5"
 
 [dev-dependencies]
 macrotest = "1.2"
+trybuild = "1.0"
 macro_expand = "0.1"
 rstest = "0"
 prettyplease = "0.2"

@@ -584,8 +584,7 @@ impl<T> IRStmt<T> {
             }
             (IRStmtImpl::Seq(lhs), IRStmtImpl::Seq(rhs)) => {
                 lhs.len() == rhs.len()
-                    && std::iter::zip(lhs.iter(), rhs.iter())
-                        .all(|(lhs, rhs)| lhs.exact_eq(rhs))
+                    && std::iter::zip(lhs.iter(), rhs.iter()).all(|(lhs, rhs)| lhs.exact_eq(rhs))
             }
             _ => false,
         }

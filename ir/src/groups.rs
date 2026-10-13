@@ -54,7 +54,9 @@ pub(crate) trait GroupVisitor<E>: IRStmtVisitor<E> {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct IRGroup<E> {
     name: String,
-    /// Index in the original groups array.
+    /// Position in this group's namespace.
+    ///
+    /// Main groups and prelude groups have separate namespaces.
     id: usize,
     input_count: usize,
     output_count: usize,
@@ -184,12 +186,12 @@ impl<E> IRGroup<E> {
         &mut self.name
     }
 
-    /// Returns the id of the group.
+    /// Returns this group's position in its namespace.
     pub fn id(&self) -> usize {
         self.id
     }
 
-    /// Sets the id of the group.
+    /// Sets this group's position in its namespace.
     pub fn set_id(&mut self, id: usize) {
         self.id = id;
     }
@@ -299,11 +301,9 @@ impl<E> IRGroup<E> {
         let callee = groups
             .get(callee_id)
             .ok_or(ValidationErrors::CalleeNotFound { callee_id })?;
-        if callee.id() != callsite.callee_id() {
+        if callee.id() != callee_id {
             return Err(ValidationErrors::WrongCallee {
-                callsite_name: callsite.name().to_string(),
                 callsite_id: callee_id,
-                callee_name: callee.name().to_string(),
                 callee_id: callee.id(),
             });
         }
@@ -421,13 +421,9 @@ impl ValidationFailed {
 enum ValidationErrors {
     #[error("Callee with id {callee_id} was not found")]
     CalleeNotFound { callee_id: usize },
-    #[error(
-        "Callsite points to \"{callsite_name}\" ({callsite_id}) but callee was \"{callee_name}\" ({callee_id})"
-    )]
+    #[error("Callsite points to group {callsite_id} but group has id {callee_id}")]
     WrongCallee {
-        callsite_name: String,
         callsite_id: usize,
-        callee_name: String,
         callee_id: usize,
     },
     #[error(
@@ -654,6 +650,80 @@ mod tests {
     use quickcheck_macros::quickcheck;
 
     use super::*;
+    use crate::expr::IRAexpr;
+
+    fn group(id: usize) -> IRGroup<IRAexpr> {
+        IRGroup::new(format!("group-{id}"), id).with_key(Some(id as GroupKey))
+    }
+
+    fn callsite(callee_id: usize) -> CallSite<IRAexpr> {
+        CallSite::new(
+            0,
+            format!("group-{callee_id}"),
+            callee_id as GroupKey,
+            callee_id,
+            vec![],
+            vec![],
+        )
+    }
+
+    #[test]
+    fn validates_callsite_with_positional_callee_id() {
+        let caller = group(0).with_callsites([callsite(1)]);
+        let callee = group(1);
+
+        assert!(
+            caller
+                .validate_with_context(&[caller.clone(), callee])
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn rejects_callsite_with_missing_callee_id() {
+        let caller = group(0).with_callsites([callsite(1)]);
+
+        assert!(
+            caller
+                .validate_with_context(std::slice::from_ref(&caller))
+                .is_err()
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Callsite points to group 1 but group has id 0")]
+    fn rejects_callsite_when_group_id_does_not_match_its_position() {
+        let caller = group(0).with_callsites([callsite(1)]);
+        let callee = group(0);
+
+        caller
+            .validate_with_context(&[caller.clone(), callee])
+            .unwrap();
+    }
+
+    #[test]
+    fn rejects_callsite_with_wrong_input_arity() {
+        let caller = group(0).with_callsites([callsite(1)]);
+        let callee = group(1).with_input_count(1);
+
+        assert!(
+            caller
+                .validate_with_context(&[caller.clone(), callee])
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn rejects_callsite_with_wrong_output_arity() {
+        let caller = group(0).with_callsites([callsite(1)]);
+        let callee = group(1).with_output_count(1);
+
+        assert!(
+            caller
+                .validate_with_context(&[caller.clone(), callee])
+                .is_err()
+        );
+    }
 
     #[test]
     fn group_visitor_walks_sections_in_order_and_callees_include_nested_calls() {

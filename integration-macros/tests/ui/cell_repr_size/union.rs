@@ -1,6 +1,8 @@
 use haloumi_integration_macros::CellReprSize;
 
 #[derive(CellReprSize)]
-enum E {
-    Value(usize),
+union U {
+    value: usize,
 }
+
+fn main() {}

@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use haloumi_inject::{
-    crate_info::{Crate, RustFile},
+    crate_info::{Crate, CrateLike, RustFile},
     error::Error,
 };
 
@@ -154,6 +154,72 @@ fn generated_file_commits_once_and_rejects_collisions() {
     ));
     copied.commit().unwrap();
     assert!(copy.join("src/bin/generated.rs").is_file());
+}
+
+#[test]
+fn equivalent_rust_file_paths_share_staged_changes() {
+    let temp = tempfile::tempdir().unwrap();
+    let copy = temp.path().join("copy");
+    let mut copied = Crate::open(fixture("crates/test1"))
+        .unwrap()
+        .clone_in_path(&copy)
+        .unwrap();
+
+    copied
+        .open_rust_file("./src/lib.rs")
+        .unwrap()
+        .items
+        .push(syn::parse_str("pub struct FromDotPath;").unwrap());
+    copied
+        .open_rust_file("src/lib.rs")
+        .unwrap()
+        .items
+        .push(syn::parse_str("pub struct FromPlainPath;").unwrap());
+    copied.commit().unwrap();
+
+    let contents = std::fs::read_to_string(copy.join("src/lib.rs")).unwrap();
+    assert!(contents.contains("FromDotPath"));
+    assert!(contents.contains("FromPlainPath"));
+}
+
+#[test]
+fn generated_file_rejects_equivalent_staged_path() {
+    let temp = tempfile::tempdir().unwrap();
+    let copy = temp.path().join("copy");
+    let mut copied = Crate::open(fixture("crates/test1"))
+        .unwrap()
+        .clone_in_path(&copy)
+        .unwrap();
+
+    copied
+        .create_rust_file("./src/bin/generated.rs", RustFile::new())
+        .unwrap();
+    assert!(matches!(
+        copied.create_rust_file("src/bin/generated.rs", RustFile::new()),
+        Err(Error::GeneratedFileExists(_))
+    ));
+}
+
+#[test]
+fn cloning_a_mutable_crate_uses_only_committed_manifest_changes() {
+    let temp = tempfile::tempdir().unwrap();
+    let copy = temp.path().join("copy");
+    let clone = temp.path().join("clone");
+    let mut copied = Crate::open(fixture("crates/test1"))
+        .unwrap()
+        .clone_in_path(&copy)
+        .unwrap();
+
+    copied
+        .add_dependency(
+            "uncommitted".to_owned(),
+            cargo_toml::Dependency::Simple("1.0".parse().unwrap()),
+        )
+        .unwrap();
+    copied.clone_in_path(&clone).unwrap();
+
+    let manifest = cargo_toml::Manifest::from_path(clone.join("Cargo.toml")).unwrap();
+    assert!(!manifest.dependencies.contains_key("uncommitted"));
 }
 
 #[test]

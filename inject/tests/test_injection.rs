@@ -1,6 +1,10 @@
 use std::path::{Path, PathBuf};
 
-use haloumi_inject::{Injector, crate_info::Crate, spec::SpecRegistry};
+use haloumi_inject::{
+    Injector,
+    crate_info::{Crate, CrateLike},
+    spec::SpecRegistry,
+};
 use rstest::{fixture, rstest};
 use tempfile::TempDir;
 
@@ -64,6 +68,17 @@ fn do_inject(dest: &DestFixture, specs: SpecRegistry, src_path: impl AsRef<Path>
         .apply(dest.path())
         .map_err(|err| panic!("{err}"))
         .unwrap();
+}
+
+#[rstest]
+fn injector_accepts_a_mutable_crate_source(_setup: (), specs: SpecRegistry) {
+    let temp = tempfile::tempdir().unwrap();
+    let copied = Crate::open("tests/crates/test1")
+        .unwrap()
+        .clone_in_path(temp.path().join("source"))
+        .unwrap();
+
+    Injector::new(&copied, &specs).unwrap();
 }
 
 #[rstest]

@@ -4,7 +4,7 @@
 #![deny(missing_docs)]
 
 use crate::{
-    crate_info::{Crate, CrateMut},
+    crate_info::{CrateLike, CrateMut},
     error::Error,
     spec::{Spec, SpecMatch, SpecRegistry},
 };
@@ -19,17 +19,17 @@ pub mod spec;
 
 /// The injector coordinates the modification of a crate following a spec.
 #[derive(Debug)]
-pub struct Injector<'s, 'c> {
-    source: &'c Crate,
+pub struct Injector<'s, 'c, C: CrateLike> {
+    source: &'c C,
     spec: &'s Spec,
 }
 
-impl<'s, 'c> Injector<'s, 'c> {
+impl<'s, 'c, C: CrateLike> Injector<'s, 'c, C> {
     /// Creates a new injector.
     ///
     /// Fails if the name or the version of the source crate could not be obtained,
     /// or if couldn't pick a spec from the registry.
-    pub fn new(source: &'c Crate, registry: &'s SpecRegistry) -> Result<Self, Error> {
+    pub fn new(source: &'c C, registry: &'s SpecRegistry) -> Result<Self, Error> {
         let source_name = source.name()?;
         let source_version = source.version()?;
         match registry.find_matching(source_name, source_version) {

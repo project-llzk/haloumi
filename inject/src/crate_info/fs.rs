@@ -19,7 +19,12 @@ pub fn resolve_path(path: &Path) -> Result<PathBuf, Error> {
     let suffix = path
         .strip_prefix(existing_ancestor)
         .expect("an ancestor is a path prefix");
-    Ok(existing_ancestor.canonicalize()?.join(suffix))
+    let canonical_ancestor = existing_ancestor.canonicalize()?;
+    if suffix.as_os_str().is_empty() {
+        Ok(canonical_ancestor)
+    } else {
+        Ok(canonical_ancestor.join(suffix))
+    }
 }
 
 pub struct IgnoredFiles<'p> {

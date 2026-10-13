@@ -299,8 +299,7 @@ impl<E> IRGroup<E> {
     ) -> Result<(), ValidationErrors> {
         let callee_id = callsite.callee_id();
         let callee = groups
-            .iter()
-            .find(|group| group.id() == callee_id)
+            .get(callee_id)
             .ok_or(ValidationErrors::CalleeNotFound { callee_id })?;
         if callee.id() != callee_id {
             return Err(ValidationErrors::WrongCallee {

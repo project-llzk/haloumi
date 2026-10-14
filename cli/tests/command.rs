@@ -134,6 +134,23 @@ fn no_configuration_creates_an_isolated_extraction_copy_without_backend_outputs(
 }
 
 #[test]
+fn explicit_library_target_name_is_used_by_the_generated_extractor() {
+    let temp = copy_fixture("explicit-lib-name-root");
+
+    let output = cli().current_dir(temp.path()).output().unwrap();
+    assert!(output.status.success(), "{output:?}");
+
+    let generated = temp
+        .path()
+        .join("target/haloumi/.crates/explicit-lib-name-root-0.1.0/src/bin/haloumi-extractor.rs");
+    assert!(
+        fs::read_to_string(generated)
+            .unwrap()
+            .contains("extraction_api::harnesses()")
+    );
+}
+
+#[test]
 fn root_runs_extraction_from_a_separate_directory() {
     let caller = tempfile::tempdir().unwrap();
     let root = caller.path().join("project");

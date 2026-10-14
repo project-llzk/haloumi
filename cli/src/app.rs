@@ -39,6 +39,7 @@ struct CargoProject {
 #[derive(Debug)]
 struct SelectedPackage {
     package: Package,
+    library_target_name: String,
 }
 
 #[derive(Debug)]
@@ -142,7 +143,7 @@ impl App {
         for (name, dependency) in extractor.dependencies() {
             self.add_dependency(root, name.clone(), dependency.clone())?;
         }
-        let crate_ident = self.target.package.name.replace('-', "_");
+        let crate_ident = self.target.library_target_name.replace('-', "_");
         let extractor_ident = extractor.name().replace('-', "_");
         let source = format!(
             "fn main() {{ {extractor_ident}::ExtractorMain::run({crate_ident}::harnesses()); }}"
@@ -267,7 +268,18 @@ impl CargoProject {
             .find(|package| package.name == name)
             .cloned()
             .ok_or_else(|| Error::Message(format!("'{name}' is not a workspace member")))?;
-        Ok(SelectedPackage { package })
+        let library_target_name = package
+            .targets
+            .iter()
+            .find(|target| target.is_lib())
+            .map(|target| target.name.clone())
+            .ok_or_else(|| {
+                Error::Message(format!("package '{name}' does not define a library target"))
+            })?;
+        Ok(SelectedPackage {
+            package,
+            library_target_name,
+        })
     }
 
     fn normal_direct_dependencies(&self, target: &SelectedPackage) -> Result<Vec<Package>, Error> {

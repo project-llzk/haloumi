@@ -243,7 +243,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-haloumi"
-version = "0.5.15"
+version = "0.6.0"
 dependencies = [
  "cargo_metadata",
  "cargo_toml",
@@ -905,7 +905,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-backend"
-version = "0.5.15"
+version = "0.6.0"
 dependencies = [
  "disjoint",
  "eqv",
@@ -920,7 +920,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-core"
-version = "0.5.15"
+version = "0.6.0"
 dependencies = [
  "eqv",
  "ff",
@@ -939,7 +939,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-driver"
-version = "0.5.15"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "ff",
@@ -966,7 +966,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-extractor"
-version = "0.5.15"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "ff",
@@ -995,7 +995,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-extractor-core"
-version = "0.5.15"
+version = "0.6.0"
 dependencies = [
  "ff",
  "haloumi-core",
@@ -1008,7 +1008,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-extractor-runner"
-version = "0.5.15"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1030,7 +1030,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-inject"
-version = "0.5.15"
+version = "0.6.0"
 dependencies = [
  "cargo_toml",
  "log",
@@ -1048,7 +1048,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-integration"
-version = "0.5.15"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "ff",
@@ -1062,13 +1062,13 @@ dependencies = [
  "haloumi-synthesis",
  "num-bigint 0.4.8",
  "num-traits",
- "rstest 0.27.0",
+ "rstest 0.26.1",
  "thiserror",
 ]
 
 [[package]]
 name = "haloumi-integration-macros"
-version = "0.5.15"
+version = "0.6.0"
 dependencies = [
  "ff",
  "haloumi-integration",
@@ -1079,7 +1079,7 @@ dependencies = [
  "proc-macro-crate",
  "proc-macro2",
  "quote",
- "rstest 0.27.0",
+ "rstest 0.26.1",
  "similar-asserts",
  "simplelog",
  "syn 2.0.119",
@@ -1089,7 +1089,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-ir"
-version = "0.5.15"
+version = "0.6.0"
 dependencies = [
  "bit-set",
  "eqv",
@@ -1111,7 +1111,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-ir-gen"
-version = "0.5.15"
+version = "0.6.0"
 dependencies = [
  "ff",
  "halo2curves 0.7.0",
@@ -1128,7 +1128,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-llzk"
-version = "0.5.15"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "disjoint",
@@ -1160,7 +1160,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-lowering"
-version = "0.5.15"
+version = "0.6.0"
 dependencies = [
  "ff",
  "haloumi-core",
@@ -1169,7 +1169,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-mock-halo2"
-version = "0.5.15"
+version = "0.6.0"
 dependencies = [
  "ff",
  "halo2curves 0.7.0",
@@ -1179,7 +1179,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-picus"
-version = "0.5.15"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "criterion",
@@ -1201,7 +1201,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-synthesis"
-version = "0.5.15"
+version = "0.6.0"
 dependencies = [
  "bit-set",
  "ff",
@@ -1216,7 +1216,7 @@ dependencies = [
 
 [[package]]
 name = "haloumi-test-circuits"
-version = "0.5.15"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "ff",
@@ -1260,7 +1260,7 @@ dependencies = [
 
 [[package]]
 name = "inject-tester"
-version = "0.5.15"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "clap",

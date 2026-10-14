@@ -17,8 +17,8 @@ log.workspace = true
 thiserror.workspace = true
 internment.workspace = true
 eqv.workspace = true
-haloumi-core = { path = "../core", version = "0.5.5"}
-haloumi-lowering = { path = "../lowering", version = "0.5.5" }
+haloumi-core = { path = "../core", version = "0.6.0"}
+haloumi-lowering = { path = "../lowering", version = "0.6.0" }
 num-bigint.workspace = true
 bit-set.workspace = true
 serde = { workspace = true, optional = true }
@@ -32,7 +32,7 @@ halo2curves = "0.9"
 quickcheck.workspace = true
 quickcheck_macros.workspace = true
 serde_json.workspace = true
-haloumi-core = { path = "../core", version = "0.5.5", features = ["arbitrary"] }
+haloumi-core = { path = "../core", version = "0.6.0", features = ["arbitrary"] }
 
 [features]
 default = []

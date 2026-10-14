@@ -43,6 +43,12 @@ struct SelectedPackage {
 }
 
 #[derive(Debug)]
+struct DirectDependency {
+    name: String,
+    package: Package,
+}
+
+#[derive(Debug)]
 struct ManagedPaths {
     root: PathBuf,
     output: PathBuf,
@@ -104,30 +110,31 @@ impl App {
         for dependency in self.project.normal_direct_dependencies(&self.target)? {
             match self
                 .specs
-                .find_matching(&dependency.name, &dependency.version)
+                .find_matching(&dependency.package.name, &dependency.package.version)
             {
                 SpecMatch::None => {
-                    log::debug!("No spec matches {} {}", dependency.name, dependency.version);
+                    log::debug!(
+                        "No spec matches {} {}",
+                        dependency.package.name,
+                        dependency.package.version
+                    );
                 }
                 SpecMatch::Ambiguous(specs) => {
                     return Err(Error::Message(format!(
                         "{} specs match {} {}",
                         specs.len(),
-                        dependency.name,
-                        dependency.version
+                        dependency.package.name,
+                        dependency.package.version
                     )));
                 }
                 SpecMatch::One(_) => {
-                    let destination = self.paths.dependency_copy(&dependency);
+                    let destination = self.paths.dependency_copy(&dependency.package);
                     let source =
-                        Crate::open(dependency.manifest_path.parent().ok_or_else(|| {
-                            Error::Message("dependency manifest has no parent".into())
-                        })?)?;
+                        Crate::open(dependency.package.manifest_path.parent().ok_or_else(
+                            || Error::Message("dependency manifest has no parent".into()),
+                        )?)?;
                     Injector::new(&source, &self.specs)?.apply(&destination)?;
-                    root.replace_dependency_with_path(
-                        self.project.dependency_name(&self.target, &dependency)?,
-                        destination,
-                    )?;
+                    root.replace_dependency_with_path(&dependency.name, destination)?;
                 }
             }
         }
@@ -283,7 +290,10 @@ impl CargoProject {
         })
     }
 
-    fn normal_direct_dependencies(&self, target: &SelectedPackage) -> Result<Vec<Package>, Error> {
+    fn normal_direct_dependencies(
+        &self,
+        target: &SelectedPackage,
+    ) -> Result<Vec<DirectDependency>, Error> {
         let resolve = self.metadata.resolve.as_ref().ok_or_else(|| {
             Error::Message("Cargo metadata did not include a dependency resolution".into())
         })?;
@@ -303,27 +313,40 @@ impl CargoProject {
                     .any(|kind| kind.kind == DependencyKind::Normal)
             })
             .map(|dependency| {
-                self.package(&dependency.pkg)
-                    .cloned()
-                    .ok_or_else(|| Error::Message("resolved dependency metadata is missing".into()))
+                let name = self.dependency_name(target, &dependency.name)?;
+                let package = self.package(&dependency.pkg).cloned().ok_or_else(|| {
+                    Error::Message("resolved dependency metadata is missing".into())
+                })?;
+                Ok(DirectDependency { name, package })
             })
             .collect()
     }
 
-    fn dependency_name<'a>(
-        &'a self,
-        target: &'a SelectedPackage,
-        package: &Package,
-    ) -> Result<&'a str, Error> {
+    fn dependency_name(
+        &self,
+        target: &SelectedPackage,
+        resolved_name: &str,
+    ) -> Result<String, Error> {
         target
             .package
             .dependencies
             .iter()
             .find(|dependency| {
-                dependency.kind == DependencyKind::Normal && dependency.name == package.name
+                dependency.kind == DependencyKind::Normal
+                    && dependency
+                        .rename
+                        .as_deref()
+                        .unwrap_or(&dependency.name)
+                        .replace('-', "_")
+                        == resolved_name
             })
-            .map(|dependency| dependency.rename.as_deref().unwrap_or(&dependency.name))
-            .ok_or_else(|| Error::Message("resolved dependency metadata is missing".into()))
+            .map(|dependency| {
+                dependency
+                    .rename
+                    .clone()
+                    .unwrap_or_else(|| dependency.name.clone())
+            })
+            .ok_or_else(|| Error::Message("resolved dependency is missing from manifest".into()))
     }
 
     fn workspace_packages(&self) -> impl Iterator<Item = &Package> {

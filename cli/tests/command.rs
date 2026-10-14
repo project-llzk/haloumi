@@ -244,6 +244,58 @@ fn matching_spec_patches_an_aliased_direct_dependency_copy() {
 }
 
 #[test]
+fn matching_spec_patches_all_matching_aliased_direct_dependency_versions() {
+    let temp = copy_fixture("multi-version-aliased-patch-root");
+
+    let output = cli()
+        .current_dir(temp.path())
+        .arg("--dry-run")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+
+    let copied_root = temp
+        .path()
+        .join("target/haloumi/.crates/multi-version-aliased-patch-root-0.1.0");
+    let copied_foo_10 = temp.path().join("target/haloumi/.crates/foo-1.0.0");
+    let copied_foo_11 = temp.path().join("target/haloumi/.crates/foo-1.1.0");
+    assert!(
+        fs::read_to_string(copied_foo_10.join("src/lib.rs"))
+            .unwrap()
+            .contains("pub const PATCHED: bool = true;")
+    );
+    assert!(
+        fs::read_to_string(copied_foo_11.join("src/lib.rs"))
+            .unwrap()
+            .contains("pub const PATCHED: bool = true;")
+    );
+    assert!(
+        !temp
+            .path()
+            .join("target/haloumi/.crates/foo-2.0.0")
+            .exists()
+    );
+
+    let copied_manifest = fs::read_to_string(copied_root.join("Cargo.toml")).unwrap();
+    let manifest: toml::Value = toml::from_str(&copied_manifest).unwrap();
+    for (alias, copied_dependency) in [("foo_10", &copied_foo_10), ("foo_11", &copied_foo_11)] {
+        let dependency = &manifest["dependencies"][alias];
+        assert_eq!(
+            Path::new(dependency["path"].as_str().unwrap())
+                .canonicalize()
+                .unwrap(),
+            copied_dependency.canonicalize().unwrap()
+        );
+    }
+    assert_eq!(
+        Path::new(manifest["dependencies"]["foo_20"]["path"].as_str().unwrap())
+            .canonicalize()
+            .unwrap(),
+        temp.path().join("foo_20").canonicalize().unwrap()
+    );
+}
+
+#[test]
 fn matching_spec_patches_a_hyphenated_direct_dependency_copy() {
     let temp = copy_fixture("hyphenated-patch-root");
 

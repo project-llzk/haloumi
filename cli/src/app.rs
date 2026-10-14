@@ -44,6 +44,7 @@ struct SelectedPackage {
 
 #[derive(Debug)]
 struct ManagedPaths {
+    root: PathBuf,
     output: PathBuf,
     crates: PathBuf,
     cargo_target: PathBuf,
@@ -91,7 +92,7 @@ impl App {
     }
 
     fn prepare_workspace(&self) -> Result<(), Error> {
-        self.paths.reset_crates()
+        self.paths.reset_output()
     }
 
     fn clone_target_crate(&self) -> Result<CrateMut, Error> {
@@ -364,22 +365,24 @@ impl ManagedPaths {
     fn new(root: &Path) -> Self {
         let output = root.join("target/haloumi");
         Self {
+            root: root.to_path_buf(),
             crates: output.join(".crates"),
             cargo_target: output.join(".cargo"),
             output,
         }
     }
 
-    fn reset_crates(&self) -> Result<(), Error> {
-        if !self.crates.starts_with(&self.output) {
+    fn reset_output(&self) -> Result<(), Error> {
+        if !self.output.starts_with(&self.root) || self.output == self.root {
             return Err(Error::Message(
-                "managed crate directory is outside the Haloumi output directory".into(),
+                "Haloumi output directory is outside the project root".into(),
             ));
         }
-        if self.crates.exists() {
-            fs::remove_dir_all(&self.crates)?;
+        // TODO: Replace this conservative reset with selective artifact management (#34).
+        if self.output.exists() {
+            fs::remove_dir_all(&self.output)?;
         }
-        fs::create_dir_all(&self.crates)?;
+        fs::create_dir_all(&self.output)?;
         Ok(())
     }
 

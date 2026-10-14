@@ -134,6 +134,31 @@ fn no_configuration_creates_an_isolated_extraction_copy_without_backend_outputs(
 }
 
 #[test]
+fn execution_removes_all_stale_haloumi_artifacts() {
+    let temp = copy_fixture("extraction-root");
+    let artifacts = temp.path().join("target/haloumi");
+    let stale_crate = artifacts.join(".crates/stale-crate/marker");
+    let stale_build = artifacts.join(".cargo/stale-build");
+    let stale_result = artifacts.join("ir/stale-result");
+    for stale_path in [&stale_crate, &stale_build, &stale_result] {
+        fs::create_dir_all(stale_path.parent().unwrap()).unwrap();
+        fs::write(stale_path, "stale").unwrap();
+    }
+
+    let output = cli().current_dir(temp.path()).output().unwrap();
+    assert!(output.status.success(), "{output:?}");
+
+    assert!(!stale_crate.exists());
+    assert!(!stale_build.exists());
+    assert!(!stale_result.exists());
+    assert!(
+        artifacts
+            .join(".crates/extraction-root-0.1.0/src/bin/haloumi-extractor.rs")
+            .is_file()
+    );
+}
+
+#[test]
 fn explicit_library_target_name_is_used_by_the_generated_extractor() {
     let temp = copy_fixture("explicit-lib-name-root");
 

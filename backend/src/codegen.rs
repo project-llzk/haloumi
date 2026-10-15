@@ -56,7 +56,7 @@ pub trait Codegen<'c: 's, 's>: Sized + 's {
     where
         FN: FnOnce(&Self::FuncOutput, &[Slot], &[Slot]) -> Result<I, Self::Error>,
         I: IntoIterator<Item = L>,
-        L: LowerableStmt + std::fmt::Debug,
+        L: LowerableStmt,
     {
         let func = self.define_function(name, inputs, outputs, callees)?;
         let inputs = func.lower_function_inputs(0..inputs);
@@ -88,7 +88,7 @@ pub trait Codegen<'c: 's, 's>: Sized + 's {
         stmts: impl IntoIterator<Item = L>,
     ) -> Result<(), Self::Error>
     where
-        L: LowerableStmt + std::fmt::Debug,
+        L: LowerableStmt,
     {
         let main = self.define_main_function(advice_io, instance_io, callees)?;
         log::debug!("Defined main function");

@@ -168,6 +168,7 @@ struct Extractor {
 pub(crate) struct ExtractorConfig {
     name: String,
     dependency: Dependency,
+    dependency_explicit: bool,
     dependencies: DepsSet,
     /// Configures whether groups are enabled or not during extraction.
     ///
@@ -188,6 +189,11 @@ impl ExtractorConfig {
     /// Returns the extractor API crate dependency definition.
     pub(crate) fn dependency(&self) -> &Dependency {
         &self.dependency
+    }
+
+    /// Returns whether the runner dependency was explicitly configured.
+    pub(crate) fn dependency_explicit(&self) -> bool {
+        self.dependency_explicit
     }
 
     /// Returns additional dependencies for the generated binary.
@@ -320,14 +326,13 @@ impl Config {
         let groups_enabled = extractor.and_then(|value| value.groups).unwrap_or(true);
         let preludes = extractor.and_then(|value| value.preludes.clone());
         let optimize = extractor.and_then(|value| value.optimize).unwrap_or(true);
-        let mut dependency = extractor
-            .and_then(|value| value.dependency.clone())
-            .unwrap_or_else(|| {
-                Dependency::Simple(
-                    VersionReq::parse(&format!("<= {}", env!("CARGO_PKG_VERSION")))
-                        .expect("package version is valid"),
-                )
-            });
+        let configured_dependency = extractor.and_then(|value| value.dependency.clone());
+        let mut dependency = configured_dependency.clone().unwrap_or_else(|| {
+            Dependency::Simple(
+                VersionReq::parse(&format!("<= {}", env!("CARGO_PKG_VERSION")))
+                    .expect("package version is valid"),
+            )
+        });
         let base = source.map(|source| source.base.as_path());
         rebase_dependency(&mut dependency, base)?;
         let mut dependencies = extractor
@@ -339,6 +344,7 @@ impl Config {
         Ok(ExtractorConfig {
             name,
             dependency,
+            dependency_explicit: configured_dependency.is_some(),
             dependencies,
             groups_enabled,
             preludes,

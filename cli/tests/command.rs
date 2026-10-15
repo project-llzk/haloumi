@@ -478,6 +478,80 @@ fn higher_priority_backend_table_blocks_lower_priority_backend_parameters() {
 }
 
 #[test]
+fn compatible_existing_runner_dependency_is_merged() {
+    let temp = copy_fixture("merged-runner-dependency");
+
+    let output = cli()
+        .current_dir(temp.path())
+        .arg("--dry-run")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+
+    let copied = fs::read_to_string(
+        temp.path()
+            .join("target/haloumi/.crates/merged-runner-dependency-0.1.0/Cargo.toml"),
+    )
+    .unwrap();
+    assert!(copied.contains("version = \">=0.1.0\""), "{copied}");
+    assert!(
+        copied.contains("existing") && copied.contains("requested"),
+        "{copied}"
+    );
+}
+
+#[test]
+fn incompatible_existing_runner_version_is_reported_before_building() {
+    let temp = copy_fixture("incompatible-runner-version");
+
+    let output = cli()
+        .current_dir(temp.path())
+        .arg("--dry-run")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("dependency 'custom-extractor' conflicts with extractor configuration"),
+        "{output:?}"
+    );
+}
+
+#[test]
+fn unrelated_existing_runner_dependency_is_reported() {
+    let temp = copy_fixture("unrelated-runner-dependency");
+
+    let output = cli()
+        .current_dir(temp.path())
+        .arg("--dry-run")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("dependency 'custom-extractor' conflicts with extractor configuration"),
+        "{output:?}"
+    );
+}
+
+#[test]
+fn incompatible_existing_extractor_support_dependency_is_reported() {
+    let temp = copy_fixture("incompatible-extractor-support");
+
+    let output = cli()
+        .current_dir(temp.path())
+        .arg("--dry-run")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("dependency 'support' conflicts with extractor configuration"),
+        "{output:?}"
+    );
+}
+
+#[test]
 fn disabled_optimization_is_forwarded_independently() {
     let temp = copy_fixture("config-chain-root");
     let config = temp.path().join(".haloumi.toml");

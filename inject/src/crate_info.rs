@@ -34,6 +34,9 @@ pub trait CrateLike: sealed::Sealed {
     /// Returns the name of the package.
     fn name(&self) -> Result<&str, Error>;
 
+    /// Returns a normal dependency declared under `name`, if present.
+    fn dependency(&self, name: &str) -> Option<&Dependency>;
+
     /// Creates a copy of the crate in the provided, nonexistent path.
     ///
     /// The destination cannot already exist.
@@ -76,6 +79,10 @@ impl CrateLike for Crate {
 
     fn name(&self) -> Result<&str, Error> {
         Ok(package(&self.manifest)?.name())
+    }
+
+    fn dependency(&self, name: &str) -> Option<&Dependency> {
+        self.manifest.dependencies.get(name)
     }
 
     fn clone_in_path(&self, dest: impl AsRef<Path>) -> Result<CrateMut, Error> {
@@ -335,6 +342,17 @@ impl CrateMut {
         }
     }
 
+    /// Replaces a named normal dependency definition.
+    pub fn replace_dependency(&mut self, name: &str, dep: Dependency) -> Result<(), Error> {
+        let existing = self
+            .manifest
+            .dependencies
+            .get_mut(name)
+            .ok_or_else(|| Error::DependencyNotFound(name.to_owned()))?;
+        *existing = dep;
+        Ok(())
+    }
+
     /// Adds an explicitly declared binary target to the crate.
     ///
     /// The source path must be relative to the crate and cannot contain `..`. The target name
@@ -436,6 +454,10 @@ impl CrateLike for CrateMut {
 
     fn name(&self) -> Result<&str, Error> {
         Ok(package(&self.manifest)?.name())
+    }
+
+    fn dependency(&self, name: &str) -> Option<&Dependency> {
+        self.manifest.dependencies.get(name)
     }
 
     fn clone_in_path(&self, dest: impl AsRef<Path>) -> Result<CrateMut, Error> {

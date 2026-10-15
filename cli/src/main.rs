@@ -12,6 +12,7 @@ use clap::Parser;
 
 mod app;
 mod config;
+mod tasks;
 
 use app::App;
 

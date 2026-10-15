@@ -95,6 +95,26 @@ fn workspace_rejects_package_that_is_not_a_member() {
 }
 
 #[test]
+fn workspace_member_extraction_builds_the_isolated_copy() {
+    let temp = copy_fixture("workspace-member-extraction");
+
+    let output = cli()
+        .current_dir(temp.path())
+        .args(["-p", "workspace-member", "--dry-run"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success(), "{output:?}");
+    let manifest = fs::read_to_string(
+        temp.path()
+            .join("target/haloumi/.crates/workspace-member-0.1.0/Cargo.toml"),
+    )
+    .unwrap();
+    let manifest: toml::Value = toml::from_str(&manifest).unwrap();
+    assert!(manifest.get("workspace").is_some());
+}
+
+#[test]
 fn malformed_configuration_fails_before_mutating_the_project() {
     let temp = copy_fixture("malformed-config");
     let manifest = temp.path().join("Cargo.toml");

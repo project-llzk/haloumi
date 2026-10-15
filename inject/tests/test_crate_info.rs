@@ -74,7 +74,7 @@ fn copied_workspace_member_has_a_standalone_readable_manifest() {
 
     let raw_manifest: toml::Value =
         toml::from_str(&std::fs::read_to_string(copy.join("Cargo.toml")).unwrap()).unwrap();
-    assert!(raw_manifest.get("workspace").is_none());
+    assert!(raw_manifest.get("workspace").is_some());
     assert!(Crate::open(&copy).is_ok());
     let cargo_metadata = std::process::Command::new("cargo")
         .args([

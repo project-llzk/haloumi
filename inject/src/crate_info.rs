@@ -4,7 +4,7 @@ use crate::{
     crate_info::fs::{IgnoredFiles, copy_files_rec, resolve_path},
     error::Error,
 };
-use cargo_toml::{Dependency, DepsSet, Manifest, Package, Product, SemVer};
+use cargo_toml::{Dependency, DepsSet, Manifest, Package, Product, SemVer, Workspace};
 use std::{
     collections::{HashMap, btree_map, hash_map::Entry},
     path::{Component, Path, PathBuf},
@@ -161,7 +161,18 @@ fn detach_from_workspace(manifest: &mut Manifest) {
     if let Some(package) = &mut manifest.package {
         package.workspace = None;
     }
-    manifest.workspace = None;
+    // An empty workspace prevents Cargo from associating a copy nested beneath
+    // the source workspace's target directory with that ancestor workspace.
+    manifest.workspace = Some(Workspace {
+        members: Vec::new(),
+        default_members: Vec::new(),
+        package: None,
+        exclude: Vec::new(),
+        metadata: None,
+        resolver: None,
+        dependencies: DepsSet::default(),
+        lints: Default::default(),
+    });
 }
 
 #[expect(

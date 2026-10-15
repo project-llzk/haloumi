@@ -270,6 +270,34 @@ fn matching_spec_patches_an_aliased_direct_dependency_copy() {
 }
 
 #[test]
+fn matching_spec_from_a_configured_file_patches_a_direct_dependency_copy() {
+    let temp = copy_fixture("aliased-patch-root");
+    fs::write(
+        temp.path().join(".haloumi.toml"),
+        r#"[specs]
+path = ".haloumi/specs/target-dependency.toml"
+
+[extractor]
+name = "haloumi-extractor-runner"
+dependency = { path = "extractor" }
+"#,
+    )
+    .unwrap();
+
+    let output = cli().current_dir(temp.path()).output().unwrap();
+    assert!(output.status.success(), "{output:?}");
+
+    let copied_dependency = temp
+        .path()
+        .join("target/haloumi/.crates/target-dependency-0.1.0");
+    assert!(
+        fs::read_to_string(copied_dependency.join("src/lib.rs"))
+            .unwrap()
+            .contains("pub const PATCHED: bool = true;")
+    );
+}
+
+#[test]
 fn matching_spec_patches_all_matching_aliased_direct_dependency_versions() {
     let temp = copy_fixture("multi-version-aliased-patch-root");
 

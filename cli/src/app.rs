@@ -65,7 +65,7 @@ impl App {
         config.validate()?;
         let paths = ManagedPaths::new(project.root());
         let specs_path = config.specs_path();
-        let specs = if specs_path.is_dir() {
+        let specs = if specs_path.is_file() || specs_path.is_dir() {
             SpecRegistry::load(&specs_path)?
         } else {
             SpecRegistry::empty()

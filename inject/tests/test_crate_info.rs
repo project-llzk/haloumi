@@ -157,6 +157,33 @@ fn generated_file_commits_once_and_rejects_collisions() {
 }
 
 #[test]
+fn generated_binary_target_commits_and_rejects_duplicate_names() {
+    let temp = tempfile::tempdir().unwrap();
+    let copy = temp.path().join("copy");
+    let mut copied = Crate::open(fixture("crates/test1"))
+        .unwrap()
+        .clone_in_path(&copy)
+        .unwrap();
+
+    copied
+        .add_binary_target("generated", "src/bin/generated.rs")
+        .unwrap();
+    assert!(matches!(
+        copied.add_binary_target("generated", "src/bin/other.rs"),
+        Err(Error::DuplicateBin(_))
+    ));
+    copied.commit().unwrap();
+
+    let manifest = cargo_toml::Manifest::from_path(copy.join("Cargo.toml")).unwrap();
+    assert_eq!(manifest.bin.len(), 1);
+    assert_eq!(manifest.bin[0].name.as_deref(), Some("generated"));
+    assert_eq!(
+        manifest.bin[0].path.as_deref(),
+        Some("src/bin/generated.rs")
+    );
+}
+
+#[test]
 fn equivalent_rust_file_paths_share_staged_changes() {
     let temp = tempfile::tempdir().unwrap();
     let copy = temp.path().join("copy");

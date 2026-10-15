@@ -156,6 +156,7 @@ impl App {
         let source = format!(
             "fn main() {{ {extractor_ident}::ExtractorMain::run({crate_ident}::harnesses()); }}"
         );
+        root.add_binary_target("haloumi-extractor", "src/bin/haloumi-extractor.rs")?;
         root.create_rust_file(
             "src/bin/haloumi-extractor.rs",
             RustFile::parse_str(&source)?,

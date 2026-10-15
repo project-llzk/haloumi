@@ -134,6 +134,32 @@ fn no_configuration_creates_an_isolated_extraction_copy_without_backend_outputs(
 }
 
 #[test]
+fn disabled_autobins_still_builds_the_generated_extractor() {
+    let temp = copy_fixture("autobins-disabled-root");
+
+    let output = cli()
+        .current_dir(temp.path())
+        .arg("--dry-run")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+
+    let manifest = fs::read_to_string(
+        temp.path()
+            .join("target/haloumi/.crates/autobins-disabled-root-0.1.0/Cargo.toml"),
+    )
+    .unwrap();
+    let manifest: toml::Value = toml::from_str(&manifest).unwrap();
+    let bins = manifest["bin"].as_array().unwrap();
+    assert_eq!(bins.len(), 1);
+    assert_eq!(bins[0]["name"].as_str(), Some("haloumi-extractor"));
+    assert_eq!(
+        bins[0]["path"].as_str(),
+        Some("src/bin/haloumi-extractor.rs")
+    );
+}
+
+#[test]
 fn execution_removes_all_stale_haloumi_artifacts() {
     let temp = copy_fixture("extraction-root");
     let artifacts = temp.path().join("target/haloumi");
@@ -343,10 +369,28 @@ fn generated_extractor_binary_collision_is_reported() {
     assert!(!output.status.success());
     assert!(
         String::from_utf8_lossy(&output.stderr)
-            .contains("Refusing to overwrite existing generated file")
+            .contains("Binary 'haloumi-extractor' is already in the manifest")
     );
     assert_eq!(
         fs::read_to_string(temp.path().join("src/bin/haloumi-extractor.rs")).unwrap(),
+        original
+    );
+}
+
+#[test]
+fn declared_extractor_binary_target_collision_is_reported() {
+    let temp = copy_fixture("declared-binary-collision");
+    let original = fs::read_to_string(temp.path().join("Cargo.toml")).unwrap();
+
+    let output = cli().current_dir(temp.path()).output().unwrap();
+
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("Binary 'haloumi-extractor' is already in the manifest")
+    );
+    assert_eq!(
+        fs::read_to_string(temp.path().join("Cargo.toml")).unwrap(),
         original
     );
 }

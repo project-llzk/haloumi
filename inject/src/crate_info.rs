@@ -4,7 +4,7 @@ use crate::{
     crate_info::fs::{IgnoredFiles, copy_files_rec, resolve_path},
     error::Error,
 };
-use cargo_toml::{Dependency, DepsSet, Manifest, Package, SemVer};
+use cargo_toml::{Dependency, DepsSet, Manifest, Package, Product, SemVer};
 use std::{
     collections::{HashMap, btree_map, hash_map::Entry},
     path::{Component, Path, PathBuf},
@@ -322,6 +322,34 @@ impl CrateMut {
             }
             btree_map::Entry::Occupied(entry) => Err(Error::DuplicateDep(entry.key().clone())),
         }
+    }
+
+    /// Adds an explicitly declared binary target to the crate.
+    ///
+    /// The source path must be relative to the crate and cannot contain `..`. The target name
+    /// must not already be declared by another `[[bin]]` entry.
+    pub fn add_binary_target(
+        &mut self,
+        name: impl Into<String>,
+        path: impl AsRef<Path>,
+    ) -> Result<(), Error> {
+        let name = name.into();
+        let path = path.as_ref();
+        validate_crate_relative_path(path)?;
+        if self
+            .manifest
+            .bin
+            .iter()
+            .any(|target| target.name.as_deref() == Some(&name))
+        {
+            return Err(Error::DuplicateBin(name));
+        }
+        self.manifest.bin.push(Product {
+            name: Some(name),
+            path: Some(path.display().to_string()),
+            ..Product::default()
+        });
+        Ok(())
     }
 
     /// Replaces a named normal dependency with a local path dependency.

@@ -110,7 +110,41 @@ impl App {
     }
 
     fn patch_direct_dependencies(&self, root: &mut CrateMut) -> Result<(), Error> {
-        for dependency in self.project.normal_direct_dependencies(&self.target)? {
+        let dependencies = self.project.normal_direct_dependencies(&self.target)?;
+        let mut package_ids = BTreeMap::new();
+        for dependency in &dependencies {
+            match self
+                .specs
+                .find_matching(&dependency.package.name, &dependency.package.version)
+            {
+                SpecMatch::None => {}
+                SpecMatch::Ambiguous(specs) => {
+                    return Err(Error::Message(format!(
+                        "{} specs match {} {}",
+                        specs.len(),
+                        dependency.package.name,
+                        dependency.package.version
+                    )));
+                }
+                SpecMatch::One(_) => {
+                    let key = (
+                        dependency.package.name.clone(),
+                        dependency.package.version.to_string(),
+                    );
+                    if let Some(existing_id) =
+                        package_ids.insert(key, dependency.package.id.clone())
+                        && existing_id != dependency.package.id
+                    {
+                        return Err(Error::Message(format!(
+                            "multiple direct dependencies named {} {} resolve to different package IDs; patching them is unsupported",
+                            dependency.package.name, dependency.package.version
+                        )));
+                    }
+                }
+            }
+        }
+
+        for dependency in dependencies {
             match self
                 .specs
                 .find_matching(&dependency.package.name, &dependency.package.version)

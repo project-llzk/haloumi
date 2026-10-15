@@ -370,6 +370,64 @@ fn matching_spec_patches_all_matching_aliased_direct_dependency_versions() {
 }
 
 #[test]
+fn matching_spec_rejects_same_name_and_version_dependencies_from_distinct_sources() {
+    let temp = copy_fixture("distinct-package-id-aliases");
+    let git_source = temp.path().join("source-two");
+    for arguments in [
+        vec!["init", "--quiet"],
+        vec!["add", "."],
+        vec![
+            "-c",
+            "user.name=Haloumi Tests",
+            "-c",
+            "user.email=tests@haloumi.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "--quiet",
+            "-m",
+            "initial",
+        ],
+    ] {
+        let output = Command::new("git")
+            .current_dir(&git_source)
+            .args(arguments)
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{output:?}");
+    }
+    let manifest_path = temp.path().join("Cargo.toml");
+    let manifest = fs::read_to_string(&manifest_path).unwrap();
+    fs::write(
+        &manifest_path,
+        manifest.replace(
+            "source_two = { package = \"same-dependency\", path = \"source-two\" }",
+            &format!(
+                "source_two = {{ package = \"same-dependency\", git = \"file://{}\" }}",
+                git_source.display()
+            ),
+        ),
+    )
+    .unwrap();
+
+    let cargo_home = temp.path().join("cargo-home");
+    let output = cli()
+        .current_dir(temp.path())
+        .env("CARGO_HOME", cargo_home)
+        .arg("--dry-run")
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains(
+            "multiple direct dependencies named same-dependency 0.1.0 resolve to different package IDs; patching them is unsupported"
+        ),
+        "{output:?}"
+    );
+}
+
+#[test]
 fn matching_spec_patches_a_hyphenated_direct_dependency_copy() {
     let temp = copy_fixture("hyphenated-patch-root");
 

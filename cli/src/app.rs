@@ -6,11 +6,10 @@ use std::{
 };
 
 use cargo_metadata::{CargoOpt, DependencyKind, Metadata, MetadataCommand, Package, PackageId};
-use haloumi_inject::spec::SpecRegistry;
 
 use crate::{
     Args, Error,
-    config::{Config, TargetConfig},
+    config::{Config, Target},
     tasks,
 };
 
@@ -27,7 +26,6 @@ pub(crate) struct AppState {
     pub(crate) target: SelectedPackage,
     pub(crate) config: Config,
     pub(crate) paths: ManagedPaths,
-    pub(crate) specs: SpecRegistry,
     pub(crate) dry_run: bool,
 }
 
@@ -41,6 +39,13 @@ pub(crate) struct CargoProject {
 pub(crate) struct SelectedPackage {
     pub(crate) package: Package,
     pub(crate) library_target_name: String,
+}
+
+impl SelectedPackage {
+    /// Returns the target name as a Rust identifier.
+    pub fn library_target_ident(&self) -> String {
+        self.library_target_name.replace("-", "_")
+    }
 }
 
 #[derive(Debug)]
@@ -61,23 +66,17 @@ impl App {
     /// Creates an application after performing all read-only discovery and validation.
     pub(crate) fn new(root: PathBuf, args: Args) -> Result<Self, Error> {
         let config = Config::load(&root)?;
-        let project = CargoProject::load(root, &config.target())?;
+        let project = CargoProject::load(root, config.target())?;
         let target = project.select_package(&args)?;
         config.validate()?;
         let paths = ManagedPaths::new(project.root());
-        let specs_path = config.specs_path();
-        let specs = if specs_path.is_file() || specs_path.is_dir() {
-            SpecRegistry::load(&specs_path)?
-        } else {
-            SpecRegistry::empty()
-        };
+
         Ok(Self {
             state: AppState {
                 project,
                 target,
                 config,
                 paths,
-                specs,
                 dry_run: args.dry_run,
             },
         })
@@ -101,7 +100,7 @@ impl App {
 }
 
 impl CargoProject {
-    fn load(root: PathBuf, target: &TargetConfig) -> Result<Self, Error> {
+    fn load(root: PathBuf, target: &Target) -> Result<Self, Error> {
         let mut command = MetadataCommand::new();
         command.current_dir(&root);
         if target.all_features() {

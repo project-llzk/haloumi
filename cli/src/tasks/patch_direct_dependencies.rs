@@ -16,7 +16,8 @@ pub(crate) fn patch_direct_dependencies(
     let mut package_ids = BTreeMap::new();
     for dependency in &dependencies {
         match state
-            .specs
+            .config
+            .specs()
             .find_matching(&dependency.package.name, &dependency.package.version)
         {
             SpecMatch::None => {}
@@ -46,7 +47,8 @@ pub(crate) fn patch_direct_dependencies(
     }
     for dependency in dependencies {
         match state
-            .specs
+            .config
+            .specs()
             .find_matching(&dependency.package.name, &dependency.package.version)
         {
             SpecMatch::None => log::debug!(
@@ -68,7 +70,7 @@ pub(crate) fn patch_direct_dependencies(
                     Crate::open(dependency.package.manifest_path.parent().ok_or_else(|| {
                         Error::Message("dependency manifest has no parent".into())
                     })?)?;
-                Injector::new(&source, &state.specs)?.apply(&destination)?;
+                Injector::new(&source, state.config.specs())?.apply(&destination)?;
                 root.replace_dependency_with_path(&dependency.name, destination)?;
             }
         }

@@ -154,6 +154,27 @@ fn no_configuration_creates_an_isolated_extraction_copy_without_backend_outputs(
 }
 
 #[test]
+fn missing_configured_specs_path_fails_before_creating_workspace() {
+    let temp = copy_fixture("extraction-root");
+    fs::write(
+        temp.path().join(".haloumi.toml"),
+        "[specs]\npath = \"missing-specs\"\n",
+    )
+    .unwrap();
+
+    let output = cli().current_dir(temp.path()).output().unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Unsupported filesystem object at"),
+        "{stderr}"
+    );
+    assert!(stderr.contains("missing-specs"), "{stderr}");
+    assert!(!temp.path().join("target/haloumi").exists());
+}
+
+#[test]
 fn disabled_autobins_still_builds_the_generated_extractor() {
     let temp = copy_fixture("autobins-disabled-root");
 

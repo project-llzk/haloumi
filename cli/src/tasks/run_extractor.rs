@@ -2,7 +2,7 @@ use std::process::Command;
 
 use haloumi_inject::crate_info::{CrateLike, CrateMut};
 
-use crate::{Error, app::AppState, config::TargetConfig};
+use crate::{Error, app::AppState, config::Target};
 
 pub(crate) fn run_extractor(state: &AppState, root: &CrateMut) -> Result<(), Error> {
     let mut command = Command::new("cargo");
@@ -14,8 +14,8 @@ pub(crate) fn run_extractor(state: &AppState, root: &CrateMut) -> Result<(), Err
         .arg("haloumi-extractor")
         .arg("--target-dir")
         .arg(&state.paths.cargo_target);
-    add_target_feature_args(&mut command, &state.config.target());
-    let extractor = state.config.extractor()?;
+    add_target_feature_args(&mut command, state.config.target());
+    let extractor = state.config.extractor();
     if extractor.groups_enabled() {
         command.env("HALOUMI_ENABLE_GROUPS", "1");
     }
@@ -48,7 +48,7 @@ pub(crate) fn run_extractor(state: &AppState, root: &CrateMut) -> Result<(), Err
     Ok(())
 }
 
-fn add_target_feature_args(command: &mut Command, target: &TargetConfig) {
+fn add_target_feature_args(command: &mut Command, target: &Target) {
     if target.all_features() {
         command.arg("--all-features");
     }

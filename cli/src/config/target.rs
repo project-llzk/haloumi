@@ -3,7 +3,7 @@ use serde::Deserialize;
 use super::Config;
 
 #[derive(Debug, Default, Clone, Deserialize)]
-pub(super) struct Target {
+pub(crate) struct Target {
     #[serde(default)]
     features: Vec<String>,
     #[serde(default, rename = "no-default-features")]
@@ -12,15 +12,7 @@ pub(super) struct Target {
     all_features: bool,
 }
 
-/// Cargo feature settings for the extraction target.
-#[derive(Debug, Default, Clone)]
-pub(crate) struct TargetConfig {
-    features: Vec<String>,
-    no_default_features: bool,
-    all_features: bool,
-}
-
-impl TargetConfig {
+impl Target {
     /// Returns the explicitly enabled feature names.
     pub(crate) fn features(&self) -> &[String] {
         &self.features
@@ -38,18 +30,18 @@ impl TargetConfig {
 }
 
 impl Config {
-    /// Returns the selected target's Cargo feature settings.
-    pub(crate) fn target(&self) -> TargetConfig {
-        let target = self
-            .sources
-            .iter()
-            .find_map(|source| source.data.target.as_ref())
-            .cloned()
-            .unwrap_or_default();
-        TargetConfig {
-            features: target.features,
-            no_default_features: target.no_default_features,
-            all_features: target.all_features,
-        }
-    }
+    ///// Returns the selected target's Cargo feature settings.
+    //pub(crate) fn target(&self) -> TargetConfig {
+    //    let target = self
+    //        .sources
+    //        .iter()
+    //        .find_map(|source| source.data.target.as_ref())
+    //        .cloned()
+    //        .unwrap_or_default();
+    //    TargetConfig {
+    //        features: target.features,
+    //        no_default_features: target.no_default_features,
+    //        all_features: target.all_features,
+    //    }
+    //}
 }

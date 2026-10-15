@@ -14,18 +14,19 @@ use serde::Serialize;
 use crate::{Error, app::AppState};
 
 pub(crate) fn add_extractor_binary(state: &AppState, root: &mut CrateMut) -> Result<(), Error> {
-    let extractor = state.config.extractor()?;
+    let extractor = state.config.extractor();
+    let dependency = extractor.dependency();
     add_dependency(
         root,
         extractor.name().to_owned(),
-        extractor.dependency().clone(),
-        !extractor.dependency_explicit(),
+        dependency.dependency().clone(),
+        !dependency.explicit(),
     )?;
     for (name, dependency) in extractor.dependencies() {
         add_dependency(root, name.clone(), dependency.clone(), false)?;
     }
-    let crate_ident = state.target.library_target_name.replace('-', "_");
-    let extractor_ident = extractor.name().replace('-', "_");
+    let crate_ident = state.target.library_target_ident();
+    let extractor_ident = extractor.ident();
     let source = format!(
         "fn main() {{ {extractor_ident}::ExtractorMain::run({crate_ident}::harnesses()); }}"
     );

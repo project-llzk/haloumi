@@ -217,16 +217,32 @@ impl<E> IRGroup<E> {
     }
 
     /// Returns a list with the callee's names.
-    pub fn callees(&self) -> Vec<String> {
+    pub fn callees(&self) -> Vec<String>
+    where
+        crate::expr::IRBexpr<E>: ConstantFolding<T = bool>,
+    {
         struct Callees(Vec<String>);
 
-        impl<E> IRStmtVisitor<E> for Callees {
+        impl<E> IRStmtVisitor<E> for Callees
+        where
+            crate::expr::IRBexpr<E>: ConstantFolding<T = bool>,
+        {
             fn on_call(&mut self, callee: &str, _: &[E], _: &[haloumi_core::slot::Slot]) {
                 self.0.push(callee.to_owned());
             }
+
+            fn on_cond_block(&mut self, cond: &crate::expr::IRBexpr<E>, body: &IRStmt<E>) {
+                match cond.const_value() {
+                    Some(false) => (),
+                    _ => body.visit(self),
+                }
+            }
         }
 
-        impl<E> GroupVisitor<E> for Callees {
+        impl<E> GroupVisitor<E> for Callees
+        where
+            crate::expr::IRBexpr<E>: ConstantFolding<T = bool>,
+        {
             fn on_callsite(&mut self, callsite: &CallSite<E>) {
                 self.0.push(callsite.name().to_owned());
             }
@@ -650,7 +666,7 @@ mod tests {
     use quickcheck_macros::quickcheck;
 
     use super::*;
-    use crate::expr::IRAexpr;
+    use crate::{expr::IRAexpr, stmt::EmitIf};
 
     fn group(id: usize) -> IRGroup<IRAexpr> {
         IRGroup::new(format!("group-{id}"), id).with_key(Some(id as GroupKey))
@@ -768,6 +784,17 @@ mod tests {
             group.callees(),
             ["group-call", "gate-call", "injected-call"]
         );
+    }
+
+    #[test]
+    fn callees_skip_literal_false_conditional_blocks() {
+        let group = group(0).with_gates([
+            IRStmt::call("always-called", [], []),
+            [IRStmt::call("not-called", [], [])].emit_unless_false(false.into()),
+            [IRStmt::call("still-called", [], [])].emit_unless_false(true.into()),
+        ]);
+
+        assert_eq!(group.callees(), ["always-called", "still-called"]);
     }
 
     #[cfg(feature = "serde")]

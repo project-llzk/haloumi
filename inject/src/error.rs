@@ -53,6 +53,9 @@ pub enum Error {
     /// Raised if an injected dependency is already in a crate's manifest.
     #[error("Dependency '{0}' is already in the manifest")]
     DuplicateDep(String),
+    /// Raised if a generated binary target's name is already in a crate's manifest.
+    #[error("Binary '{0}' is already in the manifest")]
+    DuplicateBin(String),
     /// Raised if encountered an unsupported filesystem object during copying.
     #[error("Unsupported filesystem object at '{0}'")]
     UnsupportedFileType(std::path::PathBuf),

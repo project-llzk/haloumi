@@ -47,6 +47,21 @@ fn direct_help_succeeds() {
     assert!(stdout.contains("Build the generated extractor without running it"));
 }
 
+#[e2e::test(target = ".", args = ["--help"])]
+fn direct_help_succeeds2(output: e2e::ToolOutput) {
+    assert!(output.stdout().contains("Workspace package to extract"));
+    assert!(
+        output
+            .stdout()
+            .contains("Root directory of the Cargo project to extract")
+    );
+    assert!(
+        output
+            .stdout()
+            .contains("Build the generated extractor without running it")
+    );
+}
+
 #[test]
 fn cargo_external_subcommand_help_succeeds() {
     let temp = tempfile::tempdir().unwrap();

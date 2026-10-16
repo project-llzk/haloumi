@@ -10,20 +10,30 @@ use crate::{llzk::LlzkArtifact, pcl::PclArtifact};
 pub mod llzk;
 pub mod pcl;
 
+/// Marks a function as an end-to-end CLI test.
+///
+/// The function accepts either a result parameter or a [`Test`] followed by a result parameter.
+/// The result parameter can be [`ToolResult`], [`ToolOutput`], or [`ToolError`].
+pub use e2e_testing_macros::test;
+
 #[macro_export]
 #[doc(hidden)]
 macro_rules! __test_impl {
     ($target:expr, $args:expr, |$result:ident: $result_ty:ty| $check:block) => {
-        $crate::__test_impl!($target, $args, |__test: Test, $result: $result_ty| $check);
+        $crate::__test_impl!(
+            $target,
+            $args,
+            |__test: $crate::Test, $result: $result_ty| $check
+        );
     };
-    ($target:expr, $args:expr, |$test:ident : Test, $result:ident: $result_ty:ty| $check:block) => {{
+    ($target:expr, $args:expr, |$test:ident : $test_ty:ty, $result:ident: $result_ty:ty| $check:block) => {{
         $crate::setup();
-        let mut $test = $crate::Test::new(
+        let mut $test: $test_ty = $crate::Test::new(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join($target),
             env!("CARGO_BIN_EXE_cargo-haloumi"),
             $args,
         );
-        let $result: $result_ty = $test.run().into();
+        let mut $result: $result_ty = $test.run().into();
         $check
     }};
 }
@@ -48,7 +58,7 @@ impl Test {
         args: impl IntoIterator<Item = &'s str>,
     ) -> Self {
         let mut command = Command::new(program);
-        command.args(args);
+        command.args(args).current_dir(target.as_ref());
         Self {
             target: target.as_ref().to_path_buf(),
             command,

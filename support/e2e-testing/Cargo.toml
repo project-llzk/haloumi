@@ -7,6 +7,7 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
+e2e-testing-macros = { path = "../e2e-testing-macros" }
 log.workspace = true
 simplelog = { version = "0.12", features = ["test"] }
 similar-asserts.workspace = true

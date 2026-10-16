@@ -87,12 +87,9 @@ fn cargo_external_subcommand_help_succeeds() {
     assert!(String::from_utf8_lossy(&output.stdout).contains("Workspace package to extract"));
 }
 
-#[test]
-fn workspace_without_package_lists_members() {
-    let temp = copy_fixture("workspace-selection");
-    let output = cli().current_dir(temp.path()).output().unwrap();
-    assert!(!output.status.success());
-    let stderr = String::from_utf8_lossy(&output.stderr);
+#[e2e::test(target = "tests/crates/workspace-selection")]
+fn workspace_without_package_lists_members(output: e2e::ToolError) {
+    let stderr = output.stderr();
     assert!(stderr.contains("-p"), "{stderr}");
     assert!(stderr.contains("one") && stderr.contains("two"), "{stderr}");
 }

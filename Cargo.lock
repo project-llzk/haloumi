@@ -617,6 +617,7 @@ dependencies = [
  "mlir-testutils",
  "similar-asserts",
  "simplelog",
+ "tempfile",
 ]
 
 [[package]]

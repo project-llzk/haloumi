@@ -15,9 +15,10 @@ use syn::{
 
 /// Generates a standard test that runs the Haloumi CLI before executing the annotated body.
 ///
-/// The attribute requires `target = <expr>` and accepts an optional `args = <expr>`, which
-/// defaults to `[]`. The function takes either one typed result parameter or a typed `Test`
-/// parameter followed by a typed result parameter.
+/// The attribute requires `target = <expr>` and accepts optional `args = <expr>` and
+/// `copy = <expr>` arguments, which default to `[]` and `true`, respectively. The function
+/// takes either one typed result parameter or a typed `Test` parameter followed by a typed result
+/// parameter.
 #[proc_macro_attribute]
 pub fn test(attr: TokenStream, item: TokenStream) -> TokenStream {
     match test_impl(
@@ -32,6 +33,7 @@ pub fn test(attr: TokenStream, item: TokenStream) -> TokenStream {
 struct TestArgs {
     target: Expr,
     args: Expr,
+    copy: Expr,
 }
 
 impl Parse for TestArgs {
@@ -39,22 +41,24 @@ impl Parse for TestArgs {
         let values = Punctuated::<MetaNameValue, Token![,]>::parse_terminated(input)?;
         let mut target = None;
         let mut args = None;
+        let mut copy = None;
 
         for value in values {
             let Some(key) = value.path.get_ident() else {
                 return Err(Error::new_spanned(
                     value.path,
-                    "expected `target` or `args`",
+                    "expected `target`, `args`, or `copy`",
                 ));
             };
 
             match key.to_string().as_str() {
                 "target" => set_once(&mut target, value.value, key, "target")?,
                 "args" => set_once(&mut args, value.value, key, "args")?,
+                "copy" => set_once(&mut copy, value.value, key, "copy")?,
                 _ => {
                     return Err(Error::new_spanned(
                         key,
-                        "unsupported e2e test argument; expected `target` or `args`",
+                        "unsupported e2e test argument; expected `target`, `args`, or `copy`",
                     ));
                 }
             }
@@ -63,6 +67,7 @@ impl Parse for TestArgs {
         Ok(Self {
             target: target.ok_or_else(|| Error::new(input.span(), "missing `target` argument"))?,
             args: args.unwrap_or_else(|| syn::parse_quote!([])),
+            copy: copy.unwrap_or_else(|| syn::parse_quote!(true)),
         })
     }
 }
@@ -86,8 +91,9 @@ fn test_impl(args: TestArgs, mut function: ItemFn) -> Result<TokenStream2> {
     let body = function.block;
     let target = args.target;
     let command_args = args.args;
+    let copy = args.copy;
     function.block = Box::new(syn::parse2(quote! {{
-        e2e::__test_impl!(#target, #command_args, |#closure_args| #body)
+        e2e::__test_impl!(#target, #command_args, #copy, |#closure_args| #body)
     }})?);
     function.attrs.push(syn::parse_quote!(#[test]));
 

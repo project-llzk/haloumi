@@ -1,9 +1,11 @@
 //! e2e testing framework for creating tests of the main CLI.
 
 use std::{
+    fs,
     path::{Path, PathBuf},
     process::Command,
 };
+use tempfile::TempDir;
 
 use crate::{llzk::LlzkArtifact, pcl::PclArtifact};
 
@@ -19,19 +21,21 @@ pub use e2e_testing_macros::test;
 #[macro_export]
 #[doc(hidden)]
 macro_rules! __test_impl {
-    ($target:expr, $args:expr, |$result:ident: $result_ty:ty| $check:block) => {
+    ($target:expr, $args:expr, $copy:expr, |$result:ident: $result_ty:ty| $check:block) => {
         $crate::__test_impl!(
             $target,
             $args,
+            $copy,
             |__test: $crate::Test, $result: $result_ty| $check
         );
     };
-    ($target:expr, $args:expr, |$test:ident : $test_ty:ty, $result:ident: $result_ty:ty| $check:block) => {{
+    ($target:expr, $args:expr, $copy:expr, |$test:ident : $test_ty:ty, $result:ident: $result_ty:ty| $check:block) => {{
         $crate::setup();
         let mut $test: $test_ty = $crate::Test::new(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join($target),
             env!("CARGO_BIN_EXE_cargo-haloumi"),
             $args,
+            $copy,
         );
         let mut $result: $result_ty = $test.run().into();
         $check
@@ -46,8 +50,22 @@ pub fn setup() {
 /// Defines a test.
 pub struct Test {
     /// Directory of the extracted crate.
-    target: PathBuf,
+    target: Target,
     command: Command,
+}
+
+enum Target {
+    Path(PathBuf),
+    Temp(TempDir),
+}
+
+impl Target {
+    fn path(&self) -> &Path {
+        match self {
+            Self::Path(path) => path,
+            Self::Temp(temp) => temp.path(),
+        }
+    }
 }
 
 impl Test {
@@ -56,18 +74,24 @@ impl Test {
         target: impl AsRef<Path>,
         program: &str,
         args: impl IntoIterator<Item = &'s str>,
+        copy: bool,
     ) -> Self {
+        let target = target.as_ref().to_path_buf();
+        let target = if copy {
+            let temp = tempfile::tempdir().unwrap();
+            copy_directory(&target, temp.path());
+            Target::Temp(temp)
+        } else {
+            Target::Path(target)
+        };
         let mut command = Command::new(program);
-        command.args(args).current_dir(target.as_ref());
-        Self {
-            target: target.as_ref().to_path_buf(),
-            command,
-        }
+        command.args(args).current_dir(target.path());
+        Self { target, command }
     }
 
     /// Returns a reference to the target's path.
     pub fn target(&self) -> &Path {
-        &self.target
+        self.target.path()
     }
 
     /// Executes the tool.
@@ -85,6 +109,19 @@ impl Test {
             })
         } else {
             Err(ToolError { common })
+        }
+    }
+}
+
+fn copy_directory(source: &Path, destination: &Path) {
+    for entry in fs::read_dir(source).unwrap() {
+        let entry = entry.unwrap();
+        let target = destination.join(entry.file_name());
+        if entry.file_type().unwrap().is_dir() {
+            fs::create_dir(&target).unwrap();
+            copy_directory(&entry.path(), &target);
+        } else {
+            fs::copy(entry.path(), target).unwrap();
         }
     }
 }

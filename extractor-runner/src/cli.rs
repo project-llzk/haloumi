@@ -59,6 +59,8 @@ pub struct Cli {
     pub list_preludes: bool,
     #[arg(long)]
     pub allow_injected_ir_for_outputs: bool,
+    /// Name of the field of the LLZK output. LLZK builtins (e.g. bn254) must match the circuit's
+    /// prime; any other name defines a field with the circuit's prime.
     #[arg(long)]
     pub llzk_field_name: Option<String>,
 }

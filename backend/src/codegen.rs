@@ -56,7 +56,7 @@ pub trait Codegen<'c: 's, 's>: Sized + 's {
     where
         FN: FnOnce(&Self::FuncOutput, &[Slot], &[Slot]) -> Result<I, Self::Error>,
         I: IntoIterator<Item = L>,
-        L: LowerableStmt,
+        L: LowerableStmt + std::fmt::Debug,
     {
         let func = self.define_function(name, inputs, outputs, callees)?;
         let inputs = func.lower_function_inputs(0..inputs);

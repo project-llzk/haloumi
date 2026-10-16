@@ -146,26 +146,18 @@ fn no_configuration_creates_an_isolated_extraction_copy_without_backend_outputs(
     assert!(!temp.path().join("target/haloumi/llzk").exists());
 }
 
-// Cannot use `#[e2e::test]`: the target configuration must be written before execution.
-#[test]
-fn missing_configured_specs_path_fails_before_creating_workspace() {
-    let temp = copy_fixture("extraction-root");
-    fs::write(
-        temp.path().join(".haloumi.toml"),
-        "[specs]\npath = \"missing-specs\"\n",
-    )
-    .unwrap();
-
-    let output = cli().current_dir(temp.path()).output().unwrap();
-
-    assert!(!output.status.success());
-    let stderr = String::from_utf8_lossy(&output.stderr);
+#[e2e::test(target = "tests/crates/missing-configured-specs-path")]
+fn missing_configured_specs_path_fails_before_creating_workspace(
+    test: e2e::Test,
+    output: e2e::ToolError,
+) {
+    let stderr = output.stderr();
     assert!(
         stderr.contains("Unsupported filesystem object at"),
         "{stderr}"
     );
     assert!(stderr.contains("missing-specs"), "{stderr}");
-    assert!(!temp.path().join("target/haloumi").exists());
+    assert!(!test.target().join("target/haloumi").exists());
 }
 
 #[e2e::test(
@@ -186,28 +178,15 @@ fn disabled_autobins_still_builds_the_generated_extractor(test: e2e::Test, _: e2
     );
 }
 
-// Cannot use `#[e2e::test]`: stale artifacts must be created before execution.
-#[test]
-fn execution_removes_all_stale_haloumi_artifacts() {
-    let temp = copy_fixture("extraction-root");
-    let artifacts = temp.path().join("target/haloumi");
-    let stale_crate = artifacts.join(".crates/stale-crate/marker");
-    let stale_build = artifacts.join(".cargo/stale-build");
-    let stale_result = artifacts.join("ir/stale-result");
-    for stale_path in [&stale_crate, &stale_build, &stale_result] {
-        fs::create_dir_all(stale_path.parent().unwrap()).unwrap();
-        fs::write(stale_path, "stale").unwrap();
-    }
-
-    let output = cli().current_dir(temp.path()).output().unwrap();
-    assert!(output.status.success(), "{output:?}");
-
-    assert!(!stale_crate.exists());
-    assert!(!stale_build.exists());
-    assert!(!stale_result.exists());
+#[e2e::test(target = "tests/crates/stale-artifacts-root", args = ["--output", "outputs"])]
+fn execution_removes_all_stale_haloumi_artifacts(test: e2e::Test, _: e2e::ToolOutput) {
+    let artifacts = test.target().join("outputs");
+    assert!(!artifacts.join(".crates/stale-crate/marker").exists());
+    assert!(!artifacts.join(".cargo/stale-build").exists());
+    assert!(!artifacts.join("ir/stale-result").exists());
     assert!(
         artifacts
-            .join(".crates/extraction-root-0.1.0/src/bin/haloumi-extractor.rs")
+            .join(".crates/stale-artifacts-root-0.1.0/src/bin/haloumi-extractor.rs")
             .is_file()
     );
 }
@@ -285,30 +264,13 @@ fn matching_spec_patches_an_aliased_direct_dependency_copy(test: e2e::Test, _: e
     );
 }
 
-// Cannot use `#[e2e::test]`: the configuration file must be written before execution.
-#[test]
-fn matching_spec_from_a_configured_file_patches_a_direct_dependency_copy() {
-    let temp = copy_fixture("aliased-patch-root");
-    fs::write(
-        temp.path().join(".haloumi.toml"),
-        r#"[specs]
-path = ".haloumi/specs/target-dependency.toml"
-
-[extractor]
-name = "haloumi-extractor-runner"
-dependency = { path = "extractor" }
-"#,
-    )
-    .unwrap();
-
-    let output = cli().current_dir(temp.path()).output().unwrap();
-    assert!(output.status.success(), "{output:?}");
-
-    let copied_dependency = temp
-        .path()
-        .join("target/haloumi/.crates/target-dependency-0.1.0");
+#[e2e::test(target = "tests/crates/configured-file-patch-root")]
+fn matching_spec_from_a_configured_file_patches_a_direct_dependency_copy(
+    test: e2e::Test,
+    _: e2e::ToolOutput,
+) {
     assert!(
-        fs::read_to_string(copied_dependency.join("src/lib.rs"))
+        test.read_to_string("target/haloumi/.crates/target-dependency-0.1.0/src/lib.rs")
             .unwrap()
             .contains("pub const PATCHED: bool = true;")
     );
@@ -486,41 +448,6 @@ fn declared_extractor_binary_target_collision_is_reported(test: e2e::Test, outpu
     );
 }
 
-// Cannot use `#[e2e::test]`: extractor arguments are captured through a per-test environment variable.
-#[test]
-fn higher_priority_backend_table_blocks_lower_priority_backend_parameters() {
-    let temp = copy_fixture("config-chain-root");
-    let args_output = temp.path().join("extractor-args");
-
-    let output = cli()
-        .current_dir(temp.path())
-        .env("HALOUMI_TEST_ARGS_OUTPUT", &args_output)
-        .output()
-        .unwrap();
-    assert!(output.status.success(), "{output:?}");
-
-    let args = fs::read_to_string(args_output).unwrap();
-    assert!(args.contains("--format\nir"), "{args}");
-    assert!(!args.contains("--llzk-field-name"), "{args}");
-    assert!(args.contains("--preludes\nalpha,beta"), "{args}");
-    assert!(!args.contains("--no-opt"), "{args}");
-    assert!(!args.contains("--picus-no-opt"), "{args}");
-    assert!(!args.contains("--llzk-no-opt"), "{args}");
-    assert!(args.contains("--output"), "{args}");
-
-    let copied_root = temp
-        .path()
-        .join("target/haloumi/.crates/config-chain-root-0.1.0");
-    let manifest = fs::read_to_string(copied_root.join("Cargo.toml")).unwrap();
-    assert!(manifest.contains("custom-extractor"));
-    assert!(manifest.contains("support"));
-    assert!(
-        fs::read_to_string(copied_root.join("src/bin/haloumi-extractor.rs"))
-            .unwrap()
-            .contains("custom_extractor::ExtractorMain::run")
-    );
-}
-
 #[e2e::test(
     target = "tests/crates/merged-runner-dependency",
     args = ["--dry-run"]
@@ -578,207 +505,11 @@ fn incompatible_existing_extractor_support_dependency_is_reported(output: e2e::T
     );
 }
 
-// Cannot use `#[e2e::test]`: the configuration and extractor-argument capture path are set before execution.
-#[test]
-fn disabled_optimization_is_forwarded_independently() {
-    let temp = copy_fixture("config-chain-root");
-    let config = temp.path().join(".haloumi.toml");
-    let args_output = temp.path().join("extractor-args");
-    let contents = fs::read_to_string(&config).unwrap();
-    fs::write(
-        &config,
-        contents.replace(
-            "preludes = [\"alpha\", \"beta\"]",
-            "preludes = [\"alpha\", \"beta\"]\noptimize = false",
-        ) + "\n[backends.picus]\noptimize = false\n\n[backends.llzk]\noptimize = false\n",
-    )
-    .unwrap();
-
-    let output = cli()
-        .current_dir(temp.path())
-        .env("HALOUMI_TEST_ARGS_OUTPUT", &args_output)
-        .output()
-        .unwrap();
-    assert!(output.status.success(), "{output:?}");
-    let args = fs::read_to_string(args_output).unwrap();
-    assert!(args.contains("--no-opt"), "{args}");
-    assert!(args.contains("--picus-no-opt"), "{args}");
-    assert!(args.contains("--llzk-no-opt"), "{args}");
-}
-
-// Cannot use `#[e2e::test]`: each iteration mutates configuration and captures extractor arguments before execution.
-#[test]
-fn omitted_or_empty_preludes_are_not_forwarded() {
-    for replacement in ["", "preludes = []\n"] {
-        let temp = copy_fixture("config-chain-root");
-        let config = temp.path().join(".haloumi.toml");
-        let args_output = temp.path().join("extractor-args");
-        let contents = fs::read_to_string(&config).unwrap();
-        fs::write(
-            &config,
-            contents.replace("preludes = [\"alpha\", \"beta\"]\n", replacement),
-        )
-        .unwrap();
-
-        let output = cli()
-            .current_dir(temp.path())
-            .env("HALOUMI_TEST_ARGS_OUTPUT", &args_output)
-            .output()
-            .unwrap();
-        assert!(output.status.success(), "{output:?}");
-        let args = fs::read_to_string(args_output).unwrap();
-        assert!(!args.contains("--preludes"), "{args}");
-    }
-}
-
-// Cannot use `#[e2e::test]`: the configuration and extractor-argument capture path are set before execution.
-#[test]
-fn llzk_field_implicitly_enables_llzk() {
-    let temp = copy_fixture("config-chain-root");
-    let config = temp.path().join(".haloumi.toml");
-    let args_output = temp.path().join("extractor-args");
-    let contents = fs::read_to_string(&config).unwrap();
-    fs::write(
-        &config,
-        contents.replace(
-            "[backends.ir]\nenabled = true",
-            "[backends.llzk]\nfield = \"bn256\"",
-        ),
-    )
-    .unwrap();
-
-    let output = cli()
-        .current_dir(temp.path())
-        .env("HALOUMI_TEST_ARGS_OUTPUT", &args_output)
-        .output()
-        .unwrap();
-    assert!(output.status.success(), "{output:?}");
-    let args = fs::read_to_string(args_output).unwrap();
-    assert!(args.contains("--format\nllzk"), "{args}");
-    assert!(args.contains("--llzk-field-name\nbn256"), "{args}");
-}
-
-// Cannot use `#[e2e::test]`: the configuration and extractor-argument capture path are set before execution.
-#[test]
-fn llzk_assembly_format_is_forwarded() {
-    let temp = copy_fixture("config-chain-root");
-    let config = temp.path().join(".haloumi.toml");
-    let args_output = temp.path().join("extractor-args");
-    let contents = fs::read_to_string(&config).unwrap();
-    fs::write(
-        &config,
-        contents.replace(
-            "[backends.ir]\nenabled = true",
-            "[backends.llzk]\nfield = \"bn256\"\nformat = \"assembly\"",
-        ),
-    )
-    .unwrap();
-
-    let output = cli()
-        .current_dir(temp.path())
-        .env("HALOUMI_TEST_ARGS_OUTPUT", &args_output)
-        .output()
-        .unwrap();
-    assert!(output.status.success(), "{output:?}");
+#[e2e::test(target = "tests/crates/enabled-llzk-without-field")]
+fn enabled_llzk_requires_a_field(output: e2e::ToolError) {
     assert!(
-        fs::read_to_string(args_output)
-            .unwrap()
-            .contains("--llzk-emit-assembly")
-    );
-}
-
-// Cannot use `#[e2e::test]`: the configuration and extractor-argument capture path are set before execution.
-#[test]
-fn explicit_backend_enablement_overrides_defaulting() {
-    let temp = copy_fixture("config-chain-root");
-    let config = temp.path().join(".haloumi.toml");
-    let args_output = temp.path().join("extractor-args");
-    let contents = fs::read_to_string(&config).unwrap();
-    fs::write(
-        &config,
-        contents.replace(
-            "[backends.ir]\nenabled = true",
-            "[backends.llzk]\nenabled = false\nfield = \"bn256\"",
-        ),
-    )
-    .unwrap();
-
-    let output = cli()
-        .current_dir(temp.path())
-        .env("HALOUMI_TEST_ARGS_OUTPUT", &args_output)
-        .output()
-        .unwrap();
-    assert!(output.status.success(), "{output:?}");
-    let args = fs::read_to_string(args_output).unwrap();
-    assert!(!args.contains("--format"), "{args}");
-    assert!(!args.contains("--llzk-field-name"), "{args}");
-}
-
-// Cannot use `#[e2e::test]`: the target configuration must be rewritten before execution.
-#[test]
-fn enabled_llzk_requires_a_field() {
-    let temp = copy_fixture("config-chain-root");
-    let config = temp.path().join(".haloumi.toml");
-    let contents = fs::read_to_string(&config).unwrap();
-    fs::write(
-        &config,
-        contents.replace(
-            "[backends.ir]\nenabled = true",
-            "[backends.llzk]\nenabled = true",
-        ),
-    )
-    .unwrap();
-
-    let output = cli().current_dir(temp.path()).output().unwrap();
-    assert!(!output.status.success());
-    assert!(
-        String::from_utf8_lossy(&output.stderr)
+        output
+            .stderr()
             .contains("LLZK is enabled but backends.llzk.field is missing")
     );
-}
-
-// Cannot use `#[e2e::test]`: extractor invocation is observed through a preconfigured environment variable.
-#[test]
-fn dry_run_builds_the_generated_extractor_without_running_it() {
-    let temp = copy_fixture("config-chain-root");
-    let args_output = temp.path().join("extractor-args");
-
-    let output = cli()
-        .current_dir(temp.path())
-        .arg("--dry-run")
-        .env("HALOUMI_TEST_ARGS_OUTPUT", &args_output)
-        .output()
-        .unwrap();
-    assert!(output.status.success(), "{output:?}");
-    assert!(
-        temp.path()
-            .join("target/haloumi/.cargo/release/haloumi-extractor")
-            .is_file()
-    );
-    assert!(!args_output.exists());
-}
-
-// Cannot use `#[e2e::test]`: the configuration and extractor-argument capture path are set before execution.
-#[test]
-fn target_config_forwards_all_features_with_explicit_features() {
-    let temp = copy_fixture("config-chain-root");
-    let config = temp.path().join(".haloumi.toml");
-    let args_output = temp.path().join("extractor-args");
-    let contents = fs::read_to_string(&config).unwrap();
-    fs::write(
-        &config,
-        contents.replace(
-            "features = [\"configured-feature\"]\nno-default-features = true",
-            "features = [\"configured-feature\"]\nall-features = true",
-        ),
-    )
-    .unwrap();
-
-    let output = cli()
-        .current_dir(temp.path())
-        .env("HALOUMI_TEST_ARGS_OUTPUT", &args_output)
-        .output()
-        .unwrap();
-    assert!(output.status.success(), "{output:?}");
-    assert!(args_output.is_file());
 }

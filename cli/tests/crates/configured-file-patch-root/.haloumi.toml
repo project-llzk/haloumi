@@ -1,0 +1,6 @@
+[specs]
+path = ".haloumi/specs/target-dependency.toml"
+
+[extractor]
+name = "haloumi-extractor-runner"
+dependency = { path = "extractor" }

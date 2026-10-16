@@ -55,6 +55,12 @@ impl<'r, 'io, 'fq, F: Field> RegionRow<'r, 'io, 'fq, F> {
         self.region.selectors_enabled_for_row(self.row.row)
     }
 
+    /// Returns true if the selector is enabled on this row.
+    #[inline]
+    pub fn selector_is_enabled(&self, selector: usize) -> bool {
+        self.enabled().contains(selector)
+    }
+
     pub fn row_number(&self) -> usize {
         self.row.row
     }

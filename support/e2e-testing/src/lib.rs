@@ -94,6 +94,11 @@ impl Test {
         self.target.path()
     }
 
+    /// Reads a UTF-8 file relative to the target crate directory.
+    pub fn read_to_string(&self, path: impl AsRef<Path>) -> std::io::Result<String> {
+        fs::read_to_string(self.target.path().join(path))
+    }
+
     /// Executes the tool.
     pub fn run(&mut self) -> ToolResult {
         let output = self.command.output().unwrap();

@@ -37,18 +37,8 @@ fn cli() -> Command {
     Command::new(env!("CARGO_BIN_EXE_cargo-haloumi"))
 }
 
-#[test]
-fn direct_help_succeeds() {
-    let output = cli().arg("--help").output().unwrap();
-    assert!(output.status.success(), "{output:?}");
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Workspace package to extract"));
-    assert!(stdout.contains("Root directory of the Cargo project to extract"));
-    assert!(stdout.contains("Build the generated extractor without running it"));
-}
-
 #[e2e::test(target = ".", args = ["--help"])]
-fn direct_help_succeeds2(output: e2e::ToolOutput) {
+fn direct_help_succeeds(output: e2e::ToolOutput) {
     assert!(output.stdout().contains("Workspace package to extract"));
     assert!(
         output
@@ -62,6 +52,7 @@ fn direct_help_succeeds2(output: e2e::ToolOutput) {
     );
 }
 
+// Cannot use `#[e2e::test]`: this test installs the binary into a temporary `CARGO_HOME`.
 #[test]
 fn cargo_external_subcommand_help_succeeds() {
     let temp = tempfile::tempdir().unwrap();
@@ -94,38 +85,27 @@ fn workspace_without_package_lists_members(output: e2e::ToolError) {
     assert!(stderr.contains("one") && stderr.contains("two"), "{stderr}");
 }
 
-#[test]
-fn workspace_rejects_package_that_is_not_a_member() {
-    let temp = copy_fixture("workspace-selection");
-    let output = cli()
-        .current_dir(temp.path())
-        .args(["-p", "missing"])
-        .output()
-        .unwrap();
-    assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("not a workspace member"));
+#[e2e::test(
+    target = "tests/crates/workspace-selection",
+    args = ["-p", "missing"]
+)]
+fn workspace_rejects_package_that_is_not_a_member(output: e2e::ToolError) {
+    assert!(output.stderr().contains("not a workspace member"));
 }
 
-#[test]
-fn workspace_member_extraction_builds_the_isolated_copy() {
-    let temp = copy_fixture("workspace-member-extraction");
-
-    let output = cli()
-        .current_dir(temp.path())
-        .args(["-p", "workspace-member", "--dry-run"])
-        .output()
+#[e2e::test(
+    target = "tests/crates/workspace-member-extraction",
+    args = ["-p", "workspace-member", "--dry-run"]
+)]
+fn workspace_member_extraction_builds_the_isolated_copy(test: e2e::Test, _: e2e::ToolOutput) {
+    let manifest = test
+        .read_to_string("target/haloumi/.crates/workspace-member-0.1.0/Cargo.toml")
         .unwrap();
-
-    assert!(output.status.success(), "{output:?}");
-    let manifest = fs::read_to_string(
-        temp.path()
-            .join("target/haloumi/.crates/workspace-member-0.1.0/Cargo.toml"),
-    )
-    .unwrap();
     let manifest: toml::Value = toml::from_str(&manifest).unwrap();
     assert!(manifest.get("workspace").is_some());
 }
 
+// Cannot use `#[e2e::test]`: this assertion needs the target's manifest before execution.
 #[test]
 fn malformed_configuration_fails_before_mutating_the_project() {
     let temp = copy_fixture("malformed-config");
@@ -137,6 +117,7 @@ fn malformed_configuration_fails_before_mutating_the_project() {
     assert_eq!(fs::read_to_string(manifest).unwrap(), original_manifest);
 }
 
+// Cannot use `#[e2e::test]`: this assertion snapshots target files before execution.
 #[test]
 fn no_configuration_creates_an_isolated_extraction_copy_without_backend_outputs() {
     let temp = copy_fixture("extraction-root");
@@ -165,6 +146,7 @@ fn no_configuration_creates_an_isolated_extraction_copy_without_backend_outputs(
     assert!(!temp.path().join("target/haloumi/llzk").exists());
 }
 
+// Cannot use `#[e2e::test]`: the target configuration must be written before execution.
 #[test]
 fn missing_configured_specs_path_fails_before_creating_workspace() {
     let temp = copy_fixture("extraction-root");
@@ -186,22 +168,14 @@ fn missing_configured_specs_path_fails_before_creating_workspace() {
     assert!(!temp.path().join("target/haloumi").exists());
 }
 
-#[test]
-fn disabled_autobins_still_builds_the_generated_extractor() {
-    let temp = copy_fixture("autobins-disabled-root");
-
-    let output = cli()
-        .current_dir(temp.path())
-        .arg("--dry-run")
-        .output()
+#[e2e::test(
+    target = "tests/crates/autobins-disabled-root",
+    args = ["--dry-run"]
+)]
+fn disabled_autobins_still_builds_the_generated_extractor(test: e2e::Test, _: e2e::ToolOutput) {
+    let manifest = test
+        .read_to_string("target/haloumi/.crates/autobins-disabled-root-0.1.0/Cargo.toml")
         .unwrap();
-    assert!(output.status.success(), "{output:?}");
-
-    let manifest = fs::read_to_string(
-        temp.path()
-            .join("target/haloumi/.crates/autobins-disabled-root-0.1.0/Cargo.toml"),
-    )
-    .unwrap();
     let manifest: toml::Value = toml::from_str(&manifest).unwrap();
     let bins = manifest["bin"].as_array().unwrap();
     assert_eq!(bins.len(), 1);
@@ -212,6 +186,7 @@ fn disabled_autobins_still_builds_the_generated_extractor() {
     );
 }
 
+// Cannot use `#[e2e::test]`: stale artifacts must be created before execution.
 #[test]
 fn execution_removes_all_stale_haloumi_artifacts() {
     let temp = copy_fixture("extraction-root");
@@ -237,23 +212,20 @@ fn execution_removes_all_stale_haloumi_artifacts() {
     );
 }
 
-#[test]
-fn explicit_library_target_name_is_used_by_the_generated_extractor() {
-    let temp = copy_fixture("explicit-lib-name-root");
-
-    let output = cli().current_dir(temp.path()).output().unwrap();
-    assert!(output.status.success(), "{output:?}");
-
-    let generated = temp
-        .path()
-        .join("target/haloumi/.crates/explicit-lib-name-root-0.1.0/src/bin/haloumi-extractor.rs");
-    assert!(
-        fs::read_to_string(generated)
-            .unwrap()
-            .contains("extraction_api::harnesses()")
-    );
+#[e2e::test(target = "tests/crates/explicit-lib-name-root")]
+fn explicit_library_target_name_is_used_by_the_generated_extractor(
+    test: e2e::Test,
+    _: e2e::ToolOutput,
+) {
+    let generated = test
+        .read_to_string(
+            "target/haloumi/.crates/explicit-lib-name-root-0.1.0/src/bin/haloumi-extractor.rs",
+        )
+        .unwrap();
+    assert!(generated.contains("extraction_api::harnesses()"));
 }
 
+// Cannot use `#[e2e::test]`: this test needs a caller directory distinct from the target root.
 #[test]
 fn root_runs_extraction_from_a_separate_directory() {
     let caller = tempfile::tempdir().unwrap();
@@ -275,53 +247,45 @@ fn root_runs_extraction_from_a_separate_directory() {
     assert!(!caller.path().join("target/haloumi").exists());
 }
 
-#[test]
-fn matching_spec_patches_an_aliased_direct_dependency_copy() {
-    let temp = copy_fixture("aliased-patch-root");
-    let original_dependency = temp.path().join("dependency/src/lib.rs");
-    let original_manifest = temp.path().join("Cargo.toml");
-    let original_dependency_contents = fs::read_to_string(&original_dependency).unwrap();
-    let original_manifest_contents = fs::read_to_string(&original_manifest).unwrap();
-
-    let output = cli().current_dir(temp.path()).output().unwrap();
-    assert!(output.status.success(), "{output:?}");
+#[e2e::test(target = "tests/crates/aliased-patch-root")]
+fn matching_spec_patches_an_aliased_direct_dependency_copy(test: e2e::Test, _: e2e::ToolOutput) {
     assert_eq!(
-        fs::read_to_string(original_dependency).unwrap(),
-        original_dependency_contents
+        test.read_to_string("dependency/src/lib.rs").unwrap(),
+        include_str!("crates/aliased-patch-root/dependency/src/lib.rs")
     );
     assert_eq!(
-        fs::read_to_string(original_manifest).unwrap(),
-        original_manifest_contents
+        test.read_to_string("Cargo.toml").unwrap(),
+        include_str!("crates/aliased-patch-root/Cargo.toml")
     );
 
-    let copied_root = temp
-        .path()
-        .join("target/haloumi/.crates/aliased-patch-root-0.1.0");
-    let copied_dependency = temp
-        .path()
-        .join("target/haloumi/.crates/target-dependency-0.1.0");
+    let copied_root = "target/haloumi/.crates/aliased-patch-root-0.1.0";
+    let copied_dependency = "target/haloumi/.crates/target-dependency-0.1.0";
     assert!(
-        fs::read_to_string(copied_dependency.join("src/lib.rs"))
+        test.read_to_string(format!("{copied_dependency}/src/lib.rs"))
             .unwrap()
             .contains("pub const PATCHED: bool = true;")
     );
 
-    let copied_manifest = fs::read_to_string(copied_root.join("Cargo.toml")).unwrap();
+    let copied_manifest = test
+        .read_to_string(format!("{copied_root}/Cargo.toml"))
+        .unwrap();
     assert!(copied_manifest.contains("patched"));
     assert!(copied_manifest.contains("package = \"target-dependency\""));
-    assert!(copied_manifest.contains(&copied_dependency.display().to_string()));
+    assert!(copied_manifest.contains(&test.target().join(copied_dependency).display().to_string()));
 
-    let copied_dependency_manifest =
-        fs::read_to_string(copied_dependency.join("Cargo.toml")).unwrap();
+    let copied_dependency_manifest = test
+        .read_to_string(format!("{copied_dependency}/Cargo.toml"))
+        .unwrap();
     let manifest: toml::Value = toml::from_str(&copied_dependency_manifest).unwrap();
     let helper_path = manifest["dependencies"]["helper"]["path"].as_str().unwrap();
     assert!(Path::new(helper_path).is_absolute());
     assert_eq!(
         Path::new(helper_path).canonicalize().unwrap(),
-        temp.path().join("helper").canonicalize().unwrap(),
+        test.target().join("helper").canonicalize().unwrap(),
     );
 }
 
+// Cannot use `#[e2e::test]`: the configuration file must be written before execution.
 #[test]
 fn matching_spec_from_a_configured_file_patches_a_direct_dependency_copy() {
     let temp = copy_fixture("aliased-patch-root");
@@ -350,58 +314,59 @@ dependency = { path = "extractor" }
     );
 }
 
-#[test]
-fn matching_spec_patches_all_matching_aliased_direct_dependency_versions() {
-    let temp = copy_fixture("multi-version-aliased-patch-root");
-
-    let output = cli()
-        .current_dir(temp.path())
-        .arg("--dry-run")
-        .output()
-        .unwrap();
-    assert!(output.status.success(), "{output:?}");
-
-    let copied_root = temp
-        .path()
-        .join("target/haloumi/.crates/multi-version-aliased-patch-root-0.1.0");
-    let copied_foo_10 = temp.path().join("target/haloumi/.crates/foo-1.0.0");
-    let copied_foo_11 = temp.path().join("target/haloumi/.crates/foo-1.1.0");
+#[e2e::test(
+    target = "tests/crates/multi-version-aliased-patch-root",
+    args = ["--dry-run"]
+)]
+fn matching_spec_patches_all_matching_aliased_direct_dependency_versions(
+    test: e2e::Test,
+    _: e2e::ToolOutput,
+) {
+    let copied_root = "target/haloumi/.crates/multi-version-aliased-patch-root-0.1.0";
+    let copied_foo_10 = "target/haloumi/.crates/foo-1.0.0";
+    let copied_foo_11 = "target/haloumi/.crates/foo-1.1.0";
     assert!(
-        fs::read_to_string(copied_foo_10.join("src/lib.rs"))
+        test.read_to_string(format!("{copied_foo_10}/src/lib.rs"))
             .unwrap()
             .contains("pub const PATCHED: bool = true;")
     );
     assert!(
-        fs::read_to_string(copied_foo_11.join("src/lib.rs"))
+        test.read_to_string(format!("{copied_foo_11}/src/lib.rs"))
             .unwrap()
             .contains("pub const PATCHED: bool = true;")
     );
     assert!(
-        !temp
-            .path()
+        !test
+            .target()
             .join("target/haloumi/.crates/foo-2.0.0")
             .exists()
     );
 
-    let copied_manifest = fs::read_to_string(copied_root.join("Cargo.toml")).unwrap();
+    let copied_manifest = test
+        .read_to_string(format!("{copied_root}/Cargo.toml"))
+        .unwrap();
     let manifest: toml::Value = toml::from_str(&copied_manifest).unwrap();
-    for (alias, copied_dependency) in [("foo_10", &copied_foo_10), ("foo_11", &copied_foo_11)] {
+    for (alias, copied_dependency) in [("foo_10", copied_foo_10), ("foo_11", copied_foo_11)] {
         let dependency = &manifest["dependencies"][alias];
         assert_eq!(
             Path::new(dependency["path"].as_str().unwrap())
                 .canonicalize()
                 .unwrap(),
-            copied_dependency.canonicalize().unwrap()
+            test.target()
+                .join(copied_dependency)
+                .canonicalize()
+                .unwrap()
         );
     }
     assert_eq!(
         Path::new(manifest["dependencies"]["foo_20"]["path"].as_str().unwrap())
             .canonicalize()
             .unwrap(),
-        temp.path().join("foo_20").canonicalize().unwrap()
+        test.target().join("foo_20").canonicalize().unwrap()
     );
 }
 
+// Cannot use `#[e2e::test]`: this test requires Git setup, manifest mutation, and `CARGO_HOME` before execution.
 #[test]
 fn matching_spec_rejects_same_name_and_version_dependencies_from_distinct_sources() {
     let temp = copy_fixture("distinct-package-id-aliases");
@@ -460,80 +425,68 @@ fn matching_spec_rejects_same_name_and_version_dependencies_from_distinct_source
     );
 }
 
-#[test]
-fn matching_spec_patches_a_hyphenated_direct_dependency_copy() {
-    let temp = copy_fixture("hyphenated-patch-root");
-
-    let output = cli().current_dir(temp.path()).output().unwrap();
-    assert!(output.status.success(), "{output:?}");
-
-    let copied_root = temp
-        .path()
-        .join("target/haloumi/.crates/hyphenated-patch-root-0.1.0");
-    let copied_dependency = temp
-        .path()
-        .join("target/haloumi/.crates/target-dependency-0.1.0");
+#[e2e::test(target = "tests/crates/hyphenated-patch-root")]
+fn matching_spec_patches_a_hyphenated_direct_dependency_copy(test: e2e::Test, _: e2e::ToolOutput) {
+    let copied_root = "target/haloumi/.crates/hyphenated-patch-root-0.1.0";
+    let copied_dependency = "target/haloumi/.crates/target-dependency-0.1.0";
     assert!(
-        fs::read_to_string(copied_dependency.join("src/lib.rs"))
+        test.read_to_string(format!("{copied_dependency}/src/lib.rs"))
             .unwrap()
             .contains("pub const PATCHED: bool = true;")
     );
 
-    let copied_manifest = fs::read_to_string(copied_root.join("Cargo.toml")).unwrap();
+    let copied_manifest = test
+        .read_to_string(format!("{copied_root}/Cargo.toml"))
+        .unwrap();
     let manifest: toml::Value = toml::from_str(&copied_manifest).unwrap();
     let dependency = &manifest["dependencies"]["target-dependency"];
     assert_eq!(
         Path::new(dependency["path"].as_str().unwrap())
             .canonicalize()
             .unwrap(),
-        copied_dependency.canonicalize().unwrap()
+        test.target()
+            .join(copied_dependency)
+            .canonicalize()
+            .unwrap()
     );
 }
 
-#[test]
-fn ambiguous_specs_fail_before_cargo_execution() {
-    let temp = copy_fixture("ambiguous-specs-root");
-    let output = cli().current_dir(temp.path()).output().unwrap();
-    assert!(!output.status.success());
+#[e2e::test(target = "tests/crates/ambiguous-specs-root")]
+fn ambiguous_specs_fail_before_cargo_execution(output: e2e::ToolError) {
     assert!(
-        String::from_utf8_lossy(&output.stderr).contains("2 specs match target-dependency 0.1.0")
+        output
+            .stderr()
+            .contains("2 specs match target-dependency 0.1.0")
     );
 }
 
-#[test]
-fn generated_extractor_binary_collision_is_reported() {
-    let temp = copy_fixture("generated-binary-collision");
-    let original = fs::read_to_string(temp.path().join("src/bin/haloumi-extractor.rs")).unwrap();
-    let output = cli().current_dir(temp.path()).output().unwrap();
-    assert!(!output.status.success());
+#[e2e::test(target = "tests/crates/generated-binary-collision")]
+fn generated_extractor_binary_collision_is_reported(test: e2e::Test, output: e2e::ToolError) {
     assert!(
-        String::from_utf8_lossy(&output.stderr)
+        output
+            .stderr()
             .contains("Binary 'haloumi-extractor' is already in the manifest")
     );
     assert_eq!(
-        fs::read_to_string(temp.path().join("src/bin/haloumi-extractor.rs")).unwrap(),
-        original
+        test.read_to_string("src/bin/haloumi-extractor.rs").unwrap(),
+        include_str!("crates/generated-binary-collision/src/bin/haloumi-extractor.rs")
     );
 }
 
-#[test]
-fn declared_extractor_binary_target_collision_is_reported() {
-    let temp = copy_fixture("declared-binary-collision");
-    let original = fs::read_to_string(temp.path().join("Cargo.toml")).unwrap();
-
-    let output = cli().current_dir(temp.path()).output().unwrap();
-
-    assert!(!output.status.success());
+#[e2e::test(target = "tests/crates/declared-binary-collision")]
+fn declared_extractor_binary_target_collision_is_reported(test: e2e::Test, output: e2e::ToolError) {
     assert!(
-        String::from_utf8_lossy(&output.stderr)
+        output
+            .stderr()
             .contains("Binary 'haloumi-extractor' is already in the manifest")
     );
     assert_eq!(
-        fs::read_to_string(temp.path().join("Cargo.toml")).unwrap(),
-        original
+        test.read_to_string("Cargo.toml").unwrap(),
+        include_str!("crates/declared-binary-collision/Cargo.toml")
     );
 }
 
+// Cannot use `#[e2e::test]`: extractor arguments are captured through a per-test environment variable.
 #[test]
 fn higher_priority_backend_table_blocks_lower_priority_backend_parameters() {
     let temp = copy_fixture("config-chain-root");
@@ -568,22 +521,14 @@ fn higher_priority_backend_table_blocks_lower_priority_backend_parameters() {
     );
 }
 
-#[test]
-fn compatible_existing_runner_dependency_is_merged() {
-    let temp = copy_fixture("merged-runner-dependency");
-
-    let output = cli()
-        .current_dir(temp.path())
-        .arg("--dry-run")
-        .output()
+#[e2e::test(
+    target = "tests/crates/merged-runner-dependency",
+    args = ["--dry-run"]
+)]
+fn compatible_existing_runner_dependency_is_merged(test: e2e::Test, _: e2e::ToolOutput) {
+    let copied = test
+        .read_to_string("target/haloumi/.crates/merged-runner-dependency-0.1.0/Cargo.toml")
         .unwrap();
-    assert!(output.status.success(), "{output:?}");
-
-    let copied = fs::read_to_string(
-        temp.path()
-            .join("target/haloumi/.crates/merged-runner-dependency-0.1.0/Cargo.toml"),
-    )
-    .unwrap();
     assert!(copied.contains("version = \">=0.1.0\""), "{copied}");
     assert!(
         copied.contains("existing") && copied.contains("requested"),
@@ -591,57 +536,49 @@ fn compatible_existing_runner_dependency_is_merged() {
     );
 }
 
-#[test]
-fn incompatible_existing_runner_version_is_reported_before_building() {
-    let temp = copy_fixture("incompatible-runner-version");
-
-    let output = cli()
-        .current_dir(temp.path())
-        .arg("--dry-run")
-        .output()
-        .unwrap();
-    assert!(!output.status.success());
+#[e2e::test(
+    target = "tests/crates/incompatible-runner-version",
+    args = ["--dry-run"]
+)]
+fn incompatible_existing_runner_version_is_reported_before_building(output: e2e::ToolError) {
     assert!(
-        String::from_utf8_lossy(&output.stderr)
+        output
+            .stderr()
             .contains("dependency 'custom-extractor' conflicts with extractor configuration"),
-        "{output:?}"
+        "{}",
+        output.stderr()
     );
 }
 
-#[test]
-fn unrelated_existing_runner_dependency_is_reported() {
-    let temp = copy_fixture("unrelated-runner-dependency");
-
-    let output = cli()
-        .current_dir(temp.path())
-        .arg("--dry-run")
-        .output()
-        .unwrap();
-    assert!(!output.status.success());
+#[e2e::test(
+    target = "tests/crates/unrelated-runner-dependency",
+    args = ["--dry-run"]
+)]
+fn unrelated_existing_runner_dependency_is_reported(output: e2e::ToolError) {
     assert!(
-        String::from_utf8_lossy(&output.stderr)
+        output
+            .stderr()
             .contains("dependency 'custom-extractor' conflicts with extractor configuration"),
-        "{output:?}"
+        "{}",
+        output.stderr()
     );
 }
 
-#[test]
-fn incompatible_existing_extractor_support_dependency_is_reported() {
-    let temp = copy_fixture("incompatible-extractor-support");
-
-    let output = cli()
-        .current_dir(temp.path())
-        .arg("--dry-run")
-        .output()
-        .unwrap();
-    assert!(!output.status.success());
+#[e2e::test(
+    target = "tests/crates/incompatible-extractor-support",
+    args = ["--dry-run"]
+)]
+fn incompatible_existing_extractor_support_dependency_is_reported(output: e2e::ToolError) {
     assert!(
-        String::from_utf8_lossy(&output.stderr)
+        output
+            .stderr()
             .contains("dependency 'support' conflicts with extractor configuration"),
-        "{output:?}"
+        "{}",
+        output.stderr()
     );
 }
 
+// Cannot use `#[e2e::test]`: the configuration and extractor-argument capture path are set before execution.
 #[test]
 fn disabled_optimization_is_forwarded_independently() {
     let temp = copy_fixture("config-chain-root");
@@ -669,6 +606,7 @@ fn disabled_optimization_is_forwarded_independently() {
     assert!(args.contains("--llzk-no-opt"), "{args}");
 }
 
+// Cannot use `#[e2e::test]`: each iteration mutates configuration and captures extractor arguments before execution.
 #[test]
 fn omitted_or_empty_preludes_are_not_forwarded() {
     for replacement in ["", "preludes = []\n"] {
@@ -693,6 +631,7 @@ fn omitted_or_empty_preludes_are_not_forwarded() {
     }
 }
 
+// Cannot use `#[e2e::test]`: the configuration and extractor-argument capture path are set before execution.
 #[test]
 fn llzk_field_implicitly_enables_llzk() {
     let temp = copy_fixture("config-chain-root");
@@ -719,6 +658,7 @@ fn llzk_field_implicitly_enables_llzk() {
     assert!(args.contains("--llzk-field-name\nbn256"), "{args}");
 }
 
+// Cannot use `#[e2e::test]`: the configuration and extractor-argument capture path are set before execution.
 #[test]
 fn llzk_assembly_format_is_forwarded() {
     let temp = copy_fixture("config-chain-root");
@@ -747,6 +687,7 @@ fn llzk_assembly_format_is_forwarded() {
     );
 }
 
+// Cannot use `#[e2e::test]`: the configuration and extractor-argument capture path are set before execution.
 #[test]
 fn explicit_backend_enablement_overrides_defaulting() {
     let temp = copy_fixture("config-chain-root");
@@ -773,6 +714,7 @@ fn explicit_backend_enablement_overrides_defaulting() {
     assert!(!args.contains("--llzk-field-name"), "{args}");
 }
 
+// Cannot use `#[e2e::test]`: the target configuration must be rewritten before execution.
 #[test]
 fn enabled_llzk_requires_a_field() {
     let temp = copy_fixture("config-chain-root");
@@ -795,6 +737,7 @@ fn enabled_llzk_requires_a_field() {
     );
 }
 
+// Cannot use `#[e2e::test]`: extractor invocation is observed through a preconfigured environment variable.
 #[test]
 fn dry_run_builds_the_generated_extractor_without_running_it() {
     let temp = copy_fixture("config-chain-root");
@@ -815,6 +758,7 @@ fn dry_run_builds_the_generated_extractor_without_running_it() {
     assert!(!args_output.exists());
 }
 
+// Cannot use `#[e2e::test]`: the configuration and extractor-argument capture path are set before execution.
 #[test]
 fn target_config_forwards_all_features_with_explicit_features() {
     let temp = copy_fixture("config-chain-root");

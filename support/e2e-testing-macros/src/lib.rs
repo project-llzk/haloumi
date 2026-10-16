@@ -4,7 +4,7 @@
 
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{
     Attribute, Error, Expr, FnArg, ItemFn, MetaNameValue, Pat, Result, Token,
     parse::{Parse, ParseStream},
@@ -119,14 +119,11 @@ fn closure_args(inputs: &Punctuated<FnArg, Token![,]>) -> Result<TokenStream2> {
     let third = inputs.next();
 
     match (first, second, third) {
-        (Some(FnArg::Typed(result)), None, None) => {
-            let (result_name, result_type) = parameter_name_and_type(result, "result")?;
-            Ok(quote!(#result_name: #result_type))
-        }
+        (Some(FnArg::Typed(result)), None, None) => result_parameter(result),
         (Some(FnArg::Typed(test)), Some(FnArg::Typed(result)), None) => {
             let (test_name, test_type) = parameter_name_and_type(test, "Test")?;
-            let (result_name, result_type) = parameter_name_and_type(result, "result")?;
-            Ok(quote!(#test_name: #test_type, #result_name: #result_type))
+            let result = result_parameter(result)?;
+            Ok(quote!(#test_name: #test_type, #result))
         }
         (Some(FnArg::Receiver(receiver)), _, _) => Err(Error::new_spanned(
             receiver,
@@ -135,6 +132,24 @@ fn closure_args(inputs: &Punctuated<FnArg, Token![,]>) -> Result<TokenStream2> {
         _ => Err(Error::new(
             input_span,
             "`#[e2e::test]` functions must take one result parameter or `Test` plus a result parameter",
+        )),
+    }
+}
+
+fn result_parameter(parameter: &syn::PatType) -> Result<TokenStream2> {
+    let result_type = &parameter.ty;
+    match &*parameter.pat {
+        Pat::Ident(pattern) => {
+            let result_name = &pattern.ident;
+            Ok(quote!(#result_name: #result_type))
+        }
+        Pat::Wild(_) => {
+            let result_name = format_ident!("__e2e_result");
+            Ok(quote!(#result_name: #result_type))
+        }
+        _ => Err(Error::new_spanned(
+            &parameter.pat,
+            "the result parameter must be an identifier or `_`",
         )),
     }
 }

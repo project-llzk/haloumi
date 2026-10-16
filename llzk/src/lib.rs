@@ -16,9 +16,9 @@ pub use params::LlzkParams;
 mod codegen;
 mod counter;
 pub mod error;
-mod extras;
 mod factory;
 mod lowering;
+mod members;
 mod params;
 mod state;
 

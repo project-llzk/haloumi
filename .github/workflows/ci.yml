@@ -237,6 +237,10 @@ jobs:
         if: always()
         run: cargo clippy -p inject-tester --all-targets --all-features -- -Dwarnings --no-deps
 
+      - name: Run Clippy on `cargo-haloumi`
+        if: always()
+        run: cargo clippy -p cargo-haloumi --all-targets --all-features -- -Dwarnings --no-deps
+
       - name: Run Clippy on `haloumi-driver`
         if: always()
         run: cargo clippy -p haloumi-driver --all-targets --all-features -- -Dwarnings --no-deps

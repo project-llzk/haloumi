@@ -10,14 +10,14 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     /// Raised when an output is missing.
-    #[error("Struct is missing output #{0}")]
-    MissingOutput(FieldId),
+    #[error("Struct {0:?} is missing output #{1}")]
+    MissingOutput(String, FieldId),
     /// Raised when a call's member is missing.
-    #[error("Struct is missing callee #{0}")]
-    MissingCalleeMember(usize),
+    #[error("Struct {0:?} is missing callee #{1}")]
+    MissingCalleeMember(String, usize),
     /// Raised when a call's member output is missing.
-    #[error("Struct is missing callee's #{0} output #{1}")]
-    MissingCalleeMemberOutput(usize, usize),
+    #[error("Struct {0:?} is missing callee's #{1} output #{2}")]
+    MissingCalleeMemberOutput(String, usize, usize),
     /// Raised when a callee's type is missing.
     #[error("Missing struct of type #{0}")]
     MissingStruct(String),

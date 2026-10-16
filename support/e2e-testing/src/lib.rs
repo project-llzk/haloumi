@@ -1,6 +1,7 @@
 //! e2e testing framework for creating tests of the main CLI.
 
 use std::{
+    ffi::OsStr,
     fs,
     path::{Path, PathBuf},
     process::Command,
@@ -85,6 +86,16 @@ pub fn setup() {
     let _ = simplelog::TestLogger::init(log::LevelFilter::Debug, simplelog::Config::default());
 }
 
+/// Runs Git in `directory`, panicking if it fails.
+pub fn git<'a>(directory: impl AsRef<Path>, args: impl IntoIterator<Item = &'a str>) {
+    let output = Command::new("git")
+        .current_dir(directory)
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+}
+
 /// Defines a test.
 pub struct Test {
     /// Directory of the extracted crate.
@@ -135,6 +146,12 @@ impl Test {
     /// Reads a UTF-8 file relative to the target crate directory.
     pub fn read_to_string(&self, path: impl AsRef<Path>) -> std::io::Result<String> {
         fs::read_to_string(self.target.path().join(path))
+    }
+
+    /// Sets an environment variable for the tool invocation.
+    pub fn env(&mut self, key: impl AsRef<OsStr>, value: impl AsRef<OsStr>) -> &mut Self {
+        self.command.env(key, value);
+        self
     }
 
     /// Executes the tool.

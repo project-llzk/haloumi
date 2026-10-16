@@ -6,18 +6,10 @@ use std::{
     process::Command,
 };
 
-use tempfile::TempDir;
-
 fn fixture(path: impl AsRef<Path>) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/crates")
         .join(path)
-}
-
-fn copy_fixture(name: &str) -> TempDir {
-    let temp = tempfile::tempdir().unwrap();
-    copy_directory(&fixture(name), temp.path());
-    temp
 }
 
 fn copy_directory(source: &Path, destination: &Path) {
@@ -344,15 +336,13 @@ fn matching_spec_patches_all_matching_aliased_direct_dependency_versions(
     );
 }
 
-// Cannot use `#[e2e::test]`: this test requires Git setup, manifest mutation, and `CARGO_HOME` before execution.
-#[test]
-fn matching_spec_rejects_same_name_and_version_dependencies_from_distinct_sources() {
-    let temp = copy_fixture("distinct-package-id-aliases");
-    let git_source = temp.path().join("source-two");
-    for arguments in [
-        vec!["init", "--quiet"],
-        vec!["add", "."],
-        vec![
+fn distinct_package_id_aliases_before(test: &mut e2e::Test) {
+    let git_source = test.target().join("source-two");
+    e2e::git(&git_source, ["init", "--quiet"]);
+    e2e::git(&git_source, ["add", "."]);
+    e2e::git(
+        &git_source,
+        [
             "-c",
             "user.name=Haloumi Tests",
             "-c",
@@ -364,39 +354,36 @@ fn matching_spec_rejects_same_name_and_version_dependencies_from_distinct_source
             "-m",
             "initial",
         ],
-    ] {
-        let output = Command::new("git")
-            .current_dir(&git_source)
-            .args(arguments)
-            .output()
-            .unwrap();
-        assert!(output.status.success(), "{output:?}");
-    }
-    let manifest_path = temp.path().join("Cargo.toml");
+    );
+
+    let manifest_path = test.target().join("Cargo.toml");
     let manifest = fs::read_to_string(&manifest_path).unwrap();
+    let git_dependency = format!(
+        "source_two = {{ package = \"same-dependency\", git = \"file://{}\" }}",
+        git_source.display()
+    );
     fs::write(
         &manifest_path,
         manifest.replace(
             "source_two = { package = \"same-dependency\", path = \"source-two\" }",
-            &format!(
-                "source_two = {{ package = \"same-dependency\", git = \"file://{}\" }}",
-                git_source.display()
-            ),
+            &git_dependency,
         ),
     )
     .unwrap();
 
-    let cargo_home = temp.path().join("cargo-home");
-    let output = cli()
-        .current_dir(temp.path())
-        .env("CARGO_HOME", cargo_home)
-        .arg("--dry-run")
-        .output()
-        .unwrap();
+    test.env("CARGO_HOME", test.target().join("cargo-home"));
+}
 
-    assert!(!output.status.success());
+#[e2e::test(
+    target = "tests/crates/distinct-package-id-aliases",
+    args = ["--dry-run"],
+    before = distinct_package_id_aliases_before
+)]
+fn matching_spec_rejects_same_name_and_version_dependencies_from_distinct_sources(
+    output: e2e::ToolError,
+) {
     assert!(
-        String::from_utf8_lossy(&output.stderr).contains(
+        output.stderr().contains(
             "multiple direct dependencies named same-dependency 0.1.0 resolve to different package IDs; patching them is unsupported"
         ),
         "{output:?}"

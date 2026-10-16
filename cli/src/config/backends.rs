@@ -1,3 +1,4 @@
+use haloumi_core::llzk::LlzkOutputFormat;
 use serde::Deserialize;
 
 use crate::backends::BackendConfig;
@@ -40,18 +41,8 @@ pub(super) struct PicusBackend {
 pub(super) struct LlzkBackend {
     enabled: Option<bool>,
     optimize: Option<bool>,
-    field: Option<Field>,
-}
-
-#[derive(Debug, Default, Deserialize, Clone)]
-pub(super) struct Field {
-    builtin: Option<String>,
-}
-
-impl Field {
-    pub fn builtin(&self) -> Option<&str> {
-        self.builtin.as_deref()
-    }
+    field: Option<String>,
+    format: Option<LlzkOutputFormat>,
 }
 
 impl BackendConfig for SimpleBackend {
@@ -87,8 +78,12 @@ impl LlzkBackend {
         self.optimize.unwrap_or(true)
     }
 
-    pub fn field(&self) -> Option<&Field> {
-        self.field.as_ref()
+    pub fn field(&self) -> Option<&str> {
+        self.field.as_deref()
+    }
+
+    pub fn emit_assembly(&self) -> bool {
+        matches!(self.format, Some(LlzkOutputFormat::Assembly))
     }
 }
 
@@ -121,7 +116,8 @@ mod tests {
             LlzkBackend {
                 enabled: None,
                 optimize: None,
-                field: Some(Field { builtin: None }),
+                field: Some("bn254".into()),
+                format: None,
             }
             .enabled()
         );
@@ -129,7 +125,8 @@ mod tests {
             !LlzkBackend {
                 enabled: Some(false),
                 optimize: None,
-                field: Some(Field { builtin: None }),
+                field: Some("bn254".into()),
+                format: None,
             }
             .enabled()
         );
@@ -138,6 +135,7 @@ mod tests {
                 enabled: Some(true),
                 optimize: None,
                 field: None,
+                format: None,
             }
             .enabled()
         );

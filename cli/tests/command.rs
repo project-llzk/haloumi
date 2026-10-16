@@ -708,6 +708,34 @@ fn llzk_field_implicitly_enables_llzk() {
 }
 
 #[test]
+fn llzk_assembly_format_is_forwarded() {
+    let temp = copy_fixture("config-chain-root");
+    let config = temp.path().join(".haloumi.toml");
+    let args_output = temp.path().join("extractor-args");
+    let contents = fs::read_to_string(&config).unwrap();
+    fs::write(
+        &config,
+        contents.replace(
+            "[backends.ir]\nenabled = true",
+            "[backends.llzk]\nfield = \"bn256\"\nformat = \"assembly\"",
+        ),
+    )
+    .unwrap();
+
+    let output = cli()
+        .current_dir(temp.path())
+        .env("HALOUMI_TEST_ARGS_OUTPUT", &args_output)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    assert!(
+        fs::read_to_string(args_output)
+            .unwrap()
+            .contains("--llzk-emit-assembly")
+    );
+}
+
+#[test]
 fn explicit_backend_enablement_overrides_defaulting() {
     let temp = copy_fixture("config-chain-root");
     let config = temp.path().join(".haloumi.toml");

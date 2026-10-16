@@ -11,7 +11,11 @@ use std::{
 use clap::Parser;
 
 mod app;
+mod backends;
 mod config;
+mod extractor;
+mod specs;
+mod tasks;
 
 use app::App;
 

@@ -95,6 +95,26 @@ fn workspace_rejects_package_that_is_not_a_member() {
 }
 
 #[test]
+fn workspace_member_extraction_builds_the_isolated_copy() {
+    let temp = copy_fixture("workspace-member-extraction");
+
+    let output = cli()
+        .current_dir(temp.path())
+        .args(["-p", "workspace-member", "--dry-run"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success(), "{output:?}");
+    let manifest = fs::read_to_string(
+        temp.path()
+            .join("target/haloumi/.crates/workspace-member-0.1.0/Cargo.toml"),
+    )
+    .unwrap();
+    let manifest: toml::Value = toml::from_str(&manifest).unwrap();
+    assert!(manifest.get("workspace").is_some());
+}
+
+#[test]
 fn malformed_configuration_fails_before_mutating_the_project() {
     let temp = copy_fixture("malformed-config");
     let manifest = temp.path().join("Cargo.toml");
@@ -131,6 +151,95 @@ fn no_configuration_creates_an_isolated_extraction_copy_without_backend_outputs(
     assert!(!temp.path().join("target/haloumi/ir").exists());
     assert!(!temp.path().join("target/haloumi/picus").exists());
     assert!(!temp.path().join("target/haloumi/llzk").exists());
+}
+
+#[test]
+fn missing_configured_specs_path_fails_before_creating_workspace() {
+    let temp = copy_fixture("extraction-root");
+    fs::write(
+        temp.path().join(".haloumi.toml"),
+        "[specs]\npath = \"missing-specs\"\n",
+    )
+    .unwrap();
+
+    let output = cli().current_dir(temp.path()).output().unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Unsupported filesystem object at"),
+        "{stderr}"
+    );
+    assert!(stderr.contains("missing-specs"), "{stderr}");
+    assert!(!temp.path().join("target/haloumi").exists());
+}
+
+#[test]
+fn disabled_autobins_still_builds_the_generated_extractor() {
+    let temp = copy_fixture("autobins-disabled-root");
+
+    let output = cli()
+        .current_dir(temp.path())
+        .arg("--dry-run")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+
+    let manifest = fs::read_to_string(
+        temp.path()
+            .join("target/haloumi/.crates/autobins-disabled-root-0.1.0/Cargo.toml"),
+    )
+    .unwrap();
+    let manifest: toml::Value = toml::from_str(&manifest).unwrap();
+    let bins = manifest["bin"].as_array().unwrap();
+    assert_eq!(bins.len(), 1);
+    assert_eq!(bins[0]["name"].as_str(), Some("haloumi-extractor"));
+    assert_eq!(
+        bins[0]["path"].as_str(),
+        Some("src/bin/haloumi-extractor.rs")
+    );
+}
+
+#[test]
+fn execution_removes_all_stale_haloumi_artifacts() {
+    let temp = copy_fixture("extraction-root");
+    let artifacts = temp.path().join("target/haloumi");
+    let stale_crate = artifacts.join(".crates/stale-crate/marker");
+    let stale_build = artifacts.join(".cargo/stale-build");
+    let stale_result = artifacts.join("ir/stale-result");
+    for stale_path in [&stale_crate, &stale_build, &stale_result] {
+        fs::create_dir_all(stale_path.parent().unwrap()).unwrap();
+        fs::write(stale_path, "stale").unwrap();
+    }
+
+    let output = cli().current_dir(temp.path()).output().unwrap();
+    assert!(output.status.success(), "{output:?}");
+
+    assert!(!stale_crate.exists());
+    assert!(!stale_build.exists());
+    assert!(!stale_result.exists());
+    assert!(
+        artifacts
+            .join(".crates/extraction-root-0.1.0/src/bin/haloumi-extractor.rs")
+            .is_file()
+    );
+}
+
+#[test]
+fn explicit_library_target_name_is_used_by_the_generated_extractor() {
+    let temp = copy_fixture("explicit-lib-name-root");
+
+    let output = cli().current_dir(temp.path()).output().unwrap();
+    assert!(output.status.success(), "{output:?}");
+
+    let generated = temp
+        .path()
+        .join("target/haloumi/.crates/explicit-lib-name-root-0.1.0/src/bin/haloumi-extractor.rs");
+    assert!(
+        fs::read_to_string(generated)
+            .unwrap()
+            .contains("extraction_api::harnesses()")
+    );
 }
 
 #[test]
@@ -202,6 +311,144 @@ fn matching_spec_patches_an_aliased_direct_dependency_copy() {
 }
 
 #[test]
+fn matching_spec_from_a_configured_file_patches_a_direct_dependency_copy() {
+    let temp = copy_fixture("aliased-patch-root");
+    fs::write(
+        temp.path().join(".haloumi.toml"),
+        r#"[specs]
+path = ".haloumi/specs/target-dependency.toml"
+
+[extractor]
+name = "haloumi-extractor-runner"
+dependency = { path = "extractor" }
+"#,
+    )
+    .unwrap();
+
+    let output = cli().current_dir(temp.path()).output().unwrap();
+    assert!(output.status.success(), "{output:?}");
+
+    let copied_dependency = temp
+        .path()
+        .join("target/haloumi/.crates/target-dependency-0.1.0");
+    assert!(
+        fs::read_to_string(copied_dependency.join("src/lib.rs"))
+            .unwrap()
+            .contains("pub const PATCHED: bool = true;")
+    );
+}
+
+#[test]
+fn matching_spec_patches_all_matching_aliased_direct_dependency_versions() {
+    let temp = copy_fixture("multi-version-aliased-patch-root");
+
+    let output = cli()
+        .current_dir(temp.path())
+        .arg("--dry-run")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+
+    let copied_root = temp
+        .path()
+        .join("target/haloumi/.crates/multi-version-aliased-patch-root-0.1.0");
+    let copied_foo_10 = temp.path().join("target/haloumi/.crates/foo-1.0.0");
+    let copied_foo_11 = temp.path().join("target/haloumi/.crates/foo-1.1.0");
+    assert!(
+        fs::read_to_string(copied_foo_10.join("src/lib.rs"))
+            .unwrap()
+            .contains("pub const PATCHED: bool = true;")
+    );
+    assert!(
+        fs::read_to_string(copied_foo_11.join("src/lib.rs"))
+            .unwrap()
+            .contains("pub const PATCHED: bool = true;")
+    );
+    assert!(
+        !temp
+            .path()
+            .join("target/haloumi/.crates/foo-2.0.0")
+            .exists()
+    );
+
+    let copied_manifest = fs::read_to_string(copied_root.join("Cargo.toml")).unwrap();
+    let manifest: toml::Value = toml::from_str(&copied_manifest).unwrap();
+    for (alias, copied_dependency) in [("foo_10", &copied_foo_10), ("foo_11", &copied_foo_11)] {
+        let dependency = &manifest["dependencies"][alias];
+        assert_eq!(
+            Path::new(dependency["path"].as_str().unwrap())
+                .canonicalize()
+                .unwrap(),
+            copied_dependency.canonicalize().unwrap()
+        );
+    }
+    assert_eq!(
+        Path::new(manifest["dependencies"]["foo_20"]["path"].as_str().unwrap())
+            .canonicalize()
+            .unwrap(),
+        temp.path().join("foo_20").canonicalize().unwrap()
+    );
+}
+
+#[test]
+fn matching_spec_rejects_same_name_and_version_dependencies_from_distinct_sources() {
+    let temp = copy_fixture("distinct-package-id-aliases");
+    let git_source = temp.path().join("source-two");
+    for arguments in [
+        vec!["init", "--quiet"],
+        vec!["add", "."],
+        vec![
+            "-c",
+            "user.name=Haloumi Tests",
+            "-c",
+            "user.email=tests@haloumi.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "--quiet",
+            "-m",
+            "initial",
+        ],
+    ] {
+        let output = Command::new("git")
+            .current_dir(&git_source)
+            .args(arguments)
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{output:?}");
+    }
+    let manifest_path = temp.path().join("Cargo.toml");
+    let manifest = fs::read_to_string(&manifest_path).unwrap();
+    fs::write(
+        &manifest_path,
+        manifest.replace(
+            "source_two = { package = \"same-dependency\", path = \"source-two\" }",
+            &format!(
+                "source_two = {{ package = \"same-dependency\", git = \"file://{}\" }}",
+                git_source.display()
+            ),
+        ),
+    )
+    .unwrap();
+
+    let cargo_home = temp.path().join("cargo-home");
+    let output = cli()
+        .current_dir(temp.path())
+        .env("CARGO_HOME", cargo_home)
+        .arg("--dry-run")
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains(
+            "multiple direct dependencies named same-dependency 0.1.0 resolve to different package IDs; patching them is unsupported"
+        ),
+        "{output:?}"
+    );
+}
+
+#[test]
 fn matching_spec_patches_a_hyphenated_direct_dependency_copy() {
     let temp = copy_fixture("hyphenated-patch-root");
 
@@ -249,10 +496,28 @@ fn generated_extractor_binary_collision_is_reported() {
     assert!(!output.status.success());
     assert!(
         String::from_utf8_lossy(&output.stderr)
-            .contains("Refusing to overwrite existing generated file")
+            .contains("Binary 'haloumi-extractor' is already in the manifest")
     );
     assert_eq!(
         fs::read_to_string(temp.path().join("src/bin/haloumi-extractor.rs")).unwrap(),
+        original
+    );
+}
+
+#[test]
+fn declared_extractor_binary_target_collision_is_reported() {
+    let temp = copy_fixture("declared-binary-collision");
+    let original = fs::read_to_string(temp.path().join("Cargo.toml")).unwrap();
+
+    let output = cli().current_dir(temp.path()).output().unwrap();
+
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("Binary 'haloumi-extractor' is already in the manifest")
+    );
+    assert_eq!(
+        fs::read_to_string(temp.path().join("Cargo.toml")).unwrap(),
         original
     );
 }
@@ -288,6 +553,80 @@ fn higher_priority_backend_table_blocks_lower_priority_backend_parameters() {
         fs::read_to_string(copied_root.join("src/bin/haloumi-extractor.rs"))
             .unwrap()
             .contains("custom_extractor::ExtractorMain::run")
+    );
+}
+
+#[test]
+fn compatible_existing_runner_dependency_is_merged() {
+    let temp = copy_fixture("merged-runner-dependency");
+
+    let output = cli()
+        .current_dir(temp.path())
+        .arg("--dry-run")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+
+    let copied = fs::read_to_string(
+        temp.path()
+            .join("target/haloumi/.crates/merged-runner-dependency-0.1.0/Cargo.toml"),
+    )
+    .unwrap();
+    assert!(copied.contains("version = \">=0.1.0\""), "{copied}");
+    assert!(
+        copied.contains("existing") && copied.contains("requested"),
+        "{copied}"
+    );
+}
+
+#[test]
+fn incompatible_existing_runner_version_is_reported_before_building() {
+    let temp = copy_fixture("incompatible-runner-version");
+
+    let output = cli()
+        .current_dir(temp.path())
+        .arg("--dry-run")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("dependency 'custom-extractor' conflicts with extractor configuration"),
+        "{output:?}"
+    );
+}
+
+#[test]
+fn unrelated_existing_runner_dependency_is_reported() {
+    let temp = copy_fixture("unrelated-runner-dependency");
+
+    let output = cli()
+        .current_dir(temp.path())
+        .arg("--dry-run")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("dependency 'custom-extractor' conflicts with extractor configuration"),
+        "{output:?}"
+    );
+}
+
+#[test]
+fn incompatible_existing_extractor_support_dependency_is_reported() {
+    let temp = copy_fixture("incompatible-extractor-support");
+
+    let output = cli()
+        .current_dir(temp.path())
+        .arg("--dry-run")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("dependency 'support' conflicts with extractor configuration"),
+        "{output:?}"
     );
 }
 
@@ -366,6 +705,34 @@ fn llzk_field_implicitly_enables_llzk() {
     let args = fs::read_to_string(args_output).unwrap();
     assert!(args.contains("--format\nllzk"), "{args}");
     assert!(args.contains("--llzk-field-name\nbn256"), "{args}");
+}
+
+#[test]
+fn llzk_assembly_format_is_forwarded() {
+    let temp = copy_fixture("config-chain-root");
+    let config = temp.path().join(".haloumi.toml");
+    let args_output = temp.path().join("extractor-args");
+    let contents = fs::read_to_string(&config).unwrap();
+    fs::write(
+        &config,
+        contents.replace(
+            "[backends.ir]\nenabled = true",
+            "[backends.llzk]\nfield = \"bn256\"\nformat = \"assembly\"",
+        ),
+    )
+    .unwrap();
+
+    let output = cli()
+        .current_dir(temp.path())
+        .env("HALOUMI_TEST_ARGS_OUTPUT", &args_output)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    assert!(
+        fs::read_to_string(args_output)
+            .unwrap()
+            .contains("--llzk-emit-assembly")
+    );
 }
 
 #[test]

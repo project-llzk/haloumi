@@ -88,7 +88,7 @@ pub trait Codegen<'c: 's, 's>: Sized + 's {
         stmts: impl IntoIterator<Item = L>,
     ) -> Result<(), Self::Error>
     where
-        L: LowerableStmt + std::fmt::Debug,
+        L: LowerableStmt,
     {
         let main = self.define_main_function(advice_io, instance_io, callees)?;
         log::debug!("Defined main function");

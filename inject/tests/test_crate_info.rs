@@ -74,7 +74,7 @@ fn copied_workspace_member_has_a_standalone_readable_manifest() {
 
     let raw_manifest: toml::Value =
         toml::from_str(&std::fs::read_to_string(copy.join("Cargo.toml")).unwrap()).unwrap();
-    assert!(raw_manifest.get("workspace").is_none());
+    assert!(raw_manifest.get("workspace").is_some());
     assert!(Crate::open(&copy).is_ok());
     let cargo_metadata = std::process::Command::new("cargo")
         .args([
@@ -154,6 +154,33 @@ fn generated_file_commits_once_and_rejects_collisions() {
     ));
     copied.commit().unwrap();
     assert!(copy.join("src/bin/generated.rs").is_file());
+}
+
+#[test]
+fn generated_binary_target_commits_and_rejects_duplicate_names() {
+    let temp = tempfile::tempdir().unwrap();
+    let copy = temp.path().join("copy");
+    let mut copied = Crate::open(fixture("crates/test1"))
+        .unwrap()
+        .clone_in_path(&copy)
+        .unwrap();
+
+    copied
+        .add_binary_target("generated", "src/bin/generated.rs")
+        .unwrap();
+    assert!(matches!(
+        copied.add_binary_target("generated", "src/bin/other.rs"),
+        Err(Error::DuplicateBin(_))
+    ));
+    copied.commit().unwrap();
+
+    let manifest = cargo_toml::Manifest::from_path(copy.join("Cargo.toml")).unwrap();
+    assert_eq!(manifest.bin.len(), 1);
+    assert_eq!(manifest.bin[0].name.as_deref(), Some("generated"));
+    assert_eq!(
+        manifest.bin[0].path.as_deref(),
+        Some("src/bin/generated.rs")
+    );
 }
 
 #[test]

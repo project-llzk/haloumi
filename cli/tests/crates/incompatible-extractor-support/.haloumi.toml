@@ -1,0 +1,6 @@
+[extractor]
+name = "custom-extractor"
+dependency = { package = "haloumi-extractor-runner", path = "extractor" }
+
+[extractor.dependencies]
+support = { path = "support", version = "=0.2.0" }

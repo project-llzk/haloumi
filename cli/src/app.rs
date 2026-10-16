@@ -3,224 +3,104 @@
 use std::{
     fs,
     path::{Path, PathBuf},
-    process::Command,
 };
 
 use cargo_metadata::{CargoOpt, DependencyKind, Metadata, MetadataCommand, Package, PackageId};
-use haloumi_inject::{
-    Injector,
-    crate_info::{Crate, CrateLike, CrateMut, RustFile},
-    error::Error as InjectError,
-    spec::{SpecMatch, SpecRegistry},
-};
 
 use crate::{
     Args, Error,
-    config::{Config, TargetConfig},
+    config::{Config, Target},
+    tasks,
 };
 
 /// The initialized `cargo haloumi` application.
 #[derive(Debug)]
 pub(crate) struct App {
-    project: CargoProject,
-    target: SelectedPackage,
-    config: Config,
-    paths: ManagedPaths,
-    specs: SpecRegistry,
-    dry_run: bool,
+    state: AppState,
+}
+
+/// Shared state for the extraction workflow tasks.
+#[derive(Debug)]
+pub(crate) struct AppState {
+    pub(crate) project: CargoProject,
+    pub(crate) target: SelectedPackage,
+    pub(crate) config: Config,
+    pub(crate) paths: ManagedPaths,
+    pub(crate) dry_run: bool,
 }
 
 #[derive(Debug)]
-struct CargoProject {
+pub(crate) struct CargoProject {
     root: PathBuf,
     metadata: Metadata,
 }
 
 #[derive(Debug)]
-struct SelectedPackage {
-    package: Package,
+pub(crate) struct SelectedPackage {
+    pub(crate) package: Package,
+    pub(crate) library_target_name: String,
+}
+
+impl SelectedPackage {
+    /// Returns the target name as a Rust identifier.
+    pub fn library_target_ident(&self) -> String {
+        self.library_target_name.replace("-", "_")
+    }
 }
 
 #[derive(Debug)]
-struct ManagedPaths {
-    output: PathBuf,
+pub(crate) struct DirectDependency {
+    pub(crate) name: String,
+    pub(crate) package: Package,
+}
+
+#[derive(Debug)]
+pub(crate) struct ManagedPaths {
+    root: PathBuf,
+    pub(crate) output: PathBuf,
     crates: PathBuf,
-    cargo_target: PathBuf,
+    pub(crate) cargo_target: PathBuf,
 }
 
 impl App {
     /// Creates an application after performing all read-only discovery and validation.
     pub(crate) fn new(root: PathBuf, args: Args) -> Result<Self, Error> {
         let config = Config::load(&root)?;
-        let project = CargoProject::load(root, &config.target())?;
+        let project = CargoProject::load(root, config.target())?;
         let target = project.select_package(&args)?;
         config.validate()?;
         let paths = ManagedPaths::new(project.root());
-        let specs_path = config.specs_path();
-        let specs = if specs_path.is_dir() {
-            SpecRegistry::load(&specs_path)?
-        } else {
-            SpecRegistry::empty()
-        };
 
         Ok(Self {
-            project,
-            target,
-            config,
-            paths,
-            specs,
-            dry_run: args.dry_run,
+            state: AppState {
+                project,
+                target,
+                config,
+                paths,
+                dry_run: args.dry_run,
+            },
         })
     }
 
     /// Performs the isolated extraction workflow.
     pub(crate) fn run(self) -> Result<(), Error> {
         log::info!("Preparing workspace.");
-        self.prepare_workspace()?;
+        tasks::prepare_workspace(&self.state)?;
         log::info!("Cloning target into work directory.");
-        let mut root = self.clone_target_crate()?;
+        let mut root = tasks::clone_target_crate(&self.state)?;
         log::info!("Applying specs to dependencies.");
-        self.patch_direct_dependencies(&mut root)?;
+        tasks::patch_direct_dependencies(&self.state, &mut root)?;
         log::info!("Adding runner binary.");
-        self.add_extractor_binary(&mut root)?;
+        tasks::add_extractor_binary(&self.state, &mut root)?;
         log::info!("Commiting all changes to target crate.");
-        self.commit_root_crate(&root)?;
+        tasks::commit_root_crate(&self.state, &root)?;
         log::info!("Running extraction");
-        self.run_extractor(&root)
-    }
-
-    fn prepare_workspace(&self) -> Result<(), Error> {
-        self.paths.reset_crates()
-    }
-
-    fn clone_target_crate(&self) -> Result<CrateMut, Error> {
-        let source = Crate::open(self.target.manifest_directory()?)?;
-        Ok(source.clone_in_path(self.paths.root_copy(&self.target.package))?)
-    }
-
-    fn patch_direct_dependencies(&self, root: &mut CrateMut) -> Result<(), Error> {
-        for dependency in self.project.normal_direct_dependencies(&self.target)? {
-            match self
-                .specs
-                .find_matching(&dependency.name, &dependency.version)
-            {
-                SpecMatch::None => {
-                    log::debug!("No spec matches {} {}", dependency.name, dependency.version);
-                }
-                SpecMatch::Ambiguous(specs) => {
-                    return Err(Error::Message(format!(
-                        "{} specs match {} {}",
-                        specs.len(),
-                        dependency.name,
-                        dependency.version
-                    )));
-                }
-                SpecMatch::One(_) => {
-                    let destination = self.paths.dependency_copy(&dependency);
-                    let source =
-                        Crate::open(dependency.manifest_path.parent().ok_or_else(|| {
-                            Error::Message("dependency manifest has no parent".into())
-                        })?)?;
-                    Injector::new(&source, &self.specs)?.apply(&destination)?;
-                    root.replace_dependency_with_path(
-                        self.project.dependency_name(&self.target, &dependency)?,
-                        destination,
-                    )?;
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn add_extractor_binary(&self, root: &mut CrateMut) -> Result<(), Error> {
-        let extractor = self.config.extractor()?;
-        self.add_dependency(
-            root,
-            extractor.name().to_owned(),
-            extractor.dependency().clone(),
-        )?;
-        for (name, dependency) in extractor.dependencies() {
-            self.add_dependency(root, name.clone(), dependency.clone())?;
-        }
-        let crate_ident = self.target.package.name.replace('-', "_");
-        let extractor_ident = extractor.name().replace('-', "_");
-        let source = format!(
-            "fn main() {{ {extractor_ident}::ExtractorMain::run({crate_ident}::harnesses()); }}"
-        );
-        root.create_rust_file(
-            "src/bin/haloumi-extractor.rs",
-            RustFile::parse_str(&source)?,
-        )?;
-        Ok(())
-    }
-
-    fn add_dependency(
-        &self,
-        root: &mut CrateMut,
-        name: String,
-        dependency: cargo_toml::Dependency,
-    ) -> Result<(), Error> {
-        match root.add_dependency(name, dependency) {
-            Ok(()) | Err(InjectError::DuplicateDep(_)) => Ok(()),
-            Err(error) => Err(error.into()),
-        }
-    }
-
-    fn commit_root_crate(&self, root: &CrateMut) -> Result<(), Error> {
-        root.commit()?;
-        Ok(())
-    }
-
-    fn run_extractor(&self, root: &CrateMut) -> Result<(), Error> {
-        let mut command = Command::new("cargo");
-        command
-            .current_dir(root.base_path())
-            .arg(if self.dry_run { "build" } else { "run" })
-            .arg("--release")
-            .arg("--bin")
-            .arg("haloumi-extractor")
-            .arg("--target-dir")
-            .arg(&self.paths.cargo_target);
-        add_target_feature_args(&mut command, &self.config.target());
-        let extractor = self.config.extractor()?;
-        if extractor.groups_enabled() {
-            command.env("HALOUMI_ENABLE_GROUPS", "1");
-        }
-        if !self.dry_run {
-            command.arg("--").arg("--output").arg(&self.paths.output);
-            if !extractor.optimize() {
-                command.arg("--no-opt");
-            }
-            if !self.config.picus_optimize() {
-                command.arg("--picus-no-opt");
-            }
-            if !self.config.llzk_optimize() {
-                command.arg("--llzk-no-opt");
-            }
-            let formats = self.config.formats();
-            if !formats.is_empty() {
-                command.arg("--format").arg(formats.join(","));
-            }
-            if let Some(field) = self.config.llzk_field() {
-                command.arg("--llzk-field-name").arg(field);
-            }
-            if self.config.llzk_emit_assembly() {
-                command.arg("--llzk-emit-assembly");
-            }
-            if let Some(preludes) = extractor.preludes().filter(|preludes| !preludes.is_empty()) {
-                command.arg("--preludes").arg(preludes.join(","));
-            }
-        }
-        log::debug!("Running {:?}", command);
-        if !command.status()?.success() {
-            return Err(Error::Message("generated extractor command failed".into()));
-        }
-        Ok(())
+        tasks::run_extractor(&self.state, &root)
     }
 }
 
 impl CargoProject {
-    fn load(root: PathBuf, target: &TargetConfig) -> Result<Self, Error> {
+    fn load(root: PathBuf, target: &Target) -> Result<Self, Error> {
         let mut command = MetadataCommand::new();
         command.current_dir(&root);
         if target.all_features() {
@@ -232,8 +112,10 @@ impl CargoProject {
         if !target.features().is_empty() {
             command.features(CargoOpt::SomeFeatures(target.features().to_vec()));
         }
-        let metadata = command.exec()?;
-        Ok(Self { root, metadata })
+        Ok(Self {
+            root,
+            metadata: command.exec()?,
+        })
     }
 
     fn root(&self) -> &Path {
@@ -270,10 +152,24 @@ impl CargoProject {
             .find(|package| package.name == name)
             .cloned()
             .ok_or_else(|| Error::Message(format!("'{name}' is not a workspace member")))?;
-        Ok(SelectedPackage { package })
+        let library_target_name = package
+            .targets
+            .iter()
+            .find(|target| target.is_lib())
+            .map(|target| target.name.clone())
+            .ok_or_else(|| {
+                Error::Message(format!("package '{name}' does not define a library target"))
+            })?;
+        Ok(SelectedPackage {
+            package,
+            library_target_name,
+        })
     }
 
-    fn normal_direct_dependencies(&self, target: &SelectedPackage) -> Result<Vec<Package>, Error> {
+    pub(crate) fn normal_direct_dependencies(
+        &self,
+        target: &SelectedPackage,
+    ) -> Result<Vec<DirectDependency>, Error> {
         let resolve = self.metadata.resolve.as_ref().ok_or_else(|| {
             Error::Message("Cargo metadata did not include a dependency resolution".into())
         })?;
@@ -293,27 +189,40 @@ impl CargoProject {
                     .any(|kind| kind.kind == DependencyKind::Normal)
             })
             .map(|dependency| {
-                self.package(&dependency.pkg)
-                    .cloned()
-                    .ok_or_else(|| Error::Message("resolved dependency metadata is missing".into()))
+                let name = self.dependency_name(target, &dependency.name)?;
+                let package = self.package(&dependency.pkg).cloned().ok_or_else(|| {
+                    Error::Message("resolved dependency metadata is missing".into())
+                })?;
+                Ok(DirectDependency { name, package })
             })
             .collect()
     }
 
-    fn dependency_name<'a>(
-        &'a self,
-        target: &'a SelectedPackage,
-        package: &Package,
-    ) -> Result<&'a str, Error> {
+    fn dependency_name(
+        &self,
+        target: &SelectedPackage,
+        resolved_name: &str,
+    ) -> Result<String, Error> {
         target
             .package
             .dependencies
             .iter()
             .find(|dependency| {
-                dependency.kind == DependencyKind::Normal && dependency.name == package.name
+                dependency.kind == DependencyKind::Normal
+                    && dependency
+                        .rename
+                        .as_deref()
+                        .unwrap_or(&dependency.name)
+                        .replace('-', "_")
+                        == resolved_name
             })
-            .map(|dependency| dependency.rename.as_deref().unwrap_or(&dependency.name))
-            .ok_or_else(|| Error::Message("resolved dependency metadata is missing".into()))
+            .map(|dependency| {
+                dependency
+                    .rename
+                    .clone()
+                    .unwrap_or_else(|| dependency.name.clone())
+            })
+            .ok_or_else(|| Error::Message("resolved dependency is missing from manifest".into()))
     }
 
     fn workspace_packages(&self) -> impl Iterator<Item = &Package> {
@@ -331,20 +240,8 @@ impl CargoProject {
     }
 }
 
-fn add_target_feature_args(command: &mut Command, target: &TargetConfig) {
-    if target.all_features() {
-        command.arg("--all-features");
-    }
-    if target.no_default_features() {
-        command.arg("--no-default-features");
-    }
-    if !target.features().is_empty() {
-        command.arg("--features").arg(target.features().join(","));
-    }
-}
-
 impl SelectedPackage {
-    fn manifest_directory(&self) -> Result<&Path, Error> {
+    pub(crate) fn manifest_directory(&self) -> Result<&Path, Error> {
         Path::new(self.package.manifest_path.as_str())
             .parent()
             .ok_or_else(|| Error::Message("package manifest has no parent".into()))
@@ -355,31 +252,32 @@ impl ManagedPaths {
     fn new(root: &Path) -> Self {
         let output = root.join("target/haloumi");
         Self {
+            root: root.to_path_buf(),
             crates: output.join(".crates"),
             cargo_target: output.join(".cargo"),
             output,
         }
     }
 
-    fn reset_crates(&self) -> Result<(), Error> {
-        if !self.crates.starts_with(&self.output) {
+    pub(crate) fn reset_output(&self) -> Result<(), Error> {
+        if !self.output.starts_with(&self.root) || self.output == self.root {
             return Err(Error::Message(
-                "managed crate directory is outside the Haloumi output directory".into(),
+                "Haloumi output directory is outside the project root".into(),
             ));
         }
-        if self.crates.exists() {
-            fs::remove_dir_all(&self.crates)?;
+        // TODO: Replace this conservative reset with selective artifact management (#34).
+        if self.output.exists() {
+            fs::remove_dir_all(&self.output)?;
         }
-        fs::create_dir_all(&self.crates)?;
+        fs::create_dir_all(&self.output)?;
         Ok(())
     }
 
-    fn root_copy(&self, package: &Package) -> PathBuf {
+    pub(crate) fn root_copy(&self, package: &Package) -> PathBuf {
         self.crates
             .join(format!("{}-{}", package.name, package.version))
     }
-
-    fn dependency_copy(&self, package: &Package) -> PathBuf {
+    pub(crate) fn dependency_copy(&self, package: &Package) -> PathBuf {
         self.root_copy(package)
     }
 }

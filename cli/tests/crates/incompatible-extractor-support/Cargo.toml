@@ -1,0 +1,8 @@
+[package]
+name = "incompatible-extractor-support"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+custom-extractor = { package = "haloumi-extractor-runner", path = "extractor" }
+support = { path = "support", version = "0.1" }

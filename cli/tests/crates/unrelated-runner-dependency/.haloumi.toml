@@ -1,0 +1,3 @@
+[extractor]
+name = "custom-extractor"
+dependency = { package = "haloumi-extractor-runner", path = "extractor" }

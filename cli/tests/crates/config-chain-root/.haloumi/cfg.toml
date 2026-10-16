@@ -1,2 +1,2 @@
-[backends.llzk.field]
-builtin = "bn256"
+[backends.llzk]
+field = "bn256"

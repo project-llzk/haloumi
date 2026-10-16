@@ -231,6 +231,7 @@ impl CargoProject {
             .iter()
             .filter_map(|id| self.package(id))
     }
+
     fn package(&self, id: &PackageId) -> Option<&Package> {
         self.metadata
             .packages

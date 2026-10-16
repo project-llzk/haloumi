@@ -25,7 +25,7 @@ the generated extractor.
 
 Backends can be explicitly enabled or disabled with `enabled`. Without an explicit value, a
 backend is enabled only when its mandatory parameter blocks are configured. IR and Picus have no
-mandatory parameters today, while LLZK is implicitly enabled by a `field` block:
+mandatory parameters today, while LLZK is implicitly enabled by a `field` value:
 
 ```toml
 [backends.ir]
@@ -34,12 +34,21 @@ enabled = true
 [backends.picus]
 enabled = true
 
-[backends.llzk.field]
-builtin = "bn256"
+[backends.llzk]
+field = "bn256"
 ```
 
 Set `enabled = false` to disable a backend even when its parameters are configured. Explicitly
-enabled LLZK still requires a valid field configuration.
+enabled LLZK still requires a field. LLZK builtin names (such as `bn256`) must match the
+circuit's prime; any other name defines a field using the circuit's prime.
+
+LLZK emits bytecode by default. Set `format = "assembly"` to emit human-readable MLIR assembly:
+
+```toml
+[backends.llzk]
+field = "bn256"
+format = "assembly"
+```
 
 Set `optimize = false` to forward a backend-specific optimization flag to the extractor runner:
 

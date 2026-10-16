@@ -86,10 +86,17 @@ impl Config {
         formats
     }
 
-    /// Returns the built-in LLZK field name, when LLZK is configured completely.
+    /// Returns the LLZK field name, when LLZK is configured completely.
     pub(crate) fn llzk_field(&self) -> Option<&str> {
         let llzk = self.backends.llzk()?;
-        llzk.enabled().then_some(llzk)?.field()?.builtin()
+        llzk.enabled().then_some(llzk)?.field()
+    }
+
+    /// Returns whether enabled LLZK output should be emitted as assembly.
+    pub(crate) fn llzk_emit_assembly(&self) -> bool {
+        self.backends
+            .llzk()
+            .is_some_and(|llzk| llzk.enabled() && llzk.emit_assembly())
     }
 
     /// Returns whether Picus optimization is enabled.
@@ -106,7 +113,7 @@ impl Config {
     pub(crate) fn validate(&self) -> Result<(), Error> {
         if self.backends.llzk().is_some_and(BackendConfig::enabled) && self.llzk_field().is_none() {
             return Err(Error::Message(
-                "LLZK is enabled but backends.llzk.field.builtin is missing".into(),
+                "LLZK is enabled but backends.llzk.field is missing".into(),
             ));
         }
         Ok(())

@@ -607,6 +607,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c37b399c91d093763e38c7a57a740e0005e30e5aff7132e791aada5eef3fed99"
 
 [[package]]
+name = "e2e"
+version = "0.6.0"
+dependencies = [
+ "llzk",
+ "log",
+ "mlir-testutils",
+ "similar-asserts",
+ "simplelog",
+]
+
+[[package]]
 name = "either"
 version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

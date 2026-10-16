@@ -1,0 +1,14 @@
+[package]
+name = "e2e"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+log.workspace = true
+simplelog = { version = "0.12", features = ["test"] }
+similar-asserts.workspace = true
+mlir-testutils.workspace = true
+llzk.workspace = true

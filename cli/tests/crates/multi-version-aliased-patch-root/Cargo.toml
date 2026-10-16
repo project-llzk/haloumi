@@ -1,0 +1,10 @@
+[package]
+name = "multi-version-aliased-patch-root"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+foo_10 = { package = "foo", path = "foo_10", version = "1.0" }
+foo_11 = { package = "foo", path = "foo_11", version = "1.1" }
+foo_20 = { package = "foo", path = "foo_20", version = "2" }
+haloumi-extractor-runner = { path = "extractor" }

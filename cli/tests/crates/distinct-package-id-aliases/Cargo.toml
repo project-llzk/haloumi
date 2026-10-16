@@ -1,0 +1,9 @@
+[package]
+name = "distinct-package-id-aliases-root"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+source_one = { package = "same-dependency", path = "source-one" }
+source_two = { package = "same-dependency", path = "source-two" }
+haloumi-extractor-runner = { path = "extractor" }

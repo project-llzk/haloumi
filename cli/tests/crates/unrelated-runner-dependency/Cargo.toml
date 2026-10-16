@@ -1,0 +1,7 @@
+[package]
+name = "unrelated-runner-dependency"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+custom-extractor = { package = "support", path = "support" }

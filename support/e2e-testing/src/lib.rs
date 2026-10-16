@@ -16,6 +16,8 @@ pub mod pcl;
 ///
 /// The function accepts either a result parameter or a [`Test`] followed by a result parameter.
 /// The result parameter can be [`ToolResult`], [`ToolOutput`], or [`ToolError`].
+/// Supplying `before = hook` runs `hook(&mut Test)` before the CLI; parameters after the result
+/// receive the hook return value, or the elements of its returned tuple.
 pub use e2e_testing_macros::test;
 
 #[macro_export]
@@ -37,6 +39,42 @@ macro_rules! __test_impl {
             $args,
             $copy,
         );
+        let mut $result: $result_ty = $test.run().into();
+        $check
+    }};
+    ($target:expr, $args:expr, $copy:expr, $before:ident, |$test:ident : $test_ty:ty, $result:ident: $result_ty:ty| $check:block) => {{
+        $crate::setup();
+        let mut $test: $test_ty = $crate::Test::new(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join($target),
+            env!("CARGO_BIN_EXE_cargo-haloumi"),
+            $args,
+            $copy,
+        );
+        let _ = $before(&mut $test);
+        let mut $result: $result_ty = $test.run().into();
+        $check
+    }};
+    ($target:expr, $args:expr, $copy:expr, $before:ident, |$test:ident : $test_ty:ty, $result:ident: $result_ty:ty, $value:ident: $value_ty:ty| $check:block) => {{
+        $crate::setup();
+        let mut $test: $test_ty = $crate::Test::new(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join($target),
+            env!("CARGO_BIN_EXE_cargo-haloumi"),
+            $args,
+            $copy,
+        );
+        let $value: $value_ty = $before(&mut $test);
+        let mut $result: $result_ty = $test.run().into();
+        $check
+    }};
+    ($target:expr, $args:expr, $copy:expr, $before:ident, |$test:ident : $test_ty:ty, $result:ident: $result_ty:ty, $first:ident: $first_ty:ty, $($value:ident: $value_ty:ty),+| $check:block) => {{
+        $crate::setup();
+        let mut $test: $test_ty = $crate::Test::new(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join($target),
+            env!("CARGO_BIN_EXE_cargo-haloumi"),
+            $args,
+            $copy,
+        );
+        let ($first, $($value),+): ($first_ty, $($value_ty),+) = $before(&mut $test);
         let mut $result: $result_ty = $test.run().into();
         $check
     }};

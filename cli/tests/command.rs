@@ -105,34 +105,50 @@ fn workspace_member_extraction_builds_the_isolated_copy(test: e2e::Test, _: e2e:
     assert!(manifest.get("workspace").is_some());
 }
 
-// Cannot use `#[e2e::test]`: this assertion needs the target's manifest before execution.
-#[test]
-fn malformed_configuration_fails_before_mutating_the_project() {
-    let temp = copy_fixture("malformed-config");
-    let manifest = temp.path().join("Cargo.toml");
-    let original_manifest = fs::read_to_string(&manifest).unwrap();
-
-    let output = cli().current_dir(temp.path()).output().unwrap();
-    assert!(!output.status.success());
-    assert_eq!(fs::read_to_string(manifest).unwrap(), original_manifest);
+fn malformed_configuration_before(test: &mut e2e::Test) -> String {
+    test.read_to_string("Cargo.toml").unwrap()
 }
 
-// Cannot use `#[e2e::test]`: this assertion snapshots target files before execution.
-#[test]
-fn no_configuration_creates_an_isolated_extraction_copy_without_backend_outputs() {
-    let temp = copy_fixture("extraction-root");
-    let manifest = temp.path().join("Cargo.toml");
-    let source = temp.path().join("src/lib.rs");
-    let original_manifest = fs::read_to_string(&manifest).unwrap();
-    let original_source = fs::read_to_string(&source).unwrap();
+#[e2e::test(
+    target = "tests/crates/malformed-config",
+    before = malformed_configuration_before
+)]
+fn malformed_configuration_fails_before_mutating_the_project(
+    test: e2e::Test,
+    _: e2e::ToolError,
+    original_manifest: String,
+) {
+    assert_eq!(
+        test.read_to_string("Cargo.toml").unwrap(),
+        original_manifest
+    );
+}
 
-    let output = cli().current_dir(temp.path()).output().unwrap();
-    assert!(output.status.success(), "{output:?}");
-    assert_eq!(fs::read_to_string(manifest).unwrap(), original_manifest);
-    assert_eq!(fs::read_to_string(source).unwrap(), original_source);
+fn no_configuration_before(test: &mut e2e::Test) -> (String, String) {
+    (
+        test.read_to_string("Cargo.toml").unwrap(),
+        test.read_to_string("src/lib.rs").unwrap(),
+    )
+}
 
-    let extracted_root = temp
-        .path()
+#[e2e::test(
+    target = "tests/crates/extraction-root",
+    before = no_configuration_before
+)]
+fn no_configuration_creates_an_isolated_extraction_copy_without_backend_outputs(
+    test: e2e::Test,
+    _: e2e::ToolOutput,
+    original_manifest: String,
+    original_source: String,
+) {
+    assert_eq!(
+        test.read_to_string("Cargo.toml").unwrap(),
+        original_manifest
+    );
+    assert_eq!(test.read_to_string("src/lib.rs").unwrap(), original_source);
+
+    let extracted_root = test
+        .target()
         .join("target/haloumi/.crates/extraction-root-0.1.0");
     let generated = extracted_root.join("src/bin/haloumi-extractor.rs");
     assert!(generated.is_file());
@@ -141,9 +157,9 @@ fn no_configuration_creates_an_isolated_extraction_copy_without_backend_outputs(
             .unwrap()
             .contains("extraction_root::harnesses()")
     );
-    assert!(!temp.path().join("target/haloumi/ir").exists());
-    assert!(!temp.path().join("target/haloumi/picus").exists());
-    assert!(!temp.path().join("target/haloumi/llzk").exists());
+    assert!(!test.target().join("target/haloumi/ir").exists());
+    assert!(!test.target().join("target/haloumi/picus").exists());
+    assert!(!test.target().join("target/haloumi/llzk").exists());
 }
 
 #[e2e::test(target = "tests/crates/missing-configured-specs-path")]

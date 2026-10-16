@@ -29,19 +29,11 @@ fn cli() -> Command {
     Command::new(env!("CARGO_BIN_EXE_cargo-haloumi"))
 }
 
-#[e2e::test(target = ".", args = ["--help"])]
+#[e2e::test(target = ".", args = ["--help"], copy = false)]
 fn direct_help_succeeds(output: e2e::ToolOutput) {
-    assert!(output.stdout().contains("Workspace package to extract"));
-    assert!(
-        output
-            .stdout()
-            .contains("Root directory of the Cargo project to extract")
-    );
-    assert!(
-        output
-            .stdout()
-            .contains("Build the generated extractor without running it")
-    );
+    output.stdout_contains("Workspace package to extract");
+    output.stdout_contains("Root directory of the Cargo project to extract");
+    output.stdout_contains("Build the generated extractor without running it");
 }
 
 // Cannot use `#[e2e::test]`: this test installs the binary into a temporary `CARGO_HOME`.
@@ -72,9 +64,9 @@ fn cargo_external_subcommand_help_succeeds() {
 
 #[e2e::test(target = "tests/crates/workspace-selection")]
 fn workspace_without_package_lists_members(output: e2e::ToolError) {
-    let stderr = output.stderr();
-    assert!(stderr.contains("-p"), "{stderr}");
-    assert!(stderr.contains("one") && stderr.contains("two"), "{stderr}");
+    output.stderr_contains("-p");
+    output.stderr_contains("one");
+    output.stderr_contains("two");
 }
 
 #[e2e::test(
@@ -82,7 +74,7 @@ fn workspace_without_package_lists_members(output: e2e::ToolError) {
     args = ["-p", "missing"]
 )]
 fn workspace_rejects_package_that_is_not_a_member(output: e2e::ToolError) {
-    assert!(output.stderr().contains("not a workspace member"));
+    output.stderr_contains("not a workspace member");
 }
 
 #[e2e::test(
@@ -90,11 +82,8 @@ fn workspace_rejects_package_that_is_not_a_member(output: e2e::ToolError) {
     args = ["-p", "workspace-member", "--dry-run"]
 )]
 fn workspace_member_extraction_builds_the_isolated_copy(test: e2e::Test, _: e2e::ToolOutput) {
-    let manifest = test
-        .read_to_string("target/haloumi/.crates/workspace-member-0.1.0/Cargo.toml")
-        .unwrap();
-    let manifest: toml::Value = toml::from_str(&manifest).unwrap();
-    assert!(manifest.get("workspace").is_some());
+    let manifest = test.manifest("target/haloumi/.crates/workspace-member-0.1.0/Cargo.toml");
+    assert!(manifest.workspace.is_some());
 }
 
 fn malformed_configuration_before(test: &mut e2e::Test) -> String {
@@ -133,25 +122,15 @@ fn no_configuration_creates_an_isolated_extraction_copy_without_backend_outputs(
     original_manifest: String,
     original_source: String,
 ) {
-    assert_eq!(
-        test.read_to_string("Cargo.toml").unwrap(),
-        original_manifest
-    );
-    assert_eq!(test.read_to_string("src/lib.rs").unwrap(), original_source);
+    test.file_eq("Cargo.toml", &original_manifest);
+    test.file_eq("src/lib.rs", &original_source);
 
-    let extracted_root = test
-        .target()
-        .join("target/haloumi/.crates/extraction-root-0.1.0");
-    let generated = extracted_root.join("src/bin/haloumi-extractor.rs");
-    assert!(generated.is_file());
-    assert!(
-        fs::read_to_string(generated)
-            .unwrap()
-            .contains("extraction_root::harnesses()")
-    );
-    assert!(!test.target().join("target/haloumi/ir").exists());
-    assert!(!test.target().join("target/haloumi/picus").exists());
-    assert!(!test.target().join("target/haloumi/llzk").exists());
+    let generated = "target/haloumi/.crates/extraction-root-0.1.0/src/bin/haloumi-extractor.rs";
+    test.file_exists(generated);
+    test.file_contains(generated, "extraction_root::harnesses()");
+    test.path_not_exists("target/haloumi/ir");
+    test.path_not_exists("target/haloumi/picus");
+    test.path_not_exists("target/haloumi/llzk");
 }
 
 #[e2e::test(target = "tests/crates/missing-configured-specs-path")]
@@ -159,13 +138,9 @@ fn missing_configured_specs_path_fails_before_creating_workspace(
     test: e2e::Test,
     output: e2e::ToolError,
 ) {
-    let stderr = output.stderr();
-    assert!(
-        stderr.contains("Unsupported filesystem object at"),
-        "{stderr}"
-    );
-    assert!(stderr.contains("missing-specs"), "{stderr}");
-    assert!(!test.target().join("target/haloumi").exists());
+    output.stderr_contains("Unsupported filesystem object at");
+    output.stderr_contains("missing-specs");
+    test.path_not_exists("target/haloumi");
 }
 
 #[e2e::test(
@@ -173,30 +148,22 @@ fn missing_configured_specs_path_fails_before_creating_workspace(
     args = ["--dry-run"]
 )]
 fn disabled_autobins_still_builds_the_generated_extractor(test: e2e::Test, _: e2e::ToolOutput) {
-    let manifest = test
-        .read_to_string("target/haloumi/.crates/autobins-disabled-root-0.1.0/Cargo.toml")
-        .unwrap();
-    let manifest: toml::Value = toml::from_str(&manifest).unwrap();
-    let bins = manifest["bin"].as_array().unwrap();
+    let manifest = test.manifest("target/haloumi/.crates/autobins-disabled-root-0.1.0/Cargo.toml");
+    let bins = &manifest.bin;
     assert_eq!(bins.len(), 1);
-    assert_eq!(bins[0]["name"].as_str(), Some("haloumi-extractor"));
+    assert_eq!(bins[0].name.as_deref(), Some("haloumi-extractor"));
     assert_eq!(
-        bins[0]["path"].as_str(),
+        bins[0].path.as_deref(),
         Some("src/bin/haloumi-extractor.rs")
     );
 }
 
 #[e2e::test(target = "tests/crates/stale-artifacts-root", args = ["--output", "outputs"])]
 fn execution_removes_all_stale_haloumi_artifacts(test: e2e::Test, _: e2e::ToolOutput) {
-    let artifacts = test.target().join("outputs");
-    assert!(!artifacts.join(".crates/stale-crate/marker").exists());
-    assert!(!artifacts.join(".cargo/stale-build").exists());
-    assert!(!artifacts.join("ir/stale-result").exists());
-    assert!(
-        artifacts
-            .join(".crates/stale-artifacts-root-0.1.0/src/bin/haloumi-extractor.rs")
-            .is_file()
-    );
+    test.path_not_exists("outputs/.crates/stale-crate/marker");
+    test.path_not_exists("outputs/.cargo/stale-build");
+    test.path_not_exists("outputs/ir/stale-result");
+    test.file_exists("outputs/.crates/stale-artifacts-root-0.1.0/src/bin/haloumi-extractor.rs");
 }
 
 #[e2e::test(target = "tests/crates/explicit-lib-name-root")]
@@ -204,12 +171,10 @@ fn explicit_library_target_name_is_used_by_the_generated_extractor(
     test: e2e::Test,
     _: e2e::ToolOutput,
 ) {
-    let generated = test
-        .read_to_string(
-            "target/haloumi/.crates/explicit-lib-name-root-0.1.0/src/bin/haloumi-extractor.rs",
-        )
-        .unwrap();
-    assert!(generated.contains("extraction_api::harnesses()"));
+    test.file_contains(
+        "target/haloumi/.crates/explicit-lib-name-root-0.1.0/src/bin/haloumi-extractor.rs",
+        "extraction_api::harnesses()",
+    );
 }
 
 // Cannot use `#[e2e::test]`: this test needs a caller directory distinct from the target root.
@@ -236,35 +201,40 @@ fn root_runs_extraction_from_a_separate_directory() {
 
 #[e2e::test(target = "tests/crates/aliased-patch-root")]
 fn matching_spec_patches_an_aliased_direct_dependency_copy(test: e2e::Test, _: e2e::ToolOutput) {
-    assert_eq!(
-        test.read_to_string("dependency/src/lib.rs").unwrap(),
-        include_str!("crates/aliased-patch-root/dependency/src/lib.rs")
+    test.file_eq(
+        "dependency/src/lib.rs",
+        include_str!("crates/aliased-patch-root/dependency/src/lib.rs"),
     );
-    assert_eq!(
-        test.read_to_string("Cargo.toml").unwrap(),
-        include_str!("crates/aliased-patch-root/Cargo.toml")
+    test.file_eq(
+        "Cargo.toml",
+        include_str!("crates/aliased-patch-root/Cargo.toml"),
     );
 
     let copied_root = "target/haloumi/.crates/aliased-patch-root-0.1.0";
     let copied_dependency = "target/haloumi/.crates/target-dependency-0.1.0";
-    assert!(
-        test.read_to_string(format!("{copied_dependency}/src/lib.rs"))
-            .unwrap()
-            .contains("pub const PATCHED: bool = true;")
+    test.file_contains(
+        format!("{copied_dependency}/src/lib.rs"),
+        "pub const PATCHED: bool = true;",
     );
 
-    let copied_manifest = test
-        .read_to_string(format!("{copied_root}/Cargo.toml"))
-        .unwrap();
-    assert!(copied_manifest.contains("patched"));
-    assert!(copied_manifest.contains("package = \"target-dependency\""));
-    assert!(copied_manifest.contains(&test.target().join(copied_dependency).display().to_string()));
+    let copied_manifest = test.manifest(format!("{copied_root}/Cargo.toml"));
+    let patched = copied_manifest.dependencies.get("patched").unwrap();
+    assert_eq!(patched.package(), Some("target-dependency"));
+    let patched_path = patched.detail().unwrap().path.as_ref().unwrap();
+    assert_eq!(
+        Path::new(patched_path).canonicalize().unwrap(),
+        test.target()
+            .join(copied_dependency)
+            .canonicalize()
+            .unwrap(),
+    );
 
-    let copied_dependency_manifest = test
-        .read_to_string(format!("{copied_dependency}/Cargo.toml"))
+    let copied_dependency_manifest = test.manifest(format!("{copied_dependency}/Cargo.toml"));
+    let helper = copied_dependency_manifest
+        .dependencies
+        .get("helper")
         .unwrap();
-    let manifest: toml::Value = toml::from_str(&copied_dependency_manifest).unwrap();
-    let helper_path = manifest["dependencies"]["helper"]["path"].as_str().unwrap();
+    let helper_path = helper.detail().unwrap().path.as_ref().unwrap();
     assert!(Path::new(helper_path).is_absolute());
     assert_eq!(
         Path::new(helper_path).canonicalize().unwrap(),
@@ -277,10 +247,9 @@ fn matching_spec_from_a_configured_file_patches_a_direct_dependency_copy(
     test: e2e::Test,
     _: e2e::ToolOutput,
 ) {
-    assert!(
-        test.read_to_string("target/haloumi/.crates/target-dependency-0.1.0/src/lib.rs")
-            .unwrap()
-            .contains("pub const PATCHED: bool = true;")
+    test.file_contains(
+        "target/haloumi/.crates/target-dependency-0.1.0/src/lib.rs",
+        "pub const PATCHED: bool = true;",
     );
 }
 
@@ -295,43 +264,32 @@ fn matching_spec_patches_all_matching_aliased_direct_dependency_versions(
     let copied_root = "target/haloumi/.crates/multi-version-aliased-patch-root-0.1.0";
     let copied_foo_10 = "target/haloumi/.crates/foo-1.0.0";
     let copied_foo_11 = "target/haloumi/.crates/foo-1.1.0";
-    assert!(
-        test.read_to_string(format!("{copied_foo_10}/src/lib.rs"))
-            .unwrap()
-            .contains("pub const PATCHED: bool = true;")
+    test.file_contains(
+        format!("{copied_foo_10}/src/lib.rs"),
+        "pub const PATCHED: bool = true;",
     );
-    assert!(
-        test.read_to_string(format!("{copied_foo_11}/src/lib.rs"))
-            .unwrap()
-            .contains("pub const PATCHED: bool = true;")
+    test.file_contains(
+        format!("{copied_foo_11}/src/lib.rs"),
+        "pub const PATCHED: bool = true;",
     );
-    assert!(
-        !test
-            .target()
-            .join("target/haloumi/.crates/foo-2.0.0")
-            .exists()
-    );
+    test.path_not_exists("target/haloumi/.crates/foo-2.0.0");
 
-    let copied_manifest = test
-        .read_to_string(format!("{copied_root}/Cargo.toml"))
-        .unwrap();
-    let manifest: toml::Value = toml::from_str(&copied_manifest).unwrap();
+    let manifest = test.manifest(format!("{copied_root}/Cargo.toml"));
     for (alias, copied_dependency) in [("foo_10", copied_foo_10), ("foo_11", copied_foo_11)] {
-        let dependency = &manifest["dependencies"][alias];
+        let dependency = manifest.dependencies.get(alias).unwrap();
+        let dependency_path = dependency.detail().unwrap().path.as_ref().unwrap();
         assert_eq!(
-            Path::new(dependency["path"].as_str().unwrap())
-                .canonicalize()
-                .unwrap(),
+            Path::new(dependency_path).canonicalize().unwrap(),
             test.target()
                 .join(copied_dependency)
                 .canonicalize()
                 .unwrap()
         );
     }
+    let dependency = manifest.dependencies.get("foo_20").unwrap();
+    let dependency_path = dependency.detail().unwrap().path.as_ref().unwrap();
     assert_eq!(
-        Path::new(manifest["dependencies"]["foo_20"]["path"].as_str().unwrap())
-            .canonicalize()
-            .unwrap(),
+        Path::new(dependency_path).canonicalize().unwrap(),
         test.target().join("foo_20").canonicalize().unwrap()
     );
 }
@@ -356,20 +314,12 @@ fn distinct_package_id_aliases_before(test: &mut e2e::Test) {
         ],
     );
 
-    let manifest_path = test.target().join("Cargo.toml");
-    let manifest = fs::read_to_string(&manifest_path).unwrap();
-    let git_dependency = format!(
-        "source_two = {{ package = \"same-dependency\", git = \"file://{}\" }}",
-        git_source.display()
-    );
-    fs::write(
-        &manifest_path,
-        manifest.replace(
-            "source_two = { package = \"same-dependency\", path = \"source-two\" }",
-            &git_dependency,
-        ),
-    )
-    .unwrap();
+    let mut manifest = test.manifest("Cargo.toml");
+    let dependency = manifest.dependencies.get_mut("source_two").unwrap();
+    let dependency = dependency.detail_mut();
+    dependency.path = None;
+    dependency.git = Some(format!("file://{}", git_source.display()));
+    test.write_manifest("Cargo.toml", &manifest);
 
     test.env("CARGO_HOME", test.target().join("cargo-home"));
 }
@@ -382,11 +332,8 @@ fn distinct_package_id_aliases_before(test: &mut e2e::Test) {
 fn matching_spec_rejects_same_name_and_version_dependencies_from_distinct_sources(
     output: e2e::ToolError,
 ) {
-    assert!(
-        output.stderr().contains(
-            "multiple direct dependencies named same-dependency 0.1.0 resolve to different package IDs; patching them is unsupported"
-        ),
-        "{output:?}"
+    output.stderr_contains(
+        "multiple direct dependencies named same-dependency 0.1.0 resolve to different package IDs; patching them is unsupported",
     );
 }
 
@@ -394,21 +341,16 @@ fn matching_spec_rejects_same_name_and_version_dependencies_from_distinct_source
 fn matching_spec_patches_a_hyphenated_direct_dependency_copy(test: e2e::Test, _: e2e::ToolOutput) {
     let copied_root = "target/haloumi/.crates/hyphenated-patch-root-0.1.0";
     let copied_dependency = "target/haloumi/.crates/target-dependency-0.1.0";
-    assert!(
-        test.read_to_string(format!("{copied_dependency}/src/lib.rs"))
-            .unwrap()
-            .contains("pub const PATCHED: bool = true;")
+    test.file_contains(
+        format!("{copied_dependency}/src/lib.rs"),
+        "pub const PATCHED: bool = true;",
     );
 
-    let copied_manifest = test
-        .read_to_string(format!("{copied_root}/Cargo.toml"))
-        .unwrap();
-    let manifest: toml::Value = toml::from_str(&copied_manifest).unwrap();
-    let dependency = &manifest["dependencies"]["target-dependency"];
+    let manifest = test.manifest(format!("{copied_root}/Cargo.toml"));
+    let dependency = manifest.dependencies.get("target-dependency").unwrap();
+    let dependency_path = dependency.detail().unwrap().path.as_ref().unwrap();
     assert_eq!(
-        Path::new(dependency["path"].as_str().unwrap())
-            .canonicalize()
-            .unwrap(),
+        Path::new(dependency_path).canonicalize().unwrap(),
         test.target()
             .join(copied_dependency)
             .canonicalize()
@@ -418,36 +360,24 @@ fn matching_spec_patches_a_hyphenated_direct_dependency_copy(test: e2e::Test, _:
 
 #[e2e::test(target = "tests/crates/ambiguous-specs-root")]
 fn ambiguous_specs_fail_before_cargo_execution(output: e2e::ToolError) {
-    assert!(
-        output
-            .stderr()
-            .contains("2 specs match target-dependency 0.1.0")
-    );
+    output.stderr_contains("2 specs match target-dependency 0.1.0");
 }
 
 #[e2e::test(target = "tests/crates/generated-binary-collision")]
 fn generated_extractor_binary_collision_is_reported(test: e2e::Test, output: e2e::ToolError) {
-    assert!(
-        output
-            .stderr()
-            .contains("Binary 'haloumi-extractor' is already in the manifest")
-    );
-    assert_eq!(
-        test.read_to_string("src/bin/haloumi-extractor.rs").unwrap(),
-        include_str!("crates/generated-binary-collision/src/bin/haloumi-extractor.rs")
+    output.stderr_contains("Binary 'haloumi-extractor' is already in the manifest");
+    test.file_eq(
+        "src/bin/haloumi-extractor.rs",
+        include_str!("crates/generated-binary-collision/src/bin/haloumi-extractor.rs"),
     );
 }
 
 #[e2e::test(target = "tests/crates/declared-binary-collision")]
 fn declared_extractor_binary_target_collision_is_reported(test: e2e::Test, output: e2e::ToolError) {
-    assert!(
-        output
-            .stderr()
-            .contains("Binary 'haloumi-extractor' is already in the manifest")
-    );
-    assert_eq!(
-        test.read_to_string("Cargo.toml").unwrap(),
-        include_str!("crates/declared-binary-collision/Cargo.toml")
+    output.stderr_contains("Binary 'haloumi-extractor' is already in the manifest");
+    test.file_eq(
+        "Cargo.toml",
+        include_str!("crates/declared-binary-collision/Cargo.toml"),
     );
 }
 
@@ -456,14 +386,11 @@ fn declared_extractor_binary_target_collision_is_reported(test: e2e::Test, outpu
     args = ["--dry-run"]
 )]
 fn compatible_existing_runner_dependency_is_merged(test: e2e::Test, _: e2e::ToolOutput) {
-    let copied = test
-        .read_to_string("target/haloumi/.crates/merged-runner-dependency-0.1.0/Cargo.toml")
-        .unwrap();
-    assert!(copied.contains("version = \">=0.1.0\""), "{copied}");
-    assert!(
-        copied.contains("existing") && copied.contains("requested"),
-        "{copied}"
-    );
+    let manifest =
+        test.manifest("target/haloumi/.crates/merged-runner-dependency-0.1.0/Cargo.toml");
+    let dependency = manifest.dependencies.get("custom-extractor").unwrap();
+    assert_eq!(dependency.req().to_string(), ">=0.1.0");
+    assert_eq!(dependency.req_features(), ["existing", "requested"]);
 }
 
 #[e2e::test(
@@ -471,13 +398,7 @@ fn compatible_existing_runner_dependency_is_merged(test: e2e::Test, _: e2e::Tool
     args = ["--dry-run"]
 )]
 fn incompatible_existing_runner_version_is_reported_before_building(output: e2e::ToolError) {
-    assert!(
-        output
-            .stderr()
-            .contains("dependency 'custom-extractor' conflicts with extractor configuration"),
-        "{}",
-        output.stderr()
-    );
+    output.stderr_contains("dependency 'custom-extractor' conflicts with extractor configuration");
 }
 
 #[e2e::test(
@@ -485,13 +406,7 @@ fn incompatible_existing_runner_version_is_reported_before_building(output: e2e:
     args = ["--dry-run"]
 )]
 fn unrelated_existing_runner_dependency_is_reported(output: e2e::ToolError) {
-    assert!(
-        output
-            .stderr()
-            .contains("dependency 'custom-extractor' conflicts with extractor configuration"),
-        "{}",
-        output.stderr()
-    );
+    output.stderr_contains("dependency 'custom-extractor' conflicts with extractor configuration");
 }
 
 #[e2e::test(
@@ -499,20 +414,10 @@ fn unrelated_existing_runner_dependency_is_reported(output: e2e::ToolError) {
     args = ["--dry-run"]
 )]
 fn incompatible_existing_extractor_support_dependency_is_reported(output: e2e::ToolError) {
-    assert!(
-        output
-            .stderr()
-            .contains("dependency 'support' conflicts with extractor configuration"),
-        "{}",
-        output.stderr()
-    );
+    output.stderr_contains("dependency 'support' conflicts with extractor configuration");
 }
 
 #[e2e::test(target = "tests/crates/enabled-llzk-without-field")]
 fn enabled_llzk_requires_a_field(output: e2e::ToolError) {
-    assert!(
-        output
-            .stderr()
-            .contains("LLZK is enabled but backends.llzk.field is missing")
-    );
+    output.stderr_contains("LLZK is enabled but backends.llzk.field is missing");
 }

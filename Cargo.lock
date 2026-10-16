@@ -611,6 +611,7 @@ checksum = "c37b399c91d093763e38c7a57a740e0005e30e5aff7132e791aada5eef3fed99"
 name = "e2e"
 version = "0.6.0"
 dependencies = [
+ "cargo_toml",
  "e2e-testing-macros",
  "llzk",
  "log",
@@ -618,6 +619,7 @@ dependencies = [
  "similar-asserts",
  "simplelog",
  "tempfile",
+ "toml",
 ]
 
 [[package]]

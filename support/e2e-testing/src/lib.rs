@@ -148,6 +148,56 @@ impl Test {
         fs::read_to_string(self.target.path().join(path))
     }
 
+    /// Asserts that a UTF-8 file relative to the target crate directory equals `expected`.
+    pub fn file_eq(&self, path: impl AsRef<Path>, expected: &str) {
+        let path = path.as_ref();
+        let actual = self
+            .read_to_string(path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+        assert_eq!(actual, expected, "contents of {}", path.display());
+    }
+
+    /// Asserts that a UTF-8 file relative to the target crate directory contains `expected`.
+    pub fn file_contains(&self, path: impl AsRef<Path>, expected: &str) {
+        let path = path.as_ref();
+        let actual = self
+            .read_to_string(path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
+        assert!(
+            actual.contains(expected),
+            "contents of {} do not contain {expected:?}:\n{actual}",
+            path.display()
+        );
+    }
+
+    /// Asserts that a path relative to the target crate directory does not exist.
+    pub fn path_not_exists(&self, path: impl AsRef<Path>) {
+        let path = self.target.path().join(path);
+        assert!(!path.exists(), "{} unexpectedly exists", path.display());
+    }
+
+    /// Asserts that a regular file relative to the target crate directory exists.
+    pub fn file_exists(&self, path: impl AsRef<Path>) {
+        let path = self.target.path().join(path);
+        assert!(path.is_file(), "{} is not a file", path.display());
+    }
+
+    /// Parses a Cargo manifest relative to the target crate directory.
+    pub fn manifest(&self, path: impl AsRef<Path>) -> cargo_toml::Manifest {
+        let path = self.target.path().join(path);
+        cargo_toml::Manifest::from_path(&path)
+            .unwrap_or_else(|error| panic!("failed to parse {}: {error}", path.display()))
+    }
+
+    /// Writes a Cargo manifest relative to the target crate directory.
+    pub fn write_manifest(&self, path: impl AsRef<Path>, manifest: &cargo_toml::Manifest) {
+        let path = self.target.path().join(path);
+        let contents = toml::to_string(manifest)
+            .unwrap_or_else(|error| panic!("failed to serialize {}: {error}", path.display()));
+        fs::write(&path, contents)
+            .unwrap_or_else(|error| panic!("failed to write {}: {error}", path.display()));
+    }
+
     /// Sets an environment variable for the tool invocation.
     pub fn env(&mut self, key: impl AsRef<OsStr>, value: impl AsRef<OsStr>) -> &mut Self {
         self.command.env(key, value);
@@ -193,6 +243,24 @@ struct ToolCommon {
     stderr: String,
 }
 
+impl ToolCommon {
+    fn stdout_contains(&self, expected: &str) {
+        assert!(
+            self.stdout.contains(expected),
+            "stdout does not contain {expected:?}:\n{}",
+            self.stdout
+        );
+    }
+
+    fn stderr_contains(&self, expected: &str) {
+        assert!(
+            self.stderr.contains(expected),
+            "stderr does not contain {expected:?}:\n{}",
+            self.stderr
+        );
+    }
+}
+
 /// Output produced by the tool on a succesful run.
 #[derive(Debug)]
 pub struct ToolOutput {
@@ -202,6 +270,16 @@ pub struct ToolOutput {
 }
 
 impl ToolOutput {
+    /// Asserts that stdout contains `expected`.
+    pub fn stdout_contains(&self, expected: &str) {
+        self.common.stdout_contains(expected);
+    }
+
+    /// Asserts that stderr contains `expected`.
+    pub fn stderr_contains(&self, expected: &str) {
+        self.common.stderr_contains(expected);
+    }
+
     pub fn stdout(&self) -> &str {
         &self.common.stdout
     }
@@ -240,6 +318,16 @@ pub struct ToolError {
 }
 
 impl ToolError {
+    /// Asserts that stdout contains `expected`.
+    pub fn stdout_contains(&self, expected: &str) {
+        self.common.stdout_contains(expected);
+    }
+
+    /// Asserts that stderr contains `expected`.
+    pub fn stderr_contains(&self, expected: &str) {
+        self.common.stderr_contains(expected);
+    }
+
     pub fn stdout(&self) -> &str {
         &self.common.stdout
     }

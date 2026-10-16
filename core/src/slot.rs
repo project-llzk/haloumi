@@ -190,6 +190,7 @@ mod tests {
 
     use super::*;
 
+    #[cfg(feature = "serde")]
     #[derive(Debug, PartialEq, Eq)]
     enum SlotParts {
         Arg(usize),
@@ -202,6 +203,7 @@ mod tests {
         Challenge(usize, u8, usize),
     }
 
+    #[cfg(feature = "serde")]
     impl SlotParts {
         fn new(value: &Slot) -> Self {
             match value {

@@ -311,15 +311,15 @@ impl Lowering for LlzkStructLowering<'_, '_> {
         lhs: &Self::CellOutput<'o>,
         rhs: &Self::CellOutput<'o>,
     ) -> LoweringResult<()> {
-        let loc = Location::new(
-            self.context(),
-            filename(self.struct_name(), Some("constraints")).as_str(),
-            self.constraints_counter.peek(),
-            0,
-        );
-        self.constraints_counter.step();
         let cond = match op {
             CmpOp::Eq => {
+                let loc = Location::new(
+                    self.context(),
+                    filename(self.struct_name(), Some("constraints")).as_str(),
+                    self.constraints_counter.peek(),
+                    0,
+                );
+                self.constraints_counter.step();
                 dialect::constrain::eq(self.builder(), loc, *lhs, *rhs);
                 return Ok(());
             }

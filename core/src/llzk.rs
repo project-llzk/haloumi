@@ -4,7 +4,7 @@
 //! dependencies.
 
 /// Possible output formats for LLZK
-#[derive(Debug, PartialEq, Eq, Default, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Deserialize),

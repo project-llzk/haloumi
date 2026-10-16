@@ -2,7 +2,7 @@
 midnight-proofs = ">= 0.8.0"
 
 [dependencies]
-haloumi-integration = { path = "/Users/foldr/code/veridise/llzk/haloumi/integration/", features = ["derive"] }
+haloumi-integration = { version = "0.6.0", features = ["derive"] }
 
 ###-------------------------------------------------------------------------------###
 ### src/circuit/floor_planner/single_pass.rs

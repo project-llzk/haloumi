@@ -1,0 +1,6 @@
+[targets]
+foo = "1"
+
+[[patch.append]]
+path = "src/lib.rs"
+content = "pub const PATCHED: bool = true;"

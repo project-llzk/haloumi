@@ -1,0 +1,11 @@
+[package]
+name = "declared-binary-collision"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "haloumi-extractor"
+path = "src/other-extractor.rs"
+
+[dependencies]
+haloumi-extractor-runner = { path = "extractor" }

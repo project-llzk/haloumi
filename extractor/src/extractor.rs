@@ -10,7 +10,8 @@ use haloumi_core::{
 use haloumi_driver::driver::Driver;
 
 use haloumi_ir_gen::{
-    IRGenParams, circuit::resolved::ResolvedIRCircuit, lookups::callbacks::LookupCallbacks,
+    IRGenParams, circuit::resolved::ResolvedIRCircuit, gates::callbacks::GateCallbacks,
+    lookups::callbacks::LookupCallbacks,
 };
 use haloumi_synthesis::CircuitSynthesis;
 
@@ -161,10 +162,29 @@ impl<'cfg> Extractor<'cfg> {
         <CS as ConstraintSystemInfo<F>>::Polynomial:
             std::fmt::Debug + EvaluableExpr<F> + Clone + ExpressionInfo + ExprBuilder<F>,
     {
+        self.extract_circuit_with_callbacks(circuit, lookups, None)
+    }
+
+    /// Extracts the circuit to IR using the driver, lowering gates with the given callbacks.
+    pub fn extract_circuit_with_callbacks<'c, F, C, M, T, CS>(
+        &self,
+        circuit: CircuitImpl<'c, F, C, CS, T, M>,
+        lookups: Option<&dyn LookupCallbacks<F, CS::Polynomial>>,
+        gates: Option<&dyn GateCallbacks<F, CS::Polynomial>>,
+    ) -> Result<ResolvedIRCircuit, Error>
+    where
+        F: PrimeField + Ord,
+        C: AbstractCircuitIO + ChipArgs,
+        T: Types<F> + std::fmt::Debug,
+        CircuitImpl<'c, F, C, CS, T, M>: for<'a> CircuitSynthesis<'a, F, CS = CS>,
+        CS: ConstraintSystemInfo<F, Polynomial = T::Expression> + Default + 'static,
+        <CS as ConstraintSystemInfo<F>>::Polynomial:
+            std::fmt::Debug + EvaluableExpr<F> + Clone + ExpressionInfo + ExprBuilder<F>,
+    {
         let mut driver = Driver::default();
         let syn = driver.synthesize(&circuit)?;
         log::info!("Synthesis completed");
-        let ir_params = self.prepare_ir_gen_params(lookups);
+        let ir_params = self.prepare_ir_gen_params(lookups, gates);
         let mut unresolved = driver.generate_ir(&syn, ir_params)?;
         unresolved.validate()?;
 
@@ -178,20 +198,23 @@ impl<'cfg> Extractor<'cfg> {
         Ok(resolved)
     }
 
-    fn prepare_ir_gen_params<'lc, F, E>(
+    fn prepare_ir_gen_params<'lc, 'gc, F, E>(
         &self,
         lookups: Option<&'lc dyn LookupCallbacks<F, E>>,
-    ) -> IRGenParams<'lc, '_, F, E>
+        gates: Option<&'gc dyn GateCallbacks<F, E>>,
+    ) -> IRGenParams<'lc, 'gc, F, E>
     where
         F: ff::Field,
     {
         let mut ir_params = IRGenParams::new();
-        //ir_params.gate_callbacks(self.cfg.gate_callbacks());
         if matches!(self.cfg.debug_comments, Comments::Debug) {
             ir_params.with_debug_comments();
         }
         if let Some(lookups) = lookups {
             ir_params.lookup_callbacks(lookups);
+        }
+        if let Some(gates) = gates {
+            ir_params.gate_callbacks(gates);
         }
         ir_params
     }

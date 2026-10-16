@@ -15,6 +15,7 @@ use haloumi_synthesis::{
 
 use crate::{
     expressions::{ScopedExpression, constant_folding::ConstantFolding},
+    patterns::find_selector_factors,
     regions::region_row::RegionRow,
     resolvers::FixedQueryResolver,
 };
@@ -92,6 +93,23 @@ impl<'syn, 'io, F: Field, E> GateScope<'syn, 'io, F, E> {
             self.instance_io,
             self.fqr,
         ))
+    }
+
+    /// Returns the rows of the region where `poly` is enforced, i.e. where every selector that
+    /// multiplies the whole polynomial is enabled. A polynomial without such selectors is
+    /// enforced on every row.
+    pub fn enabled_rows(&self, poly: &E) -> impl Iterator<Item = usize> + use<'_, 'syn, 'io, F, E>
+    where
+        E: EvaluableExpr<F>,
+    {
+        let selectors = find_selector_factors(poly);
+        self.region_rows()
+            .filter(move |row| {
+                selectors
+                    .iter()
+                    .all(|selector| row.selector_is_enabled(selector))
+            })
+            .map(|row| row.row_number())
     }
 
     pub(crate) fn region_rows(&self) -> impl Iterator<Item = RegionRow<'syn, 'io, 'syn, F>> {

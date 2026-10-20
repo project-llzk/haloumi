@@ -31,6 +31,9 @@ struct Args {
     /// Build the generated extractor without running it.
     #[arg(long)]
     dry_run: bool,
+    /// Directory for Haloumi's generated output, relative to the project root by default.
+    #[arg(long)]
+    output: Option<PathBuf>,
 }
 
 #[derive(Debug, thiserror::Error)]

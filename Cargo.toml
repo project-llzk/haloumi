@@ -16,6 +16,8 @@ members = [
   "integration-macros",
   "support/mock-halo2",
   "support/test-circuits",
+  "support/e2e-testing",
+  "support/e2e-testing-macros",
   "inject",
   "inject-tester",
   "cli"

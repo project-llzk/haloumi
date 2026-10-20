@@ -69,7 +69,7 @@ impl App {
         let project = CargoProject::load(root, config.target())?;
         let target = project.select_package(&args)?;
         config.validate()?;
-        let paths = ManagedPaths::new(project.root());
+        let paths = ManagedPaths::new(project.root(), args.output.as_deref());
 
         Ok(Self {
             state: AppState {
@@ -249,8 +249,16 @@ impl SelectedPackage {
 }
 
 impl ManagedPaths {
-    fn new(root: &Path) -> Self {
-        let output = root.join("target/haloumi");
+    fn new(root: &Path, output: Option<&Path>) -> Self {
+        let output = output
+            .map(|path| {
+                if path.is_absolute() {
+                    path.to_path_buf()
+                } else {
+                    root.join(path)
+                }
+            })
+            .unwrap_or_else(|| root.join("target/haloumi"));
         Self {
             root: root.to_path_buf(),
             crates: output.join(".crates"),

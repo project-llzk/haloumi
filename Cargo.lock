@@ -248,6 +248,7 @@ dependencies = [
  "cargo_metadata",
  "cargo_toml",
  "clap",
+ "e2e",
  "env_logger",
  "haloumi-core",
  "haloumi-inject",
@@ -605,6 +606,30 @@ name = "disjoint"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c37b399c91d093763e38c7a57a740e0005e30e5aff7132e791aada5eef3fed99"
+
+[[package]]
+name = "e2e"
+version = "0.6.0"
+dependencies = [
+ "cargo_toml",
+ "e2e-testing-macros",
+ "llzk",
+ "log",
+ "mlir-testutils",
+ "similar-asserts",
+ "simplelog",
+ "tempfile",
+ "toml",
+]
+
+[[package]]
+name = "e2e-testing-macros"
+version = "0.6.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
 
 [[package]]
 name = "either"

@@ -1,0 +1,18 @@
+[package]
+name = "e2e"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+cargo_toml = "1"
+e2e-testing-macros = { path = "../e2e-testing-macros" }
+log.workspace = true
+simplelog = { version = "0.12", features = ["test"] }
+similar-asserts.workspace = true
+tempfile = "3"
+toml = "1"
+mlir-testutils.workspace = true
+llzk.workspace = true
